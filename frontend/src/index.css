@@ -1,0 +1,15 @@
+:root {
+  color-scheme: light dark;
+  background-color: #ffffff;
+}
+
+body {
+  margin: 0;
+  padding: 0;
+  background-color: #ffffff;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
