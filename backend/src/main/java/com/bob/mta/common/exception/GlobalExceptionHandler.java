@@ -30,6 +30,11 @@ public class GlobalExceptionHandler {
         log.warn("Business exception: {}", ex.getMessage());
         return ResponseEntity.status(status)
                 .body(ApiResponse.failure(ex.getErrorCode(), ex.getMessage()));
+      
+    @ResponseStatus(HttpStatus.BAD_REQUEST)
+    public ApiResponse<Void> handleBusinessException(final BusinessException ex) {
+        log.warn("Business exception: {}", ex.getMessage());
+        return ApiResponse.failure(ex.getErrorCode(), ex.getMessage());
     }
 
     @ExceptionHandler(MethodArgumentNotValidException.class)
