@@ -1,5 +1,6 @@
 package com.bob.mta.modules.user.domain;
 
+<<<<<<< HEAD
 import java.time.OffsetDateTime;
 
 public class ActivationToken {
@@ -28,5 +29,16 @@ public class ActivationToken {
 
     public boolean isExpired() {
         return OffsetDateTime.now().isAfter(expiresAt);
+=======
+import java.time.Instant;
+
+/**
+ * Represents an activation token issued to a user awaiting verification.
+ */
+public record ActivationToken(String token, Instant expiresAt) {
+
+    public boolean isExpired(final Instant now) {
+        return expiresAt.isBefore(now) || expiresAt.equals(now);
+>>>>>>> origin/main
     }
 }
