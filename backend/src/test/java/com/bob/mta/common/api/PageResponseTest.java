@@ -1,14 +1,32 @@
 package com.bob.mta.common.api;
 
+<<<<<<< HEAD
+import org.junit.jupiter.api.Test;
+
+import java.util.List;
+
+import static org.assertj.core.api.Assertions.assertThat;
+=======
 import static org.assertj.core.api.Assertions.assertThat;
 
 import java.util.List;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+>>>>>>> origin/main
 
 class PageResponseTest {
 
     @Test
+<<<<<<< HEAD
+    void ofShouldExposePaginationInfo() {
+        PageResponse<String> response = PageResponse.of(List.of("a", "b"), 5, 1, 2);
+        assertThat(response.getItems()).containsExactly("a", "b");
+        assertThat(response.getTotal()).isEqualTo(5);
+        assertThat(response.getPage()).isEqualTo(1);
+        assertThat(response.getSize()).isEqualTo(2);
+    }
+}
+=======
     @DisplayName("page response captures metadata and performs defensive copy")
     void shouldCreatePageResponse() {
         final List<String> rows = List.of("a", "b");
@@ -24,3 +42,4 @@ class PageResponseTest {
     }
 }
 
+>>>>>>> origin/main

@@ -1,5 +1,27 @@
 package com.bob.mta.modules.user.dto;
 
+<<<<<<< HEAD
+import jakarta.validation.constraints.Email;
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Size;
+
+import java.util.List;
+
+public class CreateUserRequest {
+
+    @NotBlank
+    @Size(min = 3, max = 32)
+    private String username;
+
+    @NotBlank
+    private String displayName;
+
+    @Email
+    @NotBlank
+    private String email;
+
+    private List<String> roles;
+=======
 import com.bob.mta.modules.user.service.command.CreateUserCommand;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
@@ -30,12 +52,17 @@ public class CreateUserRequest {
     private String password;
 
     private List<String> roles = new ArrayList<>();
+>>>>>>> origin/main
 
     public String getUsername() {
         return username;
     }
 
+<<<<<<< HEAD
+    public void setUsername(String username) {
+=======
     public void setUsername(final String username) {
+>>>>>>> origin/main
         this.username = username;
     }
 
@@ -43,7 +70,11 @@ public class CreateUserRequest {
         return displayName;
     }
 
+<<<<<<< HEAD
+    public void setDisplayName(String displayName) {
+=======
     public void setDisplayName(final String displayName) {
+>>>>>>> origin/main
         this.displayName = displayName;
     }
 
@@ -51,6 +82,12 @@ public class CreateUserRequest {
         return email;
     }
 
+<<<<<<< HEAD
+    public void setEmail(String email) {
+        this.email = email;
+    }
+
+=======
     public void setEmail(final String email) {
         this.email = email;
     }
@@ -63,15 +100,21 @@ public class CreateUserRequest {
         this.password = password;
     }
 
+>>>>>>> origin/main
     public List<String> getRoles() {
         return roles;
     }
 
+<<<<<<< HEAD
+    public void setRoles(List<String> roles) {
+        this.roles = roles;
+=======
     public void setRoles(final List<String> roles) {
         this.roles = roles == null ? new ArrayList<>() : new ArrayList<>(roles);
     }
 
     public CreateUserCommand toCommand() {
         return new CreateUserCommand(username, displayName, email, password, roles);
+>>>>>>> origin/main
     }
 }

@@ -1,5 +1,36 @@
 package com.bob.mta.modules.plan.dto;
 
+<<<<<<< HEAD
+import com.bob.mta.modules.plan.domain.PlanNode;
+
+import java.util.List;
+
+public class PlanNodeResponse {
+
+    private final String id;
+    private final String name;
+    private final String type;
+    private final String assignee;
+    private final int order;
+    private final List<PlanNodeResponse> children;
+
+    public PlanNodeResponse(String id, String name, String type, String assignee, int order,
+                            List<PlanNodeResponse> children) {
+        this.id = id;
+        this.name = name;
+        this.type = type;
+        this.assignee = assignee;
+        this.order = order;
+        this.children = children;
+    }
+
+    public static PlanNodeResponse from(PlanNode node) {
+        List<PlanNodeResponse> childResponses = node.getChildren().stream()
+                .map(PlanNodeResponse::from)
+                .toList();
+        return new PlanNodeResponse(node.getId(), node.getName(), node.getType(), node.getAssignee(), node.getOrder(),
+                childResponses);
+=======
 import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
@@ -42,20 +73,38 @@ public class PlanNodeResponse {
         this.startedAt = startedAt;
         this.completedAt = completedAt;
         this.assignees = List.copyOf(assignees);
+>>>>>>> origin/main
     }
 
     public String getId() {
         return id;
     }
 
+<<<<<<< HEAD
+    public String getName() {
+        return name;
+=======
     public String getTitle() {
         return title;
+>>>>>>> origin/main
     }
 
     public String getType() {
         return type;
     }
 
+<<<<<<< HEAD
+    public String getAssignee() {
+        return assignee;
+    }
+
+    public int getOrder() {
+        return order;
+    }
+
+    public List<PlanNodeResponse> getChildren() {
+        return children;
+=======
     public String getStatus() {
         return status;
     }
@@ -74,5 +123,6 @@ public class PlanNodeResponse {
 
     public List<String> getAssignees() {
         return assignees;
+>>>>>>> origin/main
     }
 }

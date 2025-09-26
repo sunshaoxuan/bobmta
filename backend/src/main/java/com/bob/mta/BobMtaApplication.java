@@ -3,6 +3,8 @@ package com.bob.mta;
 import com.bob.mta.common.security.JwtProperties;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
+<<<<<<< HEAD
+=======
 import org.springframework.boot.autoconfigure.jdbc.DataSourceAutoConfiguration;
 import org.springframework.boot.autoconfigure.jdbc.DataSourceTransactionManagerAutoConfiguration;
 import org.springframework.boot.autoconfigure.jdbc.JdbcTemplateAutoConfiguration;
@@ -14,11 +16,16 @@ import org.springframework.boot.context.properties.EnableConfigurationProperties
     JdbcTemplateAutoConfiguration.class
 })
 
+>>>>>>> origin/main
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 
 @SpringBootApplication
 @EnableConfigurationProperties(JwtProperties.class)
 public class BobMtaApplication {
+<<<<<<< HEAD
+
+=======
+>>>>>>> origin/main
     public static void main(String[] args) {
         SpringApplication.run(BobMtaApplication.class, args);
     }

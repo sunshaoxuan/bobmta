@@ -1,5 +1,23 @@
 package com.bob.mta.api;
 
+<<<<<<< HEAD
+import com.bob.mta.common.api.ApiResponse;
+import org.junit.jupiter.api.Test;
+
+import static org.assertj.core.api.Assertions.assertThat;
+
+class PingControllerTest {
+
+    @Test
+    void pingShouldReturnOk() {
+        PingController controller = new PingController();
+        ApiResponse<?> response = controller.ping();
+        assertThat(response.isSuccess()).isTrue();
+        assertThat(response.getData()).asInstanceOf(org.assertj.core.api.InstanceOfAssertFactories.MAP)
+                .containsEntry("status", "ok");
+    }
+}
+=======
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -28,3 +46,4 @@ class PingControllerTest {
     }
 }
 
+>>>>>>> origin/main
