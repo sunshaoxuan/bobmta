@@ -1,0 +1,40 @@
+spring:
+  application:
+    name: bob-mta-backend
+  datasource:
+    url: jdbc:postgresql://localhost:5432/bobmta
+    username: bobmta
+    password: change-me
+    driver-class-name: org.postgresql.Driver
+  jackson:
+    serialization:
+      write-dates-as-timestamps: false
+    default-property-inclusion: non_null
+  messages:
+    basename: i18n/messages
+    encoding: UTF-8
+  mvc:
+    format:
+      date-time: yyyy-MM-dd'T'HH:mm:ssXXX
+  sql:
+    init:
+      platform: postgresql
+      mode: never
+server:
+  port: 8080
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+jwt:
+  issuer: bob-mta
+  access-token:
+    secret: change-me-please
+    expiration-minutes: 120
+logging:
+  level:
+    root: INFO
+    com.bob.mta: DEBUG
+  pattern:
+    console: '{"timestamp":"%d{yyyy-MM-dd''T''HH:mm:ss.SSSZ}","level":"%p","logger":"%c{1}","thread":"%t","message":%msg,"trace":%ex}'
