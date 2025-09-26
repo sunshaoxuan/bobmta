@@ -7,6 +7,7 @@ import java.util.Objects;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
@@ -24,6 +25,12 @@ public class GlobalExceptionHandler {
     private static final Logger log = LoggerFactory.getLogger(GlobalExceptionHandler.class);
 
     @ExceptionHandler(BusinessException.class)
+    public ResponseEntity<ApiResponse<Void>> handleBusinessException(final BusinessException ex) {
+        final HttpStatus status = mapStatus(ex.getErrorCode());
+        log.warn("Business exception: {}", ex.getMessage());
+        return ResponseEntity.status(status)
+                .body(ApiResponse.failure(ex.getErrorCode(), ex.getMessage()));
+      
     @ResponseStatus(HttpStatus.BAD_REQUEST)
     public ApiResponse<Void> handleBusinessException(final BusinessException ex) {
         log.warn("Business exception: {}", ex.getMessage());
@@ -53,5 +60,18 @@ public class GlobalExceptionHandler {
     public ApiResponse<Void> handleUnexpectedException(final Exception ex) {
         log.error("Unexpected error", ex);
         return ApiResponse.failure(ErrorCode.INTERNAL_ERROR);
+    }
+
+    private HttpStatus mapStatus(final ErrorCode errorCode) {
+        return switch (errorCode) {
+            case OK -> HttpStatus.OK;
+            case BAD_REQUEST -> HttpStatus.BAD_REQUEST;
+            case UNAUTHORIZED -> HttpStatus.UNAUTHORIZED;
+            case FORBIDDEN -> HttpStatus.FORBIDDEN;
+            case NOT_FOUND -> HttpStatus.NOT_FOUND;
+            case CONFLICT -> HttpStatus.CONFLICT;
+            case INTERNAL_ERROR -> HttpStatus.INTERNAL_SERVER_ERROR;
+            default -> HttpStatus.INTERNAL_SERVER_ERROR;
+        };
     }
 }

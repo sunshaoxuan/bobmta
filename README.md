@@ -30,6 +30,17 @@ mvn spring-boot:run
 | `GET /api/v1/plans/{id}` | 运维计划详情 | 含节点执行模式需要的结构化数据 |
 | `GET /api/ping` | 健康检查 | 便于部署级联路由验证 |
 
+#### 测试与覆盖率
+
+```bash
+cd backend
+mvn verify
+```
+
+命令会执行全部单元测试并生成 JaCoCo 覆盖率报表（`backend/target/site/jacoco/index.html`），覆盖率目标保持在 80% 以上，可作为后续持续集成基线。
+
+> 说明：首次执行需要能够访问 Maven 中央仓库以下载依赖，若运行环境受限请配置镜像或私有仓库。
+
 ### 前端
 
 ```bash
