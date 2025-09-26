@@ -30,6 +30,11 @@ public class GlobalExceptionHandler {
         log.warn("Business exception: {}", ex.getMessage());
         return ResponseEntity.status(status)
                 .body(ApiResponse.failure(ex.getErrorCode(), ex.getMessage()));
+      
+    @ResponseStatus(HttpStatus.BAD_REQUEST)
+    public ApiResponse<Void> handleBusinessException(final BusinessException ex) {
+        log.warn("Business exception: {}", ex.getMessage());
+        return ApiResponse.failure(ex.getErrorCode(), ex.getMessage());
     }
 
     @ExceptionHandler(MethodArgumentNotValidException.class)
@@ -66,6 +71,7 @@ public class GlobalExceptionHandler {
             case NOT_FOUND, USER_NOT_FOUND -> HttpStatus.NOT_FOUND;
             case CONFLICT, USERNAME_EXISTS, EMAIL_EXISTS, USER_ALREADY_ACTIVE -> HttpStatus.CONFLICT;
             case INTERNAL_ERROR -> HttpStatus.INTERNAL_SERVER_ERROR;
+            default -> HttpStatus.INTERNAL_SERVER_ERROR;
         };
     }
 }
