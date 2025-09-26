@@ -2,6 +2,9 @@ package com.bob.mta.modules.user.dto;
 
 import jakarta.validation.constraints.NotBlank;
 
+/**
+ * Payload containing an activation token submitted by the user.
+ */
 public class ActivateUserRequest {
 
     @NotBlank
@@ -11,7 +14,7 @@ public class ActivateUserRequest {
         return token;
     }
 
-    public void setToken(String token) {
+    public void setToken(final String token) {
         this.token = token;
     }
 }

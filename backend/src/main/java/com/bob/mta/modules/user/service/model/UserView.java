@@ -4,13 +4,7 @@ import com.bob.mta.modules.user.domain.UserStatus;
 import java.util.List;
 
 /**
- * Read model exposed by the user service for API consumers.
+ * Read-only view of user for API responses.
  */
-public record UserView(
-        String id,
-        String username,
-        String displayName,
-        String email,
-        UserStatus status,
-        List<String> roles) {
+public record UserView(String id, String username, String displayName, String email, UserStatus status, List<String> roles) {
 }

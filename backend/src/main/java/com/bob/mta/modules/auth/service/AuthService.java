@@ -1,15 +1,14 @@
 package com.bob.mta.modules.auth.service;
 
 import com.bob.mta.modules.auth.dto.CurrentUserResponse;
-import com.bob.mta.modules.auth.dto.LoginRequest;
 import com.bob.mta.modules.auth.dto.LoginResponse;
-import org.springframework.security.core.userdetails.UserDetails;
 
+/**
+ * Authentication related use cases.
+ */
 public interface AuthService {
 
-    LoginResponse login(LoginRequest request);
+    LoginResponse login(String username, String password);
 
-    CurrentUserResponse currentUser(UserDetails userDetails);
-
-    UserDetails loadUserByUsername(String username);
+    CurrentUserResponse currentUser(String username);
 }

@@ -1,12 +1,15 @@
 package com.bob.mta.modules.plan.service;
 
-import com.bob.mta.modules.plan.domain.Plan;
+import com.bob.mta.common.api.PageResponse;
+import com.bob.mta.modules.plan.dto.PlanDetailResponse;
+import com.bob.mta.modules.plan.dto.PlanSummaryResponse;
 
-import java.util.List;
-
+/**
+ * Maintenance plan operations.
+ */
 public interface PlanService {
 
-    List<Plan> listPlans(String customerId, String status);
+    PageResponse<PlanSummaryResponse> listPlans(int page, int pageSize, String customerId, String status);
 
-    Plan getPlan(String id);
+    PlanDetailResponse getPlan(String id);
 }

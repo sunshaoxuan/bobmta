@@ -1,57 +1,71 @@
 package com.bob.mta.modules.plan.dto;
 
-import com.bob.mta.modules.plan.domain.PlanNode;
-
+import java.time.Duration;
+import java.time.Instant;
 import java.util.List;
 
+/**
+ * Node/step inside a maintenance plan.
+ */
 public class PlanNodeResponse {
 
     private final String id;
-    private final String name;
+    private final String title;
     private final String type;
-    private final String assignee;
-    private final int order;
-    private final List<PlanNodeResponse> children;
+    private final String status;
+    private final Duration estimatedDuration;
+    private final Instant startedAt;
+    private final Instant completedAt;
+    private final List<String> assignees;
 
-    public PlanNodeResponse(String id, String name, String type, String assignee, int order,
-                            List<PlanNodeResponse> children) {
+    public PlanNodeResponse(
+            final String id,
+            final String title,
+            final String type,
+            final String status,
+            final Duration estimatedDuration,
+            final Instant startedAt,
+            final Instant completedAt,
+            final List<String> assignees) {
         this.id = id;
-        this.name = name;
+        this.title = title;
         this.type = type;
-        this.assignee = assignee;
-        this.order = order;
-        this.children = children;
-    }
-
-    public static PlanNodeResponse from(PlanNode node) {
-        List<PlanNodeResponse> childResponses = node.getChildren().stream()
-                .map(PlanNodeResponse::from)
-                .toList();
-        return new PlanNodeResponse(node.getId(), node.getName(), node.getType(), node.getAssignee(), node.getOrder(),
-                childResponses);
+        this.status = status;
+        this.estimatedDuration = estimatedDuration;
+        this.startedAt = startedAt;
+        this.completedAt = completedAt;
+        this.assignees = List.copyOf(assignees);
     }
 
     public String getId() {
         return id;
     }
 
-    public String getName() {
-        return name;
+    public String getTitle() {
+        return title;
     }
 
     public String getType() {
         return type;
     }
 
-    public String getAssignee() {
-        return assignee;
+    public String getStatus() {
+        return status;
     }
 
-    public int getOrder() {
-        return order;
+    public Duration getEstimatedDuration() {
+        return estimatedDuration;
     }
 
-    public List<PlanNodeResponse> getChildren() {
-        return children;
+    public Instant getStartedAt() {
+        return startedAt;
+    }
+
+    public Instant getCompletedAt() {
+        return completedAt;
+    }
+
+    public List<String> getAssignees() {
+        return assignees;
     }
 }
