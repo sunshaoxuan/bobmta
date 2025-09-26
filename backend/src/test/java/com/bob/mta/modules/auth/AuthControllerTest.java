@@ -41,6 +41,7 @@ class AuthControllerTest {
                 .andExpect(jsonPath("$.code").value(0))
                 .andExpect(jsonPath("$.data.displayName").value("Admin"))
                 .andExpect(jsonPath("$.data.token").isNotEmpty())
+                .andExpect(jsonPath("$.data.roles[0]").value("ADMIN"))
                 .andExpect(jsonPath("$.data.expiresAt").isNotEmpty());
     }
 

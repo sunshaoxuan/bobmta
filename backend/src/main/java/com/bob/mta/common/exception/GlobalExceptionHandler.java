@@ -65,11 +65,11 @@ public class GlobalExceptionHandler {
     private HttpStatus mapStatus(final ErrorCode errorCode) {
         return switch (errorCode) {
             case OK -> HttpStatus.OK;
-            case BAD_REQUEST -> HttpStatus.BAD_REQUEST;
+            case BAD_REQUEST, ACTIVATION_TOKEN_INVALID, ACTIVATION_TOKEN_EXPIRED -> HttpStatus.BAD_REQUEST;
             case UNAUTHORIZED -> HttpStatus.UNAUTHORIZED;
-            case FORBIDDEN -> HttpStatus.FORBIDDEN;
-            case NOT_FOUND -> HttpStatus.NOT_FOUND;
-            case CONFLICT -> HttpStatus.CONFLICT;
+            case FORBIDDEN, USER_INACTIVE -> HttpStatus.FORBIDDEN;
+            case NOT_FOUND, USER_NOT_FOUND -> HttpStatus.NOT_FOUND;
+            case CONFLICT, USERNAME_EXISTS, EMAIL_EXISTS, USER_ALREADY_ACTIVE -> HttpStatus.CONFLICT;
             case INTERNAL_ERROR -> HttpStatus.INTERNAL_SERVER_ERROR;
             default -> HttpStatus.INTERNAL_SERVER_ERROR;
         };

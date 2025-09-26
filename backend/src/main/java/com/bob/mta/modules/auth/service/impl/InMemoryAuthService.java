@@ -7,6 +7,9 @@ import com.bob.mta.common.security.JwtTokenProvider;
 import com.bob.mta.modules.auth.dto.CurrentUserResponse;
 import com.bob.mta.modules.auth.dto.LoginResponse;
 import com.bob.mta.modules.auth.service.AuthService;
+import com.bob.mta.modules.user.service.UserService;
+import com.bob.mta.modules.user.service.model.UserAuthentication;
+import com.bob.mta.modules.user.service.model.UserView;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
@@ -28,26 +31,30 @@ public class InMemoryAuthService implements AuthService {
 
     private final JwtProperties properties;
 
-    public InMemoryAuthService(final JwtTokenProvider tokenProvider, final JwtProperties properties) {
+    private final UserService userService;
+
+    public InMemoryAuthService(
+            final JwtTokenProvider tokenProvider,
+            final JwtProperties properties,
+            final UserService userService) {
         this.tokenProvider = tokenProvider;
         this.properties = properties;
+        this.userService = userService;
     }
 
     @Override
     public LoginResponse login(final String username, final String password) {
-        final UserRecord user = Optional.ofNullable(users.get(username))
-                .filter(record -> record.password().equals(password))
-                .orElseThrow(() -> new BusinessException(ErrorCode.UNAUTHORIZED, "auth.invalid_credentials"));
+        final UserAuthentication user = userService.authenticate(username, password);
         final Instant expiresAt = Instant.now().plus(properties.getAccessToken().getExpirationMinutes(), ChronoUnit.MINUTES);
-        final String token = tokenProvider.generateToken(user.userId(), user.username(), user.roles().get(0));
-        return new LoginResponse(token, expiresAt, user.displayName());
+        final String primaryRole = user.roles().isEmpty() ? "USER" : user.roles().get(0);
+        final String token = tokenProvider.generateToken(user.id(), user.username(), primaryRole);
+        return new LoginResponse(token, expiresAt, user.displayName(), user.roles());
     }
 
     @Override
     public CurrentUserResponse currentUser(final String username) {
-        final UserRecord user = Optional.ofNullable(users.get(username))
-                .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "user.not_found"));
-        return new CurrentUserResponse(user.userId(), user.username(), user.displayName(), user.roles());
+        final UserView user = userService.loadUserByUsername(username);
+        return new CurrentUserResponse(user.id(), user.username(), user.displayName(), List.copyOf(user.roles()));
     }
 
     private record UserRecord(String userId, String username, String displayName, String password, List<String> roles) {

@@ -42,7 +42,8 @@ public class SecurityConfig {
                         .authenticationEntryPoint(authenticationEntryPoint)
                         .accessDeniedHandler(accessDeniedHandler))
                 .authorizeHttpRequests(auth -> auth
-                        .requestMatchers("/api/ping", "/api/v1/auth/login", "/actuator/health", "/actuator/info").permitAll()
+                        .requestMatchers("/api/ping", "/api/v1/auth/login", "/api/v1/users/activation", "/actuator/health", "/actuator/info")
+                        .permitAll()
                         .anyRequest().authenticated())
                 .addFilterBefore(authenticationFilter, UsernamePasswordAuthenticationFilter.class);
         return http.build();
