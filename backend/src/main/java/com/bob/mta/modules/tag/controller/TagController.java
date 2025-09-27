@@ -38,13 +38,15 @@ public class TagController {
     private final CustomerService customerService;
     private final PlanService planService;
     private final AuditRecorder auditRecorder;
+    private final MessageResolver messageResolver;
 
     public TagController(TagService tagService, CustomerService customerService, PlanService planService,
-                         AuditRecorder auditRecorder) {
+                         AuditRecorder auditRecorder, MessageResolver messageResolver) {
         this.tagService = tagService;
         this.customerService = customerService;
         this.planService = planService;
         this.auditRecorder = auditRecorder;
+        this.messageResolver = messageResolver;
     }
 
     @GetMapping

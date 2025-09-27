@@ -1,6 +1,7 @@
 package com.bob.mta.modules.customfield.controller;
 
 import com.bob.mta.common.api.ApiResponse;
+import com.bob.mta.common.i18n.MessageResolver;
 import com.bob.mta.modules.audit.service.AuditRecorder;
 import com.bob.mta.modules.customfield.domain.CustomFieldDefinition;
 import com.bob.mta.modules.customfield.dto.CreateCustomFieldRequest;
@@ -34,12 +35,14 @@ public class CustomFieldController {
     private final CustomFieldService customFieldService;
     private final CustomerService customerService;
     private final AuditRecorder auditRecorder;
+    private final MessageResolver messageResolver;
 
     public CustomFieldController(CustomFieldService customFieldService, CustomerService customerService,
-                                 AuditRecorder auditRecorder) {
+                                 AuditRecorder auditRecorder, MessageResolver messageResolver) {
         this.customFieldService = customFieldService;
         this.customerService = customerService;
         this.auditRecorder = auditRecorder;
+        this.messageResolver = messageResolver;
     }
 
     @GetMapping
