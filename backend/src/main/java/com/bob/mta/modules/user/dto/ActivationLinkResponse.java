@@ -1,5 +1,7 @@
 package com.bob.mta.modules.user.dto;
 
+import com.bob.mta.modules.user.service.model.ActivationLink;
+
 import java.time.Instant;
 
 /**
@@ -22,5 +24,9 @@ public class ActivationLinkResponse {
 
     public Instant getExpiresAt() {
         return expiresAt;
+    }
+
+    public static ActivationLinkResponse from(final ActivationLink activationLink) {
+        return new ActivationLinkResponse(activationLink.token(), activationLink.expiresAt());
     }
 }
