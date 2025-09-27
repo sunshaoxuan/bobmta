@@ -1,5 +1,6 @@
 package com.bob.mta.modules.template.service;
 
+import com.bob.mta.common.i18n.MultilingualText;
 import com.bob.mta.modules.template.domain.RenderedTemplate;
 import com.bob.mta.modules.template.domain.TemplateDefinition;
 import com.bob.mta.modules.template.domain.TemplateType;
@@ -13,11 +14,11 @@ public interface TemplateService {
 
     TemplateDefinition get(long id);
 
-    TemplateDefinition create(TemplateType type, String name, String subject, String content, List<String> to,
-                              List<String> cc, String endpoint, boolean enabled, String description);
+    TemplateDefinition create(TemplateType type, MultilingualText name, MultilingualText subject, MultilingualText content, List<String> to,
+                              List<String> cc, String endpoint, boolean enabled, MultilingualText description);
 
-    TemplateDefinition update(long id, String name, String subject, String content, List<String> to, List<String> cc,
-                              String endpoint, boolean enabled, String description);
+    TemplateDefinition update(long id, MultilingualText name, MultilingualText subject, MultilingualText content, List<String> to, List<String> cc,
+                              String endpoint, boolean enabled, MultilingualText description);
 
     void delete(long id);
 

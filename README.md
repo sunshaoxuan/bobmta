@@ -4,6 +4,15 @@
 
 ## 阶段四迭代进度
 
+### 🌐 多语言策略
+- 产品默认语言为 **日文（ja-JP）**，可选语言包提供 **中文（zh-CN）**。
+- 所有面向用户的字符串必须通过资源文件维护，严禁在代码中写死具有语种特征的文本。
+- 前端位于 `frontend/src/i18n/messages.ts`，后端位于 `backend/src/main/resources/i18n/`，提交新功能时请同步更新多语言资源。
+- 单元测试若需断言文案，应通过资源方法或使用无语种特征的占位字符串。
+- 后端抛出的 `BusinessException`、`IllegalArgumentException` 等涉及用户提示的消息必须调用 `Localization.text` 或同级工具获取资源文案，禁止直接写入自然语言字符串。
+- 新增或调整文案时需先在 `LocalizationKeys` 中登记键名，再同步维护 `messages.properties` / `messages_ja.properties` / `messages_zh.properties` 以及必要的前端映射，保持语言包完整。
+- 数据多语通过实体的 `MultilingualText` 值对象及 `MultilingualTextService` 持久化，创建或更新业务数据时必须携带默认语言文本以及可选扩展语言，服务会在缺省翻译时自动回落到默认语言。业务响应需返回 `MultilingualTextPayload`，保持前后端多语结构一致。
+
 ### ✅ 已完成
 - 迭代 #1：建立运维计划仓储抽象，支撑持久化改造的统一入口。
   - 引入 `PlanRepository` 接口与 `InMemoryPlanRepository` 实现，统一计划、节点、提醒策略的存取与 ID 生成逻辑。
@@ -63,7 +72,7 @@
 
 ```
 backend/   # Spring Boot 3 后端服务，聚合阶段三/四功能所需的 REST API 与仓储抽象
-frontend/  # React + Vite 前端占位，后续阶段将继续完善
+frontend/  # React + Vite 前端占位（内置日文默认语言，可切换简体中文）
 ```
 
 ## 后端快速开始

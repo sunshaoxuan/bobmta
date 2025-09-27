@@ -29,7 +29,7 @@ class AuditRecorderTest {
 
     @Test
     void shouldRecordAuditEntry() {
-        recorder.record("Entity", "1", "ACTION", "描述", null, new TestPayload("value"));
+        recorder.record("Entity", "1", "ACTION", "description", null, new TestPayload("value"));
         assertThat(auditService.query(new AuditQuery(null, null, null, null))).hasSize(1);
     }
 

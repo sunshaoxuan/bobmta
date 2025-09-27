@@ -1,5 +1,7 @@
 package com.bob.mta.modules.template.domain;
 
+import com.bob.mta.common.i18n.MultilingualText;
+
 import java.time.OffsetDateTime;
 import java.util.List;
 
@@ -7,20 +9,20 @@ public class TemplateDefinition {
 
     private final long id;
     private final TemplateType type;
-    private final String name;
-    private final String subject;
-    private final String content;
+    private final MultilingualText name;
+    private final MultilingualText subject;
+    private final MultilingualText content;
     private final List<String> to;
     private final List<String> cc;
     private final String endpoint;
     private final boolean enabled;
-    private final String description;
+    private final MultilingualText description;
     private final OffsetDateTime createdAt;
     private final OffsetDateTime updatedAt;
 
-    public TemplateDefinition(long id, TemplateType type, String name, String subject, String content,
+    public TemplateDefinition(long id, TemplateType type, MultilingualText name, MultilingualText subject, MultilingualText content,
                               List<String> to, List<String> cc, String endpoint, boolean enabled,
-                              String description, OffsetDateTime createdAt, OffsetDateTime updatedAt) {
+                              MultilingualText description, OffsetDateTime createdAt, OffsetDateTime updatedAt) {
         this.id = id;
         this.type = type;
         this.name = name;
@@ -43,15 +45,15 @@ public class TemplateDefinition {
         return type;
     }
 
-    public String getName() {
+    public MultilingualText getName() {
         return name;
     }
 
-    public String getSubject() {
+    public MultilingualText getSubject() {
         return subject;
     }
 
-    public String getContent() {
+    public MultilingualText getContent() {
         return content;
     }
 
@@ -71,7 +73,7 @@ public class TemplateDefinition {
         return enabled;
     }
 
-    public String getDescription() {
+    public MultilingualText getDescription() {
         return description;
     }
 
@@ -83,14 +85,14 @@ public class TemplateDefinition {
         return updatedAt;
     }
 
-    public TemplateDefinition withName(String newName) {
+    public TemplateDefinition withName(MultilingualText newName) {
         return new TemplateDefinition(id, type, newName, subject, content, to, cc, endpoint, enabled, description,
                 createdAt, OffsetDateTime.now());
     }
 
-    public TemplateDefinition withContent(String newSubject, String newContent, List<String> newTo,
+    public TemplateDefinition withContent(MultilingualText newSubject, MultilingualText newContent, List<String> newTo,
                                           List<String> newCc, String newEndpoint, boolean newEnabled,
-                                          String newDescription) {
+                                          MultilingualText newDescription) {
         return new TemplateDefinition(id, type, name, newSubject, newContent, newTo, newCc, newEndpoint, newEnabled,
                 newDescription, createdAt, OffsetDateTime.now());
     }

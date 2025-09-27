@@ -1,5 +1,6 @@
 package com.bob.mta.modules.tag.dto;
 
+import com.bob.mta.common.i18n.MultilingualTextPayload;
 import com.bob.mta.modules.tag.domain.TagDefinition;
 import com.bob.mta.modules.tag.domain.TagScope;
 
@@ -8,7 +9,7 @@ import java.time.OffsetDateTime;
 public class TagResponse {
 
     private final long id;
-    private final String name;
+    private final MultilingualTextPayload name;
     private final String color;
     private final String icon;
     private final TagScope scope;
@@ -16,7 +17,7 @@ public class TagResponse {
     private final boolean enabled;
     private final OffsetDateTime createdAt;
 
-    public TagResponse(long id, String name, String color, String icon, TagScope scope,
+    public TagResponse(long id, MultilingualTextPayload name, String color, String icon, TagScope scope,
                        String applyRule, boolean enabled, OffsetDateTime createdAt) {
         this.id = id;
         this.name = name;
@@ -31,7 +32,7 @@ public class TagResponse {
     public static TagResponse from(TagDefinition definition) {
         return new TagResponse(
                 definition.getId(),
-                definition.getName(),
+                MultilingualTextPayload.fromValue(definition.getName()),
                 definition.getColor(),
                 definition.getIcon(),
                 definition.getScope(),
@@ -45,7 +46,7 @@ public class TagResponse {
         return id;
     }
 
-    public String getName() {
+    public MultilingualTextPayload getName() {
         return name;
     }
 

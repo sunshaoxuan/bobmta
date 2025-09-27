@@ -1,5 +1,6 @@
 package com.bob.mta.modules.tag.service;
 
+import com.bob.mta.common.i18n.MultilingualText;
 import com.bob.mta.modules.tag.domain.TagAssignment;
 import com.bob.mta.modules.tag.domain.TagDefinition;
 import com.bob.mta.modules.tag.domain.TagEntityType;
@@ -13,9 +14,9 @@ public interface TagService {
 
     TagDefinition getById(long id);
 
-    TagDefinition create(String name, String color, String icon, TagScope scope, String applyRule, boolean enabled);
+    TagDefinition create(MultilingualText name, String color, String icon, TagScope scope, String applyRule, boolean enabled);
 
-    TagDefinition update(long id, String name, String color, String icon, TagScope scope, String applyRule, boolean enabled);
+    TagDefinition update(long id, MultilingualText name, String color, String icon, TagScope scope, String applyRule, boolean enabled);
 
     void delete(long id);
 

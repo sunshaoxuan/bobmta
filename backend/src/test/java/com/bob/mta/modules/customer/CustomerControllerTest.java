@@ -8,6 +8,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.bob.mta.i18n.Localization;
+import com.bob.mta.i18n.LocalizationKeys;
 import java.nio.charset.StandardCharsets;
 import java.util.Map;
 import org.junit.jupiter.api.DisplayName;
@@ -56,10 +58,11 @@ class CustomerControllerTest {
 
         mockMvc.perform(get("/api/v1/customers")
                         .header("Authorization", "Bearer " + token)
-                        .param("region", "北海道"))
+                        .param("region", Localization.text(LocalizationKeys.Seeds.CUSTOMER_HOKKAIDO_REGION)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.list.length()").value(2))
-                .andExpect(jsonPath("$.data.list[0].region").value("北海道"));
+                .andExpect(jsonPath("$.data.list[0].region")
+                        .value(Localization.text(LocalizationKeys.Seeds.CUSTOMER_HOKKAIDO_REGION)));
     }
 
     @Test
