@@ -71,6 +71,11 @@ public class User {
         return activationToken;
     }
 
+    public void issueActivationToken(final ActivationToken token) {
+        this.activationToken = Objects.requireNonNull(token, "token");
+        markPendingActivation();
+    }
+
     public boolean passwordMatches(final String rawPassword) {
         return Objects.equals(password, rawPassword);
     }

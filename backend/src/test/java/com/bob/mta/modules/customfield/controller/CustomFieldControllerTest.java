@@ -9,7 +9,6 @@ import com.bob.mta.modules.customfield.dto.CustomFieldDefinitionResponse;
 import com.bob.mta.modules.customfield.dto.CustomFieldValueRequest;
 import com.bob.mta.modules.customfield.service.impl.InMemoryCustomFieldService;
 import com.bob.mta.modules.customer.service.impl.InMemoryCustomerService;
-import com.bob.mta.modules.tag.service.impl.InMemoryTagService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -29,8 +28,7 @@ class CustomFieldControllerTest {
     @BeforeEach
     void setUp() {
         customFieldService = new InMemoryCustomFieldService();
-        InMemoryTagService tagService = new InMemoryTagService();
-        InMemoryCustomerService customerService = new InMemoryCustomerService(tagService, customFieldService);
+        InMemoryCustomerService customerService = new InMemoryCustomerService();
         AuditRecorder recorder = new AuditRecorder(new InMemoryAuditService(), new ObjectMapper());
         controller = new CustomFieldController(customFieldService, customerService, recorder);
         SecurityContextHolder.getContext().setAuthentication(new TestingAuthenticationToken("admin", "pass", "ROLE_ADMIN"));
