@@ -183,7 +183,7 @@ public class PlanController {
     private String currentUsername() {
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
         if (authentication == null) {
-            throw new BusinessException(ErrorCode.AUTHENTICATION_FAILED);
+            throw new BusinessException(ErrorCode.UNAUTHORIZED);
         }
         return authentication.getName();
     }

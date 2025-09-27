@@ -112,7 +112,7 @@ public class InMemoryPlanService implements PlanService {
     public Plan updatePlan(String id, UpdatePlanCommand command) {
         Plan current = requirePlan(id);
         if (current.getStatus() != PlanStatus.DESIGN) {
-            throw new BusinessException(ErrorCode.PLAN_STATUS_INVALID, "Plan can only be updated while in DESIGN status");
+            throw new BusinessException(ErrorCode.BAD_REQUEST, "Plan can only be updated while in DESIGN status");
         }
         OffsetDateTime now = OffsetDateTime.now();
         List<PlanNode> nodes = toNodes(command.getNodes());
@@ -130,7 +130,7 @@ public class InMemoryPlanService implements PlanService {
     public void deletePlan(String id) {
         Plan current = requirePlan(id);
         if (current.getStatus() != PlanStatus.DESIGN) {
-            throw new BusinessException(ErrorCode.PLAN_STATUS_INVALID, "Only design plans can be deleted");
+            throw new BusinessException(ErrorCode.BAD_REQUEST, "Only design plans can be deleted");
         }
         plans.remove(id);
     }
@@ -139,7 +139,7 @@ public class InMemoryPlanService implements PlanService {
     public Plan publishPlan(String id, String operator) {
         Plan current = requirePlan(id);
         if (current.getStatus() != PlanStatus.DESIGN) {
-            throw new BusinessException(ErrorCode.PLAN_STATUS_INVALID, "Plan already published");
+            throw new BusinessException(ErrorCode.BAD_REQUEST, "Plan already published");
         }
         OffsetDateTime now = OffsetDateTime.now();
         PlanStatus nextStatus = current.getPlannedStartTime().isAfter(now) ? PlanStatus.SCHEDULED : PlanStatus.IN_PROGRESS;
@@ -153,7 +153,7 @@ public class InMemoryPlanService implements PlanService {
     public Plan cancelPlan(String id, String operator, String reason) {
         Plan current = requirePlan(id);
         if (current.getStatus() == PlanStatus.COMPLETED || current.getStatus() == PlanStatus.CANCELED) {
-            throw new BusinessException(ErrorCode.PLAN_STATUS_INVALID, "Plan already completed or canceled");
+            throw new BusinessException(ErrorCode.BAD_REQUEST, "Plan already completed or canceled");
         }
         OffsetDateTime now = OffsetDateTime.now();
         Plan updated = current.withStatus(PlanStatus.CANCELED, current.getActualStartTime(), now, current.getExecutions(), now);
@@ -267,7 +267,7 @@ public class InMemoryPlanService implements PlanService {
     private Plan requirePlan(String id) {
         Plan plan = plans.get(id);
         if (plan == null) {
-            throw new BusinessException(ErrorCode.PLAN_NOT_FOUND);
+            throw new BusinessException(ErrorCode.NOT_FOUND);
         }
         return plan;
     }
@@ -276,7 +276,7 @@ public class InMemoryPlanService implements PlanService {
         return plan.getExecutions().stream()
                 .filter(exec -> exec.getNodeId().equals(nodeId))
                 .findFirst()
-                .orElseThrow(() -> new BusinessException(ErrorCode.PLAN_NODE_NOT_FOUND));
+                .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND));
     }
 
     private List<PlanNodeExecution> replaceExecution(List<PlanNodeExecution> executions, String nodeId,
