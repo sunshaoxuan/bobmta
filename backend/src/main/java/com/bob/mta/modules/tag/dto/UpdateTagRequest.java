@@ -1,13 +1,13 @@
 package com.bob.mta.modules.tag.dto;
 
+import com.bob.mta.common.i18n.MultilingualTextPayload;
 import com.bob.mta.modules.tag.domain.TagScope;
-import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 
 public class UpdateTagRequest {
 
-    @NotBlank
-    private String name;
+    @NotNull
+    private MultilingualTextPayload name;
 
     @NotBlank
     private String color;
@@ -21,11 +21,11 @@ public class UpdateTagRequest {
 
     private boolean enabled = true;
 
-    public String getName() {
+    public MultilingualTextPayload getName() {
         return name;
     }
 
-    public void setName(String name) {
+    public void setName(MultilingualTextPayload name) {
         this.name = name;
     }
 

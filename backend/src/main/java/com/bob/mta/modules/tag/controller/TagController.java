@@ -66,7 +66,7 @@ public class TagController {
     @PreAuthorize("hasRole('ADMIN')")
     public ApiResponse<TagResponse> create(@Valid @RequestBody CreateTagRequest request) {
         TagDefinition definition = tagService.create(
-                request.getName(),
+                request.getName().toValue(),
                 request.getColor(),
                 request.getIcon(),
                 request.getScope(),
@@ -84,7 +84,7 @@ public class TagController {
         TagDefinition before = tagService.getById(id);
         TagDefinition updated = tagService.update(
                 id,
-                request.getName(),
+                request.getName().toValue(),
                 request.getColor(),
                 request.getIcon(),
                 request.getScope(),

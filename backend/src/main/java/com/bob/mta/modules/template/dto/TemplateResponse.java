@@ -1,5 +1,6 @@
 package com.bob.mta.modules.template.dto;
 
+import com.bob.mta.common.i18n.MultilingualTextPayload;
 import com.bob.mta.modules.template.domain.TemplateDefinition;
 import com.bob.mta.modules.template.domain.TemplateType;
 
@@ -10,19 +11,19 @@ public class TemplateResponse {
 
     private final long id;
     private final TemplateType type;
-    private final String name;
-    private final String subject;
-    private final String content;
+    private final MultilingualTextPayload name;
+    private final MultilingualTextPayload subject;
+    private final MultilingualTextPayload content;
     private final List<String> to;
     private final List<String> cc;
     private final String endpoint;
     private final boolean enabled;
-    private final String description;
+    private final MultilingualTextPayload description;
     private final OffsetDateTime createdAt;
     private final OffsetDateTime updatedAt;
 
-    public TemplateResponse(long id, TemplateType type, String name, String subject, String content,
-                            List<String> to, List<String> cc, String endpoint, boolean enabled, String description,
+    public TemplateResponse(long id, TemplateType type, MultilingualTextPayload name, MultilingualTextPayload subject, MultilingualTextPayload content,
+                            List<String> to, List<String> cc, String endpoint, boolean enabled, MultilingualTextPayload description,
                             OffsetDateTime createdAt, OffsetDateTime updatedAt) {
         this.id = id;
         this.type = type;
@@ -42,14 +43,14 @@ public class TemplateResponse {
         return new TemplateResponse(
                 definition.getId(),
                 definition.getType(),
-                definition.getName(),
-                definition.getSubject(),
-                definition.getContent(),
+                MultilingualTextPayload.fromValue(definition.getName()),
+                MultilingualTextPayload.fromValue(definition.getSubject()),
+                MultilingualTextPayload.fromValue(definition.getContent()),
                 definition.getTo(),
                 definition.getCc(),
                 definition.getEndpoint(),
                 definition.isEnabled(),
-                definition.getDescription(),
+                MultilingualTextPayload.fromValue(definition.getDescription()),
                 definition.getCreatedAt(),
                 definition.getUpdatedAt());
     }
@@ -62,15 +63,15 @@ public class TemplateResponse {
         return type;
     }
 
-    public String getName() {
+    public MultilingualTextPayload getName() {
         return name;
     }
 
-    public String getSubject() {
+    public MultilingualTextPayload getSubject() {
         return subject;
     }
 
-    public String getContent() {
+    public MultilingualTextPayload getContent() {
         return content;
     }
 
@@ -90,7 +91,7 @@ public class TemplateResponse {
         return enabled;
     }
 
-    public String getDescription() {
+    public MultilingualTextPayload getDescription() {
         return description;
     }
 

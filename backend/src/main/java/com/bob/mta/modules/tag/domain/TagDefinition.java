@@ -1,11 +1,13 @@
 package com.bob.mta.modules.tag.domain;
 
+import com.bob.mta.common.i18n.MultilingualText;
+
 import java.time.OffsetDateTime;
 
 public class TagDefinition {
 
     private final long id;
-    private final String name;
+    private final MultilingualText name;
     private final String color;
     private final String icon;
     private final TagScope scope;
@@ -13,7 +15,7 @@ public class TagDefinition {
     private final boolean enabled;
     private final OffsetDateTime createdAt;
 
-    public TagDefinition(long id, String name, String color, String icon, TagScope scope,
+    public TagDefinition(long id, MultilingualText name, String color, String icon, TagScope scope,
                          String applyRule, boolean enabled, OffsetDateTime createdAt) {
         this.id = id;
         this.name = name;
@@ -29,8 +31,12 @@ public class TagDefinition {
         return id;
     }
 
-    public String getName() {
+    public MultilingualText getName() {
         return name;
+    }
+
+    public String getDisplayName() {
+        return name.getValueOrDefault(name.getDefaultLocale());
     }
 
     public String getColor() {
@@ -57,7 +63,7 @@ public class TagDefinition {
         return createdAt;
     }
 
-    public TagDefinition withName(String newName) {
+    public TagDefinition withName(MultilingualText newName) {
         return new TagDefinition(id, newName, color, icon, scope, applyRule, enabled, createdAt);
     }
 

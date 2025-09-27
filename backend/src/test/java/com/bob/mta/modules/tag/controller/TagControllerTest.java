@@ -1,8 +1,9 @@
 package com.bob.mta.modules.tag.controller;
 
 import com.bob.mta.common.api.ApiResponse;
-import com.bob.mta.common.i18n.MessageResolver;
-import com.bob.mta.common.i18n.TestMessageResolverFactory;
+import com.bob.mta.common.i18n.InMemoryMultilingualTextRepository;
+import com.bob.mta.common.i18n.MultilingualTextPayload;
+import com.bob.mta.common.i18n.MultilingualTextService;
 import com.bob.mta.modules.audit.service.AuditRecorder;
 import com.bob.mta.modules.audit.service.impl.InMemoryAuditService;
 import com.bob.mta.modules.customer.service.impl.InMemoryCustomerService;
@@ -22,7 +23,7 @@ import org.springframework.context.i18n.LocaleContextHolder;
 import org.springframework.security.authentication.TestingAuthenticationToken;
 import org.springframework.security.core.context.SecurityContextHolder;
 
-import java.util.Locale;
+import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -34,8 +35,7 @@ class TagControllerTest {
 
     @BeforeEach
     void setUp() {
-        LocaleContextHolder.setLocale(Locale.SIMPLIFIED_CHINESE);
-        InMemoryTagService tagService = new InMemoryTagService();
+        InMemoryTagService tagService = new InMemoryTagService(new MultilingualTextService(new InMemoryMultilingualTextRepository()));
         InMemoryCustomerService customerService = new InMemoryCustomerService();
         messageResolver = TestMessageResolverFactory.create();
         planService = new InMemoryPlanService(new InMemoryFileService(), new InMemoryPlanRepository(), messageResolver);
@@ -53,14 +53,17 @@ class TagControllerTest {
     @Test
     void shouldCreateTag() {
         CreateTagRequest request = new CreateTagRequest();
-        request.setName("urgent");
+        request.setName(new MultilingualTextPayload("ja-JP", Map.of(
+                "ja-JP", "urgent",
+                "zh-CN", "紧急"
+        )));
         request.setColor("#F5222D");
         request.setIcon("AlertOutlined");
         request.setScope(com.bob.mta.modules.tag.domain.TagScope.CUSTOMER);
         request.setEnabled(true);
 
         ApiResponse<TagResponse> response = controller.create(request);
-        assertThat(response.getData().getName()).isEqualTo("urgent");
+        assertThat(response.getData().getName().getTranslations().get("ja-jp")).isEqualTo("urgent");
     }
 
     @Test
@@ -77,7 +80,10 @@ class TagControllerTest {
 
     private CreateTagRequest buildRequest(String name, com.bob.mta.modules.tag.domain.TagScope scope) {
         CreateTagRequest request = new CreateTagRequest();
-        request.setName(name);
+        request.setName(new MultilingualTextPayload("ja-JP", Map.of(
+                "ja-JP", name,
+                "zh-CN", name
+        )));
         request.setColor("#000000");
         request.setIcon("TagOutlined");
         request.setScope(scope);

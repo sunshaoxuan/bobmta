@@ -2,6 +2,9 @@ package com.bob.mta.modules.tag.service.impl;
 
 import com.bob.mta.common.exception.BusinessException;
 import com.bob.mta.common.exception.ErrorCode;
+import com.bob.mta.common.i18n.MultilingualText;
+import com.bob.mta.common.i18n.MultilingualTextScope;
+import com.bob.mta.common.i18n.MultilingualTextService;
 import com.bob.mta.i18n.Localization;
 import com.bob.mta.i18n.LocalizationKeys;
 import com.bob.mta.modules.tag.domain.TagAssignment;
@@ -15,6 +18,7 @@ import java.time.OffsetDateTime;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
@@ -26,26 +30,36 @@ public class InMemoryTagService implements TagService {
     private final AtomicLong idGenerator = new AtomicLong(1000);
     private final Map<Long, TagDefinition> definitions = new ConcurrentHashMap<>();
     private final Map<Long, Set<TagAssignment>> assignmentIndex = new ConcurrentHashMap<>();
+    private final MultilingualTextService multilingualTextService;
 
-    public InMemoryTagService() {
+    public InMemoryTagService(MultilingualTextService multilingualTextService) {
+        this.multilingualTextService = multilingualTextService;
         seedDefaults();
     }
 
     private void seedDefaults() {
-        create(Localization.text(LocalizationKeys.Seeds.TAG_PRIORITY_NAME), "#FF5722", "StarOutlined", TagScope.CUSTOMER, null, true);
-        create(Localization.text(LocalizationKeys.Seeds.TAG_PLAN_ANNUAL_NAME), "#1890FF", "CalendarOutlined", TagScope.PLAN, null, true);
+        create(seedText(LocalizationKeys.Seeds.TAG_PRIORITY_NAME), "#FF5722", "StarOutlined", TagScope.CUSTOMER, null, true);
+        create(seedText(LocalizationKeys.Seeds.TAG_PLAN_ANNUAL_NAME), "#1890FF", "CalendarOutlined", TagScope.PLAN, null, true);
+    }
+
+    private MultilingualText seedText(String code) {
+        Locale defaultLocale = Localization.getDefaultLocale();
+        return MultilingualText.of(defaultLocale.toLanguageTag(), Map.of(
+                defaultLocale.toLanguageTag(), Localization.text(defaultLocale, code),
+                Locale.CHINA.toLanguageTag(), Localization.text(Locale.CHINA, code)
+        ));
     }
 
     @Override
     public List<TagDefinition> list(TagScope scope) {
         if (scope == null) {
             return definitions.values().stream()
-                    .sorted((a, b) -> a.getName().compareToIgnoreCase(b.getName()))
+                    .sorted((a, b) -> a.getDisplayName().compareToIgnoreCase(b.getDisplayName()))
                     .toList();
         }
         return definitions.values().stream()
                 .filter(def -> def.getScope() == scope || def.getScope() == TagScope.BOTH)
-                .sorted((a, b) -> a.getName().compareToIgnoreCase(b.getName()))
+                .sorted((a, b) -> a.getDisplayName().compareToIgnoreCase(b.getDisplayName()))
                 .toList();
     }
 
@@ -59,16 +73,17 @@ public class InMemoryTagService implements TagService {
     }
 
     @Override
-    public TagDefinition create(String name, String color, String icon, TagScope scope, String applyRule, boolean enabled) {
+    public TagDefinition create(MultilingualText name, String color, String icon, TagScope scope, String applyRule, boolean enabled) {
         long id = idGenerator.incrementAndGet();
         TagDefinition definition = new TagDefinition(id, name, color, icon, scope, applyRule, enabled, OffsetDateTime.now());
         definitions.put(id, definition);
         assignmentIndex.putIfAbsent(id, ConcurrentHashMap.newKeySet());
+        multilingualTextService.upsert(MultilingualTextScope.TAG_DEFINITION, String.valueOf(id), "name", name);
         return definition;
     }
 
     @Override
-    public TagDefinition update(long id, String name, String color, String icon, TagScope scope, String applyRule, boolean enabled) {
+    public TagDefinition update(long id, MultilingualText name, String color, String icon, TagScope scope, String applyRule, boolean enabled) {
         TagDefinition definition = getById(id);
         TagDefinition updated = definition
                 .withName(name)
@@ -78,6 +93,7 @@ public class InMemoryTagService implements TagService {
                 .withApplyRule(applyRule)
                 .withEnabled(enabled);
         definitions.put(id, updated);
+        multilingualTextService.upsert(MultilingualTextScope.TAG_DEFINITION, String.valueOf(id), "name", name);
         return updated;
     }
 
@@ -123,7 +139,7 @@ public class InMemoryTagService implements TagService {
                         .anyMatch(assignment -> assignment.getEntityType() == entityType && assignment.getEntityId().equals(entityId)))
                 .map(entry -> definitions.get(entry.getKey()))
                 .filter(def -> def != null)
-                .sorted((a, b) -> a.getName().compareToIgnoreCase(b.getName()))
+                .sorted((a, b) -> a.getDisplayName().compareToIgnoreCase(b.getDisplayName()))
                 .toList();
     }
 }

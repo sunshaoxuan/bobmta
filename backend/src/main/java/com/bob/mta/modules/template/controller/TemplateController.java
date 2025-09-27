@@ -61,14 +61,14 @@ public class TemplateController {
     public ApiResponse<TemplateResponse> create(@Valid @RequestBody CreateTemplateRequest request) {
         TemplateDefinition definition = templateService.create(
                 request.getType(),
-                request.getName(),
-                request.getSubject(),
-                request.getContent(),
+                request.getName().toValue(),
+                request.getSubject() == null ? null : request.getSubject().toValue(),
+                request.getContent().toValue(),
                 request.getTo(),
                 request.getCc(),
                 request.getEndpoint(),
                 request.isEnabled(),
-                request.getDescription());
+                request.getDescription() == null ? null : request.getDescription().toValue());
         auditRecorder.record("Template", String.valueOf(definition.getId()), "CREATE_TEMPLATE",
                 Localization.text(LocalizationKeys.Audit.TEMPLATE_CREATE),
                 null, TemplateResponse.from(definition));
@@ -81,14 +81,14 @@ public class TemplateController {
         TemplateDefinition before = templateService.get(id);
         TemplateDefinition updated = templateService.update(
                 id,
-                request.getName(),
-                request.getSubject(),
-                request.getContent(),
+                request.getName().toValue(),
+                request.getSubject() == null ? null : request.getSubject().toValue(),
+                request.getContent().toValue(),
                 request.getTo(),
                 request.getCc(),
                 request.getEndpoint(),
                 request.isEnabled(),
-                request.getDescription());
+                request.getDescription() == null ? null : request.getDescription().toValue());
         auditRecorder.record("Template", String.valueOf(id), "UPDATE_TEMPLATE",
                 Localization.text(LocalizationKeys.Audit.TEMPLATE_UPDATE),
                 TemplateResponse.from(before), TemplateResponse.from(updated));
