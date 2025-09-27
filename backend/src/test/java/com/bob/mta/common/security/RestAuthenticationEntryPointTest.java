@@ -1,69 +1,32 @@
 package com.bob.mta.common.security;
 
-<<<<<<< HEAD
-import com.fasterxml.jackson.databind.ObjectMapper;
-import jakarta.servlet.ServletException;
-=======
-<<<<<<< HEAD
-import com.fasterxml.jackson.databind.ObjectMapper;
-import jakarta.servlet.ServletException;
-=======
 import static org.assertj.core.api.Assertions.assertThat;
 
-import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import jakarta.servlet.ServletException;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
 import org.junit.jupiter.api.DisplayName;
->>>>>>> origin/main
->>>>>>> origin/main
 import org.junit.jupiter.api.Test;
-import org.springframework.mock.web.MockHttpServletRequest;
+import org.mockito.Mockito;
 import org.springframework.mock.web.MockHttpServletResponse;
 import org.springframework.security.core.AuthenticationException;
 
-<<<<<<< HEAD
-=======
-<<<<<<< HEAD
->>>>>>> origin/main
-import java.io.IOException;
-
-import static org.assertj.core.api.Assertions.assertThat;
-
-class RestAuthenticationEntryPointTest {
-
-    @Test
-    void commenceShouldWriteUnauthorizedJson() throws ServletException, IOException {
-        RestAuthenticationEntryPoint entryPoint = new RestAuthenticationEntryPoint(new ObjectMapper());
-        MockHttpServletResponse response = new MockHttpServletResponse();
-
-        entryPoint.commence(new MockHttpServletRequest(), response, new AuthenticationException("bad") {});
-
-        assertThat(response.getStatus()).isEqualTo(401);
-        assertThat(response.getContentAsString()).contains("AUTHENTICATION_FAILED");
-    }
-}
-<<<<<<< HEAD
-=======
-=======
 class RestAuthenticationEntryPointTest {
 
     private final ObjectMapper objectMapper = new ObjectMapper();
     private final RestAuthenticationEntryPoint entryPoint = new RestAuthenticationEntryPoint(objectMapper);
 
     @Test
-    @DisplayName("unauthenticated access renders JSON envelope")
-    void shouldWriteUnauthorizedResponse() throws IOException, ServletException {
+    @DisplayName("entry point writes unauthorized response")
+    void shouldWriteUnauthorizedResponse() throws IOException {
+        final HttpServletRequest request = Mockito.mock(HttpServletRequest.class);
         final MockHttpServletResponse response = new MockHttpServletResponse();
 
-        entryPoint.commence(new MockHttpServletRequest(), response, new AuthenticationException("denied") {});
+        entryPoint.commence(request, response, new AuthenticationException("unauthorized") { });
 
-        assertThat(response.getStatus()).isEqualTo(401);
-        final JsonNode body = objectMapper.readTree(response.getContentAsString());
-        assertThat(body.path("code").asInt()).isEqualTo(4010);
-        assertThat(body.path("message").asText()).isNotEmpty();
+        assertThat(response.getStatus()).isEqualTo(HttpServletResponse.SC_UNAUTHORIZED);
+        assertThat(response.getContentType()).isEqualTo("application/json");
+        assertThat(response.getContentAsString()).contains("auth.required");
     }
 }
-
->>>>>>> origin/main
->>>>>>> origin/main
