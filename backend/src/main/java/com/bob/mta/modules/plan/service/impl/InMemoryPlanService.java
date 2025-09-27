@@ -40,7 +40,6 @@ public class InMemoryPlanService implements PlanService {
 
     private static final DateTimeFormatter ICS_FORMATTER = DateTimeFormatter.ofPattern("yyyyMMdd'T'HHmmss'Z'", Locale.US)
             .withZone(ZoneOffset.UTC);
-
     private final FileService fileService;
     private final PlanRepository planRepository;
 
