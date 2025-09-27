@@ -37,11 +37,10 @@ class UserControllerTest {
         request.setEmail("controller@demo.com");
         request.setPassword("password123");
 
-        final ApiResponse<CreateUserResponse> response = controller.createUser(request);
+        final ApiResponse<UserResponse> response = controller.createUser(request);
 
-        assertThat(response.getData().getUser().getUsername()).isEqualTo("controller");
-        assertThat(response.getData().getUser().getStatus()).isEqualTo(UserStatus.PENDING_ACTIVATION);
-        assertThat(response.getData().getActivation().getToken()).isNotBlank();
+        assertThat(response.getData().getUsername()).isEqualTo("controller");
+        assertThat(response.getData().getStatus()).isEqualTo(UserStatus.PENDING_ACTIVATION);
     }
 
     @Test
@@ -51,7 +50,7 @@ class UserControllerTest {
         request.setDisplayName("To Activate");
         request.setEmail("activate@demo.com");
         request.setPassword("password123");
-        final String userId = controller.createUser(request).getData().getUser().getId();
+        final String userId = controller.createUser(request).getData().getId();
 
         final ActivationLinkResponse resend = controller.resendActivation(userId).getData();
         final ActivateUserRequest activateUserRequest = new ActivateUserRequest();
@@ -68,7 +67,7 @@ class UserControllerTest {
         request.setDisplayName("Role Change");
         request.setEmail("role@demo.com");
         request.setPassword("password123");
-        final String userId = controller.createUser(request).getData().getUser().getId();
+        final String userId = controller.createUser(request).getData().getId();
 
         final AssignRolesRequest assign = new AssignRolesRequest();
         assign.setRoles(List.of("auditor"));

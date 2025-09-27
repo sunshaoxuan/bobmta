@@ -6,7 +6,6 @@ import com.bob.mta.modules.user.dto.ActivateUserRequest;
 import com.bob.mta.modules.user.dto.ActivationLinkResponse;
 import com.bob.mta.modules.user.dto.AssignRolesRequest;
 import com.bob.mta.modules.user.dto.CreateUserRequest;
-import com.bob.mta.modules.user.dto.CreateUserResponse;
 import com.bob.mta.modules.user.dto.UserResponse;
 import com.bob.mta.modules.user.service.UserService;
 import com.bob.mta.modules.user.service.command.CreateUserCommand;
@@ -19,7 +18,6 @@ import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -55,7 +53,7 @@ public class UserController {
     }
 
     @PostMapping(consumes = MediaType.APPLICATION_JSON_VALUE)
-    public ApiResponse<CreateUserResponse> createUser(@Valid @RequestBody final CreateUserRequest request) {
+    public ApiResponse<UserResponse> createUser(@Valid @RequestBody final CreateUserRequest request) {
         final CreateUserCommand command = new CreateUserCommand(
                 request.getUsername(),
                 request.getDisplayName(),
@@ -63,10 +61,10 @@ public class UserController {
                 request.getPassword(),
                 request.getRoles());
         final CreateUserResult result = userService.createUser(command);
-        return ApiResponse.success(CreateUserResponse.from(result));
+        return ApiResponse.success(UserResponse.from(result.user()));
     }
 
-    @PostMapping(path = "/{id}/activation/resend")
+    @PostMapping(path = "/{id}/activation")
     public ApiResponse<ActivationLinkResponse> resendActivation(@PathVariable("id") final String id) {
         final ActivationLink activation = userService.resendActivation(id);
         return ApiResponse.success(ActivationLinkResponse.from(activation));
@@ -78,7 +76,7 @@ public class UserController {
         return ApiResponse.success(UserResponse.from(user));
     }
 
-    @PutMapping(path = "/{id}/roles", consumes = MediaType.APPLICATION_JSON_VALUE)
+    @PostMapping(path = "/{id}/roles", consumes = MediaType.APPLICATION_JSON_VALUE)
     public ApiResponse<UserResponse> assignRoles(
             @PathVariable("id") final String id,
             @Valid @RequestBody final AssignRolesRequest request) {
