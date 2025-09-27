@@ -1,6 +1,8 @@
 package com.bob.mta.modules.customfield.controller;
 
 import com.bob.mta.common.api.ApiResponse;
+import com.bob.mta.common.i18n.MessageResolver;
+import com.bob.mta.common.i18n.TestMessageResolverFactory;
 import com.bob.mta.modules.audit.service.AuditRecorder;
 import com.bob.mta.modules.audit.service.impl.InMemoryAuditService;
 import com.bob.mta.modules.customfield.domain.CustomFieldType;
@@ -9,15 +11,16 @@ import com.bob.mta.modules.customfield.dto.CustomFieldDefinitionResponse;
 import com.bob.mta.modules.customfield.dto.CustomFieldValueRequest;
 import com.bob.mta.modules.customfield.service.impl.InMemoryCustomFieldService;
 import com.bob.mta.modules.customer.service.impl.InMemoryCustomerService;
-import com.bob.mta.modules.tag.service.impl.InMemoryTagService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.springframework.context.i18n.LocaleContextHolder;
 import org.springframework.security.authentication.TestingAuthenticationToken;
 import org.springframework.security.core.context.SecurityContextHolder;
 
 import java.util.List;
+import java.util.Locale;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -25,20 +28,23 @@ class CustomFieldControllerTest {
 
     private CustomFieldController controller;
     private InMemoryCustomFieldService customFieldService;
+    private MessageResolver messageResolver;
 
     @BeforeEach
     void setUp() {
+        LocaleContextHolder.setLocale(Locale.SIMPLIFIED_CHINESE);
         customFieldService = new InMemoryCustomFieldService();
-        InMemoryTagService tagService = new InMemoryTagService();
-        InMemoryCustomerService customerService = new InMemoryCustomerService(tagService, customFieldService);
+        InMemoryCustomerService customerService = new InMemoryCustomerService();
         AuditRecorder recorder = new AuditRecorder(new InMemoryAuditService(), new ObjectMapper());
-        controller = new CustomFieldController(customFieldService, customerService, recorder);
+        messageResolver = TestMessageResolverFactory.create();
+        controller = new CustomFieldController(customFieldService, customerService, recorder, messageResolver);
         SecurityContextHolder.getContext().setAuthentication(new TestingAuthenticationToken("admin", "pass", "ROLE_ADMIN"));
     }
 
     @AfterEach
     void tearDown() {
         SecurityContextHolder.clearContext();
+        LocaleContextHolder.resetLocaleContext();
     }
 
     @Test
