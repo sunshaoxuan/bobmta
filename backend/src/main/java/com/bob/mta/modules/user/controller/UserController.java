@@ -10,6 +10,8 @@ import com.bob.mta.modules.user.dto.AssignRolesRequest;
 import com.bob.mta.modules.user.dto.CreateUserRequest;
 import com.bob.mta.modules.user.dto.CreateUserResponse;
 import com.bob.mta.modules.user.dto.UserResponse;
+import com.bob.mta.i18n.Localization;
+import com.bob.mta.i18n.LocalizationKeys;
 import com.bob.mta.modules.user.service.UserService;
 import com.bob.mta.modules.user.service.command.CreateUserCommand;
 import com.bob.mta.modules.user.service.model.ActivationLink;

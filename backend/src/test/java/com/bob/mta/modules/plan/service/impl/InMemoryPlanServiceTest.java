@@ -50,15 +50,15 @@ class InMemoryPlanServiceTest {
     void shouldCreatePlanWithExecutions() {
         CreatePlanCommand command = new CreatePlanCommand(
                 "tenant-x",
-                "测试计划",
-                "巡检准备",
+                "Test Plan",
+                "Inspection preparation",
                 "cust-001",
                 "admin",
                 OffsetDateTime.now().plusDays(1),
                 OffsetDateTime.now().plusDays(1).plusHours(2),
                 "Asia/Tokyo",
                 List.of("admin"),
-                List.of(new PlanNodeCommand(null, "检查清单", "CHECKLIST", "admin", 1, 30, null, "", List.of()))
+                List.of(new PlanNodeCommand(null, "Checklist", "CHECKLIST", "admin", 1, 30, null, "", List.of()))
         );
 
         var plan = service.createPlan(command);

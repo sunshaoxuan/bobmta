@@ -11,6 +11,8 @@ import com.bob.mta.modules.template.dto.RenderTemplateRequest;
 import com.bob.mta.modules.template.dto.RenderedTemplateResponse;
 import com.bob.mta.modules.template.dto.TemplateResponse;
 import com.bob.mta.modules.template.dto.UpdateTemplateRequest;
+import com.bob.mta.i18n.Localization;
+import com.bob.mta.i18n.LocalizationKeys;
 import com.bob.mta.modules.template.service.TemplateService;
 import jakarta.validation.Valid;
 import org.springframework.security.access.prepost.PreAuthorize;

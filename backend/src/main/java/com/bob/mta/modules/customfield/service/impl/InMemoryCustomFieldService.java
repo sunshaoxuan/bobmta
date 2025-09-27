@@ -2,6 +2,8 @@ package com.bob.mta.modules.customfield.service.impl;
 
 import com.bob.mta.common.exception.BusinessException;
 import com.bob.mta.common.exception.ErrorCode;
+import com.bob.mta.i18n.Localization;
+import com.bob.mta.i18n.LocalizationKeys;
 import com.bob.mta.modules.customfield.domain.CustomFieldDefinition;
 import com.bob.mta.modules.customfield.domain.CustomFieldType;
 import com.bob.mta.modules.customfield.domain.CustomFieldValue;
@@ -30,8 +32,12 @@ public class InMemoryCustomFieldService implements CustomFieldService {
     }
 
     private void seedDefaults() {
-        createDefinition("erp_version", "ERP版本", CustomFieldType.TEXT, true, List.of(), "客户ERP系统版本");
-        createDefinition("critical_system", "核心系统", CustomFieldType.TEXT, false, List.of(), "关键系统名称");
+        createDefinition("erp_version", Localization.text(LocalizationKeys.Seeds.CUSTOM_FIELD_ERP_VERSION_NAME),
+                CustomFieldType.TEXT, true, List.of(),
+                Localization.text(LocalizationKeys.Seeds.CUSTOM_FIELD_ERP_VERSION_DESCRIPTION));
+        createDefinition("critical_system", Localization.text(LocalizationKeys.Seeds.CUSTOM_FIELD_CRITICAL_SYSTEM_NAME),
+                CustomFieldType.TEXT, false, List.of(),
+                Localization.text(LocalizationKeys.Seeds.CUSTOM_FIELD_CRITICAL_SYSTEM_DESCRIPTION));
     }
 
     @Override

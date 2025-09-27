@@ -53,19 +53,19 @@ class TagControllerTest {
     @Test
     void shouldCreateTag() {
         CreateTagRequest request = new CreateTagRequest();
-        request.setName("紧急");
+        request.setName("urgent");
         request.setColor("#F5222D");
         request.setIcon("AlertOutlined");
         request.setScope(com.bob.mta.modules.tag.domain.TagScope.CUSTOMER);
         request.setEnabled(true);
 
         ApiResponse<TagResponse> response = controller.create(request);
-        assertThat(response.getData().getName()).isEqualTo("紧急");
+        assertThat(response.getData().getName()).isEqualTo("urgent");
     }
 
     @Test
     void shouldAssignTagToPlan() {
-        var created = controller.create(buildRequest("计划", com.bob.mta.modules.tag.domain.TagScope.PLAN));
+        var created = controller.create(buildRequest("plan", com.bob.mta.modules.tag.domain.TagScope.PLAN));
         AssignTagRequest assign = new AssignTagRequest();
         assign.setEntityType(TagEntityType.PLAN);
         assign.setEntityId(planService.listPlans(null, null, null, null, null, null).get(0).getId());

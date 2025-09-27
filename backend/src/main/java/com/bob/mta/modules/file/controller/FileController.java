@@ -6,6 +6,8 @@ import com.bob.mta.modules.audit.service.AuditRecorder;
 import com.bob.mta.modules.file.domain.FileMetadata;
 import com.bob.mta.modules.file.dto.FileResponse;
 import com.bob.mta.modules.file.dto.RegisterFileRequest;
+import com.bob.mta.i18n.Localization;
+import com.bob.mta.i18n.LocalizationKeys;
 import com.bob.mta.modules.file.service.FileService;
 import jakarta.validation.Valid;
 import org.springframework.security.access.prepost.PreAuthorize;
