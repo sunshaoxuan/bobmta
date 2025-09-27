@@ -53,7 +53,7 @@ public class FileController {
                 uploader);
         FileResponse response = FileResponse.from(metadata, fileService.buildDownloadUrl(metadata));
         auditRecorder.record("File", metadata.getId(), "REGISTER_FILE",
-                messageResolver.getMessage("audit.file.register"), null, response);
+                Localization.text(LocalizationKeys.Audit.FILE_REGISTER), null, response);
         return ApiResponse.success(response);
     }
 
@@ -78,7 +78,7 @@ public class FileController {
         FileMetadata metadata = fileService.get(id);
         fileService.delete(id);
         auditRecorder.record("File", id, "DELETE_FILE",
-                messageResolver.getMessage("audit.file.delete"),
+                Localization.text(LocalizationKeys.Audit.FILE_DELETE),
                 FileResponse.from(metadata, fileService.buildDownloadUrl(metadata)), null);
         return ApiResponse.success();
     }

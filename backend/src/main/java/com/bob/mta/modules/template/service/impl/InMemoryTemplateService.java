@@ -93,7 +93,8 @@ public class InMemoryTemplateService implements TemplateService {
     public RenderedTemplate render(long id, Map<String, String> context) {
         TemplateDefinition definition = get(id);
         if (!definition.isEnabled()) {
-            throw new BusinessException(ErrorCode.VALIDATION_ERROR, "Template disabled");
+            throw new BusinessException(ErrorCode.VALIDATION_ERROR,
+                    Localization.text(LocalizationKeys.Errors.TEMPLATE_DISABLED));
         }
         Map<String, String> safeContext = normalizeContext(context);
         String subject = replacePlaceholders(definition.getSubject(), safeContext);
@@ -189,7 +190,7 @@ public class InMemoryTemplateService implements TemplateService {
             return new RemoteArtifact(null, null, null, Map.of(
                     "protocol", "UNKNOWN",
                     "endpoint", endpoint,
-                    "error", "Failed to parse endpoint"));
+                    "error", Localization.text(LocalizationKeys.Errors.TEMPLATE_ENDPOINT_INVALID)));
         }
     }
 

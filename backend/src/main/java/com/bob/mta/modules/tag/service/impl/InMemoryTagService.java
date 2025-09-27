@@ -91,7 +91,8 @@ public class InMemoryTagService implements TagService {
     public TagAssignment assign(long tagId, TagEntityType entityType, String entityId) {
         TagDefinition definition = getById(tagId);
         if (!definition.getScope().supports(entityType)) {
-            throw new BusinessException(ErrorCode.VALIDATION_ERROR, "Tag scope does not support entity type");
+            throw new BusinessException(ErrorCode.VALIDATION_ERROR,
+                    Localization.text(LocalizationKeys.Errors.TAG_SCOPE_UNSUPPORTED));
         }
         Set<TagAssignment> assignments = assignmentIndex.computeIfAbsent(tagId, key -> ConcurrentHashMap.newKeySet());
         TagAssignment newAssignment = new TagAssignment(tagId, entityType, entityId);

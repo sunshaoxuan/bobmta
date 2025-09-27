@@ -65,7 +65,7 @@ public class CustomFieldController {
                 request.getOptions(),
                 request.getDescription());
         auditRecorder.record("CustomField", String.valueOf(definition.getId()), "CREATE_CUSTOM_FIELD",
-                messageResolver.getMessage("audit.customField.create"),
+                Localization.text(LocalizationKeys.Audit.CUSTOM_FIELD_CREATE),
                 null, CustomFieldDefinitionResponse.from(definition));
         return ApiResponse.success(CustomFieldDefinitionResponse.from(definition));
     }
@@ -83,7 +83,7 @@ public class CustomFieldController {
                 request.getOptions(),
                 request.getDescription());
         auditRecorder.record("CustomField", String.valueOf(id), "UPDATE_CUSTOM_FIELD",
-                messageResolver.getMessage("audit.customField.update"),
+                Localization.text(LocalizationKeys.Audit.CUSTOM_FIELD_UPDATE),
                 CustomFieldDefinitionResponse.from(before), CustomFieldDefinitionResponse.from(updated));
         return ApiResponse.success(CustomFieldDefinitionResponse.from(updated));
     }
@@ -94,7 +94,7 @@ public class CustomFieldController {
         CustomFieldDefinition before = customFieldService.getDefinition(id);
         customFieldService.deleteDefinition(id);
         auditRecorder.record("CustomField", String.valueOf(id), "DELETE_CUSTOM_FIELD",
-                messageResolver.getMessage("audit.customField.delete"),
+                Localization.text(LocalizationKeys.Audit.CUSTOM_FIELD_DELETE),
                 CustomFieldDefinitionResponse.from(before), null);
         return ApiResponse.success();
     }
@@ -119,8 +119,6 @@ public class CustomFieldController {
                 .map(CustomFieldValueResponse::from)
                 .toList();
         auditRecorder.record("CustomFieldValue", customerId, "UPSERT_CUSTOM_FIELD_VALUE",
-                messageResolver.getMessage("audit.customFieldValue.upsert"), null, updated);
-                messageResolver.getMessage("audit.customFieldValue.upsert"), null, updated);
                 Localization.text(LocalizationKeys.Audit.CUSTOM_FIELD_VALUE_UPSERT), null, updated);
         return ApiResponse.success(updated);
     }

@@ -78,7 +78,7 @@ public class UserController {
         final CreateUserResult result = userService.createUser(command);
         final CreateUserResponse response = CreateUserResponse.from(result);
         auditRecorder.record("User", response.getUser().getId(), "CREATE_USER",
-                messageResolver.getMessage("audit.user.create"), null, response);
+                Localization.text(LocalizationKeys.Audit.USER_CREATE), null, response);
         return ApiResponse.success(response);
     }
 
@@ -88,7 +88,7 @@ public class UserController {
         final ActivationLink activation = userService.resendActivation(id);
         final ActivationLinkResponse response = ActivationLinkResponse.from(activation);
         auditRecorder.record("UserActivation", id, "RESEND_ACTIVATION",
-                messageResolver.getMessage("audit.user.resendActivation"), null, response);
+                Localization.text(LocalizationKeys.Audit.USER_RESEND_ACTIVATION), null, response);
         return ApiResponse.success(response);
     }
 
@@ -97,7 +97,7 @@ public class UserController {
         final UserView user = userService.activateUser(request.getToken());
         final UserResponse response = UserResponse.from(user);
         auditRecorder.record("User", response.getId(), "ACTIVATE_USER",
-                messageResolver.getMessage("audit.user.activate"), null, response);
+                Localization.text(LocalizationKeys.Audit.USER_ACTIVATE), null, response);
         return ApiResponse.success(response);
     }
 
@@ -110,7 +110,7 @@ public class UserController {
         final UserView user = userService.assignRoles(id, request.getRoles());
         final UserResponse response = UserResponse.from(user);
         auditRecorder.record("User", id, "ASSIGN_ROLES",
-                messageResolver.getMessage("audit.user.assignRoles"), before, response);
+                Localization.text(LocalizationKeys.Audit.USER_ASSIGN_ROLES), before, response);
         return ApiResponse.success(response);
     }
 }

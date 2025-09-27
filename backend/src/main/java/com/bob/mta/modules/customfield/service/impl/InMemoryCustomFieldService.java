@@ -61,7 +61,8 @@ public class InMemoryCustomFieldService implements CustomFieldService {
                                                    List<String> options, String description) {
         boolean exists = definitions.values().stream().anyMatch(def -> def.getCode().equalsIgnoreCase(code));
         if (exists) {
-            throw new BusinessException(ErrorCode.VALIDATION_ERROR, "Custom field code already exists");
+            throw new BusinessException(ErrorCode.VALIDATION_ERROR,
+                    Localization.text(LocalizationKeys.Errors.CUSTOM_FIELD_CODE_EXISTS));
         }
         long id = idGenerator.incrementAndGet();
         CustomFieldDefinition definition = new CustomFieldDefinition(
@@ -140,7 +141,8 @@ public class InMemoryCustomFieldService implements CustomFieldService {
             CustomFieldValue current = existing.get(definition.getId());
             if (current == null || !StringUtils.hasText(current.getValue())) {
                 throw new BusinessException(ErrorCode.CUSTOM_FIELD_VALUE_INVALID,
-                        "Required field " + definition.getCode() + " must not be empty");
+                        Localization.text(LocalizationKeys.Errors.CUSTOM_FIELD_REQUIRED_EMPTY,
+                                definition.getCode()));
             }
         }
     }
@@ -148,7 +150,8 @@ public class InMemoryCustomFieldService implements CustomFieldService {
     private void validateValue(CustomFieldDefinition definition, String value) {
         if (!StringUtils.hasText(value)) {
             if (definition.isRequired()) {
-                throw new BusinessException(ErrorCode.CUSTOM_FIELD_VALUE_INVALID, "Value required");
+                throw new BusinessException(ErrorCode.CUSTOM_FIELD_VALUE_INVALID,
+                        Localization.text(LocalizationKeys.Errors.CUSTOM_FIELD_VALUE_REQUIRED));
             }
             return;
         }
@@ -158,19 +161,22 @@ public class InMemoryCustomFieldService implements CustomFieldService {
                 case DATE -> LocalDate.parse(value);
                 case BOOLEAN -> {
                     if (!Objects.equals(value, "true") && !Objects.equals(value, "false")) {
-                        throw new IllegalArgumentException("Boolean value must be true or false");
+                        throw new BusinessException(ErrorCode.CUSTOM_FIELD_VALUE_INVALID,
+                                Localization.text(LocalizationKeys.Errors.CUSTOM_FIELD_BOOLEAN_EXPECTED));
                     }
                 }
                 case TEXT -> {
                     // no-op
                 }
             }
-            if (!definition.getOptions().isEmpty() && definition.getOptions().stream()
-                    .noneMatch(option -> option.equalsIgnoreCase(value))) {
-                throw new BusinessException(ErrorCode.CUSTOM_FIELD_VALUE_INVALID, "Value not in allowed options");
-            }
-        } catch (Exception ex) {
-            throw new BusinessException(ErrorCode.CUSTOM_FIELD_VALUE_INVALID, ex.getMessage());
+        } catch (NumberFormatException | java.time.format.DateTimeParseException ex) {
+            throw new BusinessException(ErrorCode.CUSTOM_FIELD_VALUE_INVALID,
+                    Localization.text(LocalizationKeys.Errors.CUSTOM_FIELD_VALUE_INVALID_FORMAT));
+        }
+        if (!definition.getOptions().isEmpty() && definition.getOptions().stream()
+                .noneMatch(option -> option.equalsIgnoreCase(value))) {
+            throw new BusinessException(ErrorCode.CUSTOM_FIELD_VALUE_INVALID,
+                    Localization.text(LocalizationKeys.Errors.CUSTOM_FIELD_VALUE_INVALID_OPTION));
         }
     }
 }

@@ -124,7 +124,7 @@ public class PlanController {
         Plan before = planService.getPlan(id);
         Plan updated = planService.updateReminderPolicy(id, toReminderRules(request.getRules()), currentUsername());
         auditRecorder.record("Plan", id, "UPDATE_PLAN_REMINDERS",
-                messageResolver.getMessage("audit.plan.updateReminders"),
+                Localization.text(LocalizationKeys.Audit.PLAN_REMINDER_UPDATE),
                 PlanReminderPolicyResponse.from(before.getReminderPolicy()),
                 PlanReminderPolicyResponse.from(updated.getReminderPolicy()));
         return ApiResponse.success(PlanReminderPolicyResponse.from(updated.getReminderPolicy()));
@@ -159,7 +159,7 @@ public class PlanController {
         Plan plan = planService.createPlan(command);
         PlanDetailResponse detail = toDetailResponse(plan);
         auditRecorder.record("Plan", plan.getId(), "CREATE_PLAN",
-                messageResolver.getMessage("audit.plan.create"), null, detail);
+                Localization.text(LocalizationKeys.Audit.PLAN_CREATE), null, detail);
         return ApiResponse.success(detail);
     }
 
@@ -180,7 +180,7 @@ public class PlanController {
         Plan updated = planService.updatePlan(id, command);
         PlanDetailResponse afterSnapshot = toDetailResponse(updated);
         auditRecorder.record("Plan", id, "UPDATE_PLAN",
-                messageResolver.getMessage("audit.plan.update"), beforeSnapshot, afterSnapshot);
+                Localization.text(LocalizationKeys.Audit.PLAN_UPDATE), beforeSnapshot, afterSnapshot);
         return ApiResponse.success(afterSnapshot);
     }
 
@@ -191,7 +191,7 @@ public class PlanController {
         PlanDetailResponse beforeSnapshot = toDetailResponse(before);
         planService.deletePlan(id);
         auditRecorder.record("Plan", id, "DELETE_PLAN",
-                messageResolver.getMessage("audit.plan.delete"), beforeSnapshot, null);
+                Localization.text(LocalizationKeys.Audit.PLAN_DELETE), beforeSnapshot, null);
         return ApiResponse.success();
     }
 
@@ -203,7 +203,7 @@ public class PlanController {
         Plan updated = planService.publishPlan(id, currentUsername());
         PlanDetailResponse afterSnapshot = toDetailResponse(updated);
         auditRecorder.record("Plan", id, "PUBLISH_PLAN",
-                messageResolver.getMessage("audit.plan.publish"), beforeSnapshot, afterSnapshot);
+                Localization.text(LocalizationKeys.Audit.PLAN_PUBLISH), beforeSnapshot, afterSnapshot);
         return ApiResponse.success(afterSnapshot);
     }
 
@@ -217,7 +217,7 @@ public class PlanController {
         Plan updated = planService.cancelPlan(id, currentUsername(), reason);
         PlanDetailResponse afterSnapshot = toDetailResponse(updated);
         auditRecorder.record("Plan", id, "CANCEL_PLAN",
-                messageResolver.getMessage("audit.plan.cancel"), beforeSnapshot, afterSnapshot);
+                Localization.text(LocalizationKeys.Audit.PLAN_CANCEL), beforeSnapshot, afterSnapshot);
         return ApiResponse.success(afterSnapshot);
     }
 
@@ -231,7 +231,7 @@ public class PlanController {
                 request.getNote(), currentUsername());
         PlanDetailResponse afterSnapshot = toDetailResponse(updated);
         auditRecorder.record("Plan", id, "HANDOVER_PLAN",
-                messageResolver.getMessage("audit.plan.handover"), beforeSnapshot, afterSnapshot);
+                Localization.text(LocalizationKeys.Audit.PLAN_HANDOVER), beforeSnapshot, afterSnapshot);
         return ApiResponse.success(afterSnapshot);
     }
 
@@ -243,7 +243,7 @@ public class PlanController {
         PlanNodeExecution execution = planService.startNode(planId, nodeId, currentUsername());
         PlanNodeExecutionResponse after = PlanNodeExecutionResponse.from(execution, this::resolveAttachments);
         auditRecorder.record("PlanNode", planId + "::" + nodeId, "START_NODE",
-                messageResolver.getMessage("audit.plan.startNode"), before, after);
+                Localization.text(LocalizationKeys.Audit.PLAN_NODE_START), before, after);
         return ApiResponse.success(after);
     }
 
@@ -257,8 +257,7 @@ public class PlanController {
                 request.getResult(), request.getLog(), request.getFileIds());
         PlanNodeExecutionResponse after = PlanNodeExecutionResponse.from(execution, this::resolveAttachments);
         auditRecorder.record("PlanNode", planId + "::" + nodeId, "COMPLETE_NODE",
-                messageResolver.getMessage("audit.plan.completeNode"),
-                before, after);
+                Localization.text(LocalizationKeys.Audit.PLAN_NODE_COMPLETE), before, after);
         return ApiResponse.success(after);
     }
 

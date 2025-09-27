@@ -19,7 +19,35 @@ public final class LocalizationKeys {
         public static final String BACKEND_SUCCESS = "frontend.app.backend.success";
         public static final String BACKEND_ERROR = "frontend.app.backend.error";
         public static final String BACKEND_PENDING = "frontend.app.backend.pending";
+        public static final String LOCALE_LABEL = "frontend.app.locale.label";
         private Frontend() {
+        }
+    }
+
+    public static final class Errors {
+        public static final String TAG_SCOPE_UNSUPPORTED = "error.tag.scope.unsupported";
+        public static final String CUSTOM_FIELD_CODE_EXISTS = "error.customField.codeExists";
+        public static final String CUSTOM_FIELD_REQUIRED_EMPTY = "error.customField.requiredEmpty";
+        public static final String CUSTOM_FIELD_VALUE_REQUIRED = "error.customField.valueRequired";
+        public static final String CUSTOM_FIELD_VALUE_INVALID_OPTION = "error.customField.valueInvalidOption";
+        public static final String CUSTOM_FIELD_VALUE_INVALID_FORMAT = "error.customField.valueInvalidFormat";
+        public static final String CUSTOM_FIELD_BOOLEAN_EXPECTED = "error.customField.booleanExpected";
+        public static final String TEMPLATE_DISABLED = "error.template.disabled";
+        public static final String TEMPLATE_ENDPOINT_INVALID = "error.template.endpointInvalid";
+        public static final String PLAN_UPDATE_DESIGN_ONLY = "error.plan.update.designOnly";
+        public static final String PLAN_DELETE_DESIGN_ONLY = "error.plan.delete.designOnly";
+        public static final String PLAN_ALREADY_PUBLISHED = "error.plan.alreadyPublished";
+        public static final String PLAN_INACTIVE = "error.plan.inactive";
+        public static final String PLAN_NODE_REQUIRES_START = "error.plan.node.requiresStart";
+        public static final String PLAN_HANDOVER_OWNER_REQUIRED = "error.plan.handover.ownerRequired";
+        public static final String PLAN_EXECUTE_REQUIRES_PUBLISH = "error.plan.execute.requiresPublish";
+        public static final String PLAN_REMINDER_TEMPLATE_REQUIRED = "error.plan.reminder.templateRequired";
+        public static final String PLAN_REMINDER_TRIGGER_REQUIRED = "error.plan.reminder.triggerRequired";
+        public static final String PLAN_REMINDER_OFFSET_NEGATIVE = "error.plan.reminder.offsetNegative";
+        public static final String PLAN_REMINDER_CHANNELS_REQUIRED = "error.plan.reminder.channelsRequired";
+        public static final String PLAN_REMINDER_ID_REQUIRED = "error.plan.reminder.idRequired";
+
+        private Errors() {
         }
     }
 
