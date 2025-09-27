@@ -11,6 +11,7 @@ import com.bob.mta.modules.plan.domain.PlanStatus;
 import com.bob.mta.modules.plan.dto.CancelPlanRequest;
 import com.bob.mta.modules.plan.dto.CompleteNodeRequest;
 import com.bob.mta.modules.plan.dto.CreatePlanRequest;
+import com.bob.mta.modules.plan.dto.PlanActivityResponse;
 import com.bob.mta.modules.plan.dto.PlanDetailResponse;
 import com.bob.mta.modules.plan.dto.PlanNodeExecutionResponse;
 import com.bob.mta.modules.plan.dto.PlanNodeRequest;
@@ -72,6 +73,15 @@ public class PlanController {
     @GetMapping("/{id}")
     public ApiResponse<PlanDetailResponse> detail(@PathVariable String id) {
         return ApiResponse.success(PlanDetailResponse.from(planService.getPlan(id)));
+    }
+
+    @PreAuthorize("hasAnyRole('ADMIN','OPERATOR')")
+    @GetMapping("/{id}/timeline")
+    public ApiResponse<List<PlanActivityResponse>> timeline(@PathVariable String id) {
+        List<PlanActivityResponse> timeline = planService.getPlanTimeline(id).stream()
+                .map(PlanActivityResponse::from)
+                .toList();
+        return ApiResponse.success(timeline);
     }
 
     @PreAuthorize("hasAnyRole('ADMIN','OPERATOR')")

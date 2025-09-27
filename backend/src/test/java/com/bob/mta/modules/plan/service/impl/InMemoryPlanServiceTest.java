@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.bob.mta.common.exception.BusinessException;
 import com.bob.mta.modules.file.service.impl.InMemoryFileService;
+import com.bob.mta.modules.plan.domain.PlanActivityType;
 import com.bob.mta.modules.plan.domain.PlanNodeExecution;
 import com.bob.mta.modules.plan.domain.PlanStatus;
 import com.bob.mta.modules.plan.service.command.CreatePlanCommand;
@@ -39,6 +40,9 @@ class InMemoryPlanServiceTest {
 
         assertThat(plan.getExecutions()).hasSize(1);
         assertThat(plan.getStatus()).isEqualTo(PlanStatus.DESIGN);
+        assertThat(plan.getActivities())
+                .extracting(activity -> activity.getType())
+                .containsExactly(PlanActivityType.PLAN_CREATED);
     }
 
     @Test
@@ -81,6 +85,25 @@ class InMemoryPlanServiceTest {
         assertThat(updated.getCancelReason()).isEqualTo("客户要求顺延");
         assertThat(updated.getCanceledBy()).isEqualTo("operator");
         assertThat(updated.getCanceledAt()).isNotNull();
+    }
+
+    @Test
+    @DisplayName("timeline captures node execution lifecycle")
+    void shouldCaptureTimelineForNodeLifecycle() {
+        var plan = service.listPlans(null, null, null, null).get(0);
+        service.publishPlan(plan.getId(), "admin");
+        String nodeId = plan.getExecutions().get(0).getNodeId();
+        service.startNode(plan.getId(), nodeId, "operator");
+        service.completeNode(plan.getId(), nodeId, "operator", "ok", null, null);
+
+        var timeline = service.getPlanTimeline(plan.getId());
+
+        assertThat(timeline)
+                .extracting(entry -> entry.getType())
+                .contains(PlanActivityType.PLAN_CREATED,
+                        PlanActivityType.PLAN_PUBLISHED,
+                        PlanActivityType.NODE_STARTED,
+                        PlanActivityType.NODE_COMPLETED);
     }
 
     @Test

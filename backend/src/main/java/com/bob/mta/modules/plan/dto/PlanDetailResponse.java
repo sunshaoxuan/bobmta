@@ -29,13 +29,15 @@ public class PlanDetailResponse {
     private final String timezone;
     private final int progress;
     private final List<PlanNodeResponse> nodes;
+    private final List<PlanActivityResponse> timeline;
 
     public PlanDetailResponse(String id, String tenantId, String title, String description, String customerId,
                               String owner, List<String> participants, PlanStatus status,
                               OffsetDateTime plannedStartTime, OffsetDateTime plannedEndTime,
                               OffsetDateTime actualStartTime, OffsetDateTime actualEndTime,
                               String cancelReason, String canceledBy, OffsetDateTime canceledAt,
-                              String timezone, int progress, List<PlanNodeResponse> nodes) {
+                              String timezone, int progress, List<PlanNodeResponse> nodes,
+                              List<PlanActivityResponse> timeline) {
         this.id = id;
         this.tenantId = tenantId;
         this.title = title;
@@ -54,6 +56,7 @@ public class PlanDetailResponse {
         this.timezone = timezone;
         this.progress = progress;
         this.nodes = nodes;
+        this.timeline = timeline;
     }
 
     public static PlanDetailResponse from(Plan plan) {
@@ -61,6 +64,9 @@ public class PlanDetailResponse {
                 .collect(Collectors.toMap(PlanNodeExecution::getNodeId, execution -> execution));
         List<PlanNodeResponse> nodeResponses = plan.getNodes().stream()
                 .map(node -> PlanNodeResponse.from(node, executionIndex))
+                .toList();
+        List<PlanActivityResponse> activities = plan.getActivities().stream()
+                .map(PlanActivityResponse::from)
                 .toList();
         return new PlanDetailResponse(
                 plan.getId(),
@@ -80,7 +86,8 @@ public class PlanDetailResponse {
                 plan.getCanceledAt(),
                 plan.getTimezone(),
                 plan.getProgress(),
-                nodeResponses
+                nodeResponses,
+                activities
         );
     }
 
@@ -162,5 +169,9 @@ public class PlanDetailResponse {
 
     public List<PlanNodeResponse> getNodes() {
         return nodes;
+    }
+
+    public List<PlanActivityResponse> getTimeline() {
+        return timeline;
     }
 }

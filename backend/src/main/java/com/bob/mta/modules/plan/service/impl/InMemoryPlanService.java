@@ -4,6 +4,8 @@ import com.bob.mta.common.exception.BusinessException;
 import com.bob.mta.common.exception.ErrorCode;
 import com.bob.mta.modules.file.service.FileService;
 import com.bob.mta.modules.plan.domain.Plan;
+import com.bob.mta.modules.plan.domain.PlanActivity;
+import com.bob.mta.modules.plan.domain.PlanActivityType;
 import com.bob.mta.modules.plan.domain.PlanNode;
 import com.bob.mta.modules.plan.domain.PlanNodeExecution;
 import com.bob.mta.modules.plan.domain.PlanNodeStatus;
@@ -20,8 +22,10 @@ import java.time.ZoneOffset;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
@@ -118,11 +122,20 @@ public class InMemoryPlanService implements PlanService {
         List<PlanNode> nodes = toNodes(command.getNodes());
         List<PlanNodeExecution> executions = initializeExecutions(nodes);
         String timezone = StringUtils.hasText(command.getTimezone()) ? command.getTimezone() : current.getTimezone();
-        Plan updated = new Plan(current.getId(), current.getTenantId(), command.getTitle(), command.getDescription(),
-                current.getCustomerId(), current.getOwner(), command.getParticipants(), current.getStatus(),
-                command.getStartTime(), command.getEndTime(), current.getActualStartTime(), current.getActualEndTime(),
-                current.getCancelReason(), current.getCanceledBy(), current.getCanceledAt(),
-                timezone, nodes, executions, current.getCreatedAt(), now);
+        List<PlanActivity> activities = appendActivity(current, new PlanActivity(
+                PlanActivityType.PLAN_UPDATED,
+                now,
+                null,
+                "计划定义更新",
+                current.getId(),
+                attributes(
+                        "title", command.getTitle(),
+                        "timezone", timezone,
+                        "participantCount", command.getParticipants() == null ? null
+                                : String.valueOf(command.getParticipants().size())
+                )));
+        Plan updated = current.withDefinition(nodes, executions, now, command.getStartTime(), command.getEndTime(),
+                command.getDescription(), command.getParticipants(), timezone, activities);
         plans.put(id, updated);
         return updated;
     }
@@ -145,8 +158,18 @@ public class InMemoryPlanService implements PlanService {
         OffsetDateTime now = OffsetDateTime.now();
         PlanStatus nextStatus = current.getPlannedStartTime().isAfter(now) ? PlanStatus.SCHEDULED : PlanStatus.IN_PROGRESS;
         OffsetDateTime actualStart = nextStatus == PlanStatus.IN_PROGRESS ? now : current.getActualStartTime();
+        List<PlanActivity> activities = appendActivity(current, new PlanActivity(
+                PlanActivityType.PLAN_PUBLISHED,
+                now,
+                operator,
+                "计划发布",
+                current.getId(),
+                attributes(
+                        "status", nextStatus.name(),
+                        "operator", operator
+                )));
         Plan updated = current.withStatus(nextStatus, actualStart, null, current.getExecutions(), now,
-                null, null, null);
+                null, null, null, activities);
         plans.put(id, updated);
         return updated;
     }
@@ -158,8 +181,18 @@ public class InMemoryPlanService implements PlanService {
             throw new BusinessException(ErrorCode.BAD_REQUEST, "Plan already completed or canceled");
         }
         OffsetDateTime now = OffsetDateTime.now();
+        List<PlanActivity> activities = appendActivity(current, new PlanActivity(
+                PlanActivityType.PLAN_CANCELLED,
+                now,
+                operator,
+                "计划取消",
+                current.getId(),
+                attributes(
+                        "reason", reason,
+                        "operator", operator
+                )));
         Plan updated = current.withStatus(PlanStatus.CANCELED, null, now, current.getExecutions(), now,
-                reason, operator, now);
+                reason, operator, now, activities);
         plans.put(id, updated);
         return updated;
     }
@@ -176,6 +209,7 @@ public class InMemoryPlanService implements PlanService {
             return target;
         }
         OffsetDateTime now = OffsetDateTime.now();
+        PlanNode node = findNode(current, nodeId);
         List<PlanNodeExecution> executions = replaceExecution(current.getExecutions(), nodeId,
                 new PlanNodeExecution(nodeId, PlanNodeStatus.IN_PROGRESS,
                         target.getStartTime() == null ? now : target.getStartTime(), null,
@@ -185,8 +219,19 @@ public class InMemoryPlanService implements PlanService {
         if (nextStatus == PlanStatus.IN_PROGRESS && actualStart == null) {
             actualStart = now;
         }
+        List<PlanActivity> activities = appendActivity(current, new PlanActivity(
+                PlanActivityType.NODE_STARTED,
+                now,
+                operator,
+                "节点开始执行",
+                nodeId,
+                attributes(
+                        "nodeName", node.getName(),
+                        "assignee", node.getAssignee(),
+                        "operator", operator
+                )));
         Plan updated = current.withStatus(nextStatus, actualStart, null, executions, now,
-                null, null, null);
+                null, null, null, activities);
         plans.put(planId, updated);
         return executions.stream().filter(exec -> exec.getNodeId().equals(nodeId)).findFirst().orElse(target);
     }
@@ -215,8 +260,31 @@ public class InMemoryPlanService implements PlanService {
         PlanStatus nextStatus = allDone ? PlanStatus.COMPLETED : current.getStatus();
         OffsetDateTime actualStart = current.getActualStartTime() != null ? current.getActualStartTime() : startTime;
         OffsetDateTime actualEnd = allDone ? now : current.getActualEndTime();
+        PlanNode node = findNode(current, nodeId);
+        List<PlanActivity> activities = appendActivity(current, new PlanActivity(
+                PlanActivityType.NODE_COMPLETED,
+                now,
+                operator,
+                "节点完成",
+                nodeId,
+                attributes(
+                        "nodeName", node.getName(),
+                        "operator", operator,
+                        "result", result
+                )));
+        if (allDone) {
+            activities = appendActivity(activities, new PlanActivity(
+                    PlanActivityType.PLAN_COMPLETED,
+                    now,
+                    operator,
+                    "计划完成",
+                    current.getId(),
+                    attributes(
+                            "operator", operator
+                    )));
+        }
         Plan updated = current.withStatus(nextStatus, actualStart, actualEnd, executions, now,
-                null, null, null);
+                null, null, null, activities);
         plans.put(planId, updated);
         return executions.stream().filter(exec -> exec.getNodeId().equals(nodeId)).findFirst().orElse(target);
     }
@@ -237,13 +305,29 @@ public class InMemoryPlanService implements PlanService {
         return wrapCalendar(events);
     }
 
+    @Override
+    public List<PlanActivity> getPlanTimeline(String planId) {
+        Plan plan = requirePlan(planId);
+        return plan.getActivities();
+    }
+
     private Plan buildPlan(String id, CreatePlanCommand command, OffsetDateTime now) {
         List<PlanNode> nodes = toNodes(command.getNodes());
         List<PlanNodeExecution> executions = initializeExecutions(nodes);
+        List<PlanActivity> activities = List.of(new PlanActivity(
+                PlanActivityType.PLAN_CREATED,
+                now,
+                command.getOwner(),
+                "计划创建",
+                id,
+                attributes(
+                        "title", command.getTitle(),
+                        "owner", command.getOwner()
+                )));
         return new Plan(id, command.getTenantId(), command.getTitle(), command.getDescription(),
                 command.getCustomerId(), command.getOwner(), command.getParticipants(), PlanStatus.DESIGN,
                 command.getStartTime(), command.getEndTime(), null, null, null, null, null,
-                command.getTimezone(), nodes, executions, now, now);
+                command.getTimezone(), nodes, executions, now, now, activities);
     }
 
     private List<PlanNode> toNodes(List<PlanNodeCommand> commands) {
@@ -292,6 +376,13 @@ public class InMemoryPlanService implements PlanService {
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND));
     }
 
+    private PlanNode findNode(Plan plan, String nodeId) {
+        return flatten(plan.getNodes()).stream()
+                .filter(node -> node.getId().equals(nodeId))
+                .findFirst()
+                .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND));
+    }
+
     private void ensurePlanExecutable(Plan plan) {
         if (plan.getStatus() == PlanStatus.DESIGN) {
             throw new BusinessException(ErrorCode.BAD_REQUEST, "Plan must be published before executing nodes");
@@ -306,6 +397,29 @@ public class InMemoryPlanService implements PlanService {
         return executions.stream()
                 .map(exec -> exec.getNodeId().equals(nodeId) ? replacement : exec)
                 .toList();
+    }
+
+    private List<PlanActivity> appendActivity(Plan plan, PlanActivity activity) {
+        return appendActivity(plan.getActivities(), activity);
+    }
+
+    private List<PlanActivity> appendActivity(List<PlanActivity> current, PlanActivity activity) {
+        List<PlanActivity> activities = new ArrayList<>(current);
+        activities.add(activity);
+        activities.sort(Comparator.comparing(PlanActivity::getOccurredAt));
+        return activities;
+    }
+
+    private Map<String, String> attributes(String... keyValues) {
+        Map<String, String> attributes = new HashMap<>();
+        for (int i = 0; i + 1 < keyValues.length; i += 2) {
+            String key = keyValues[i];
+            String value = keyValues[i + 1];
+            if (key != null && value != null) {
+                attributes.put(key, value);
+            }
+        }
+        return attributes;
     }
 
     private String buildEvent(Plan plan) {
