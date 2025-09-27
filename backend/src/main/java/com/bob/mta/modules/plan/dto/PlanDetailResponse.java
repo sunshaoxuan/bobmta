@@ -23,15 +23,21 @@ public class PlanDetailResponse {
     private final OffsetDateTime plannedEndTime;
     private final OffsetDateTime actualStartTime;
     private final OffsetDateTime actualEndTime;
+    private final String cancelReason;
+    private final String canceledBy;
+    private final OffsetDateTime canceledAt;
     private final String timezone;
     private final int progress;
     private final List<PlanNodeResponse> nodes;
+    private final List<PlanActivityResponse> timeline;
 
     public PlanDetailResponse(String id, String tenantId, String title, String description, String customerId,
                               String owner, List<String> participants, PlanStatus status,
                               OffsetDateTime plannedStartTime, OffsetDateTime plannedEndTime,
-                              OffsetDateTime actualStartTime, OffsetDateTime actualEndTime, String timezone,
-                              int progress, List<PlanNodeResponse> nodes) {
+                              OffsetDateTime actualStartTime, OffsetDateTime actualEndTime,
+                              String cancelReason, String canceledBy, OffsetDateTime canceledAt,
+                              String timezone, int progress, List<PlanNodeResponse> nodes,
+                              List<PlanActivityResponse> timeline) {
         this.id = id;
         this.tenantId = tenantId;
         this.title = title;
@@ -44,9 +50,13 @@ public class PlanDetailResponse {
         this.plannedEndTime = plannedEndTime;
         this.actualStartTime = actualStartTime;
         this.actualEndTime = actualEndTime;
+        this.cancelReason = cancelReason;
+        this.canceledBy = canceledBy;
+        this.canceledAt = canceledAt;
         this.timezone = timezone;
         this.progress = progress;
         this.nodes = nodes;
+        this.timeline = timeline;
     }
 
     public static PlanDetailResponse from(Plan plan) {
@@ -54,6 +64,9 @@ public class PlanDetailResponse {
                 .collect(Collectors.toMap(PlanNodeExecution::getNodeId, execution -> execution));
         List<PlanNodeResponse> nodeResponses = plan.getNodes().stream()
                 .map(node -> PlanNodeResponse.from(node, executionIndex))
+                .toList();
+        List<PlanActivityResponse> activities = plan.getActivities().stream()
+                .map(PlanActivityResponse::from)
                 .toList();
         return new PlanDetailResponse(
                 plan.getId(),
@@ -68,9 +81,13 @@ public class PlanDetailResponse {
                 plan.getPlannedEndTime(),
                 plan.getActualStartTime(),
                 plan.getActualEndTime(),
+                plan.getCancelReason(),
+                plan.getCanceledBy(),
+                plan.getCanceledAt(),
                 plan.getTimezone(),
                 plan.getProgress(),
-                nodeResponses
+                nodeResponses,
+                activities
         );
     }
 
@@ -130,6 +147,18 @@ public class PlanDetailResponse {
         return actualEndTime;
     }
 
+    public String getCancelReason() {
+        return cancelReason;
+    }
+
+    public String getCanceledBy() {
+        return canceledBy;
+    }
+
+    public OffsetDateTime getCanceledAt() {
+        return canceledAt;
+    }
+
     public String getTimezone() {
         return timezone;
     }
@@ -140,5 +169,9 @@ public class PlanDetailResponse {
 
     public List<PlanNodeResponse> getNodes() {
         return nodes;
+    }
+
+    public List<PlanActivityResponse> getTimeline() {
+        return timeline;
     }
 }

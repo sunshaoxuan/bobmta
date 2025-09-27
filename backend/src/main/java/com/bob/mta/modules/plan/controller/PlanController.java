@@ -11,6 +11,7 @@ import com.bob.mta.modules.plan.domain.PlanStatus;
 import com.bob.mta.modules.plan.dto.CancelPlanRequest;
 import com.bob.mta.modules.plan.dto.CompleteNodeRequest;
 import com.bob.mta.modules.plan.dto.CreatePlanRequest;
+import com.bob.mta.modules.plan.dto.PlanActivityResponse;
 import com.bob.mta.modules.plan.dto.PlanDetailResponse;
 import com.bob.mta.modules.plan.dto.PlanNodeExecutionResponse;
 import com.bob.mta.modules.plan.dto.PlanNodeRequest;
@@ -75,6 +76,15 @@ public class PlanController {
     }
 
     @PreAuthorize("hasAnyRole('ADMIN','OPERATOR')")
+    @GetMapping("/{id}/timeline")
+    public ApiResponse<List<PlanActivityResponse>> timeline(@PathVariable String id) {
+        List<PlanActivityResponse> timeline = planService.getPlanTimeline(id).stream()
+                .map(PlanActivityResponse::from)
+                .toList();
+        return ApiResponse.success(timeline);
+    }
+
+    @PreAuthorize("hasAnyRole('ADMIN','OPERATOR')")
     @PostMapping
     public ApiResponse<PlanDetailResponse> create(@Valid @RequestBody CreatePlanRequest request) {
         CreatePlanCommand command = new CreatePlanCommand(
@@ -125,8 +135,10 @@ public class PlanController {
     @PreAuthorize("hasAnyRole('ADMIN','OPERATOR')")
     @PostMapping("/{id}/publish")
     public ApiResponse<PlanDetailResponse> publish(@PathVariable String id) {
+        Plan before = planService.getPlan(id);
         Plan updated = planService.publishPlan(id, currentUsername());
-        auditRecorder.record("Plan", id, "PUBLISH_PLAN", "发布计划", null, PlanDetailResponse.from(updated));
+        auditRecorder.record("Plan", id, "PUBLISH_PLAN", "发布计划", PlanDetailResponse.from(before),
+                PlanDetailResponse.from(updated));
         return ApiResponse.success(PlanDetailResponse.from(updated));
     }
 
@@ -135,8 +147,10 @@ public class PlanController {
     public ApiResponse<PlanDetailResponse> cancel(@PathVariable String id,
                                                   @RequestBody(required = false) CancelPlanRequest request) {
         String reason = request != null ? request.getReason() : null;
+        Plan before = planService.getPlan(id);
         Plan updated = planService.cancelPlan(id, currentUsername(), reason);
-        auditRecorder.record("Plan", id, "CANCEL_PLAN", "取消计划", null, PlanDetailResponse.from(updated));
+        auditRecorder.record("Plan", id, "CANCEL_PLAN", "取消计划", PlanDetailResponse.from(before),
+                PlanDetailResponse.from(updated));
         return ApiResponse.success(PlanDetailResponse.from(updated));
     }
 
@@ -144,10 +158,11 @@ public class PlanController {
     @PostMapping("/{planId}/nodes/{nodeId}/start")
     public ApiResponse<PlanNodeExecutionResponse> startNode(@PathVariable String planId,
                                                              @PathVariable String nodeId) {
+        PlanNodeExecutionResponse before = snapshotExecution(planId, nodeId);
         PlanNodeExecution execution = planService.startNode(planId, nodeId, currentUsername());
-        auditRecorder.record("PlanNode", planId + "::" + nodeId, "START_NODE", "开始执行节点", null,
-                PlanNodeExecutionResponse.from(execution));
-        return ApiResponse.success(PlanNodeExecutionResponse.from(execution));
+        PlanNodeExecutionResponse after = PlanNodeExecutionResponse.from(execution);
+        auditRecorder.record("PlanNode", planId + "::" + nodeId, "START_NODE", "开始执行节点", before, after);
+        return ApiResponse.success(after);
     }
 
     @PreAuthorize("hasAnyRole('ADMIN','OPERATOR')")
@@ -155,11 +170,13 @@ public class PlanController {
     public ApiResponse<PlanNodeExecutionResponse> completeNode(@PathVariable String planId,
                                                                 @PathVariable String nodeId,
                                                                 @Valid @RequestBody CompleteNodeRequest request) {
+        PlanNodeExecutionResponse before = snapshotExecution(planId, nodeId);
         PlanNodeExecution execution = planService.completeNode(planId, nodeId, currentUsername(),
                 request.getResult(), request.getLog(), request.getFileIds());
+        PlanNodeExecutionResponse after = PlanNodeExecutionResponse.from(execution);
         auditRecorder.record("PlanNode", planId + "::" + nodeId, "COMPLETE_NODE", "完成节点",
-                null, PlanNodeExecutionResponse.from(execution));
-        return ApiResponse.success(PlanNodeExecutionResponse.from(execution));
+                before, after);
+        return ApiResponse.success(after);
     }
 
     @PreAuthorize("hasAnyRole('ADMIN','OPERATOR')")
@@ -178,6 +195,15 @@ public class PlanController {
                         node.getOrder(), node.getExpectedDurationMinutes(), node.getActionRef(), node.getDescription(),
                         toCommands(node.getChildren())))
                 .toList();
+    }
+
+    private PlanNodeExecutionResponse snapshotExecution(String planId, String nodeId) {
+        Plan plan = planService.getPlan(planId);
+        PlanNodeExecution execution = plan.getExecutions().stream()
+                .filter(exec -> exec.getNodeId().equals(nodeId))
+                .findFirst()
+                .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND));
+        return PlanNodeExecutionResponse.from(execution);
     }
 
     private String currentUsername() {
