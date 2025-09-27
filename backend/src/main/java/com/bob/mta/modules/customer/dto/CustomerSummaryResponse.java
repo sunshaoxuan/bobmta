@@ -1,61 +1,69 @@
 package com.bob.mta.modules.customer.dto;
 
-import com.bob.mta.modules.customer.domain.Customer;
-
-import java.time.OffsetDateTime;
+import java.time.Instant;
 import java.util.List;
 
+/**
+ * Projection for listing customers in summary views.
+ */
 public class CustomerSummaryResponse {
 
     private final String id;
+
+    private final String code;
+
     private final String name;
+
+    private final String group;
+
     private final String region;
-    private final String industry;
+
     private final List<String> tags;
-    private final OffsetDateTime lastUpdatedAt;
 
-    public CustomerSummaryResponse(String id, String name, String region, String industry,
-                                   List<String> tags, OffsetDateTime lastUpdatedAt) {
+    private final Instant updatedAt;
+
+    public CustomerSummaryResponse(
+            final String id,
+            final String code,
+            final String name,
+            final String group,
+            final String region,
+            final List<String> tags,
+            final Instant updatedAt) {
         this.id = id;
+        this.code = code;
         this.name = name;
+        this.group = group;
         this.region = region;
-        this.industry = industry;
-        this.tags = tags;
-        this.lastUpdatedAt = lastUpdatedAt;
-    }
-
-    public static CustomerSummaryResponse from(Customer customer) {
-        return new CustomerSummaryResponse(
-                customer.getId(),
-                customer.getName(),
-                customer.getRegion(),
-                customer.getIndustry(),
-                customer.getTags(),
-                customer.getLastUpdatedAt()
-        );
+        this.tags = List.copyOf(tags);
+        this.updatedAt = updatedAt;
     }
 
     public String getId() {
         return id;
     }
 
+    public String getCode() {
+        return code;
+    }
+
     public String getName() {
         return name;
+    }
+
+    public String getGroup() {
+        return group;
     }
 
     public String getRegion() {
         return region;
     }
 
-    public String getIndustry() {
-        return industry;
-    }
-
     public List<String> getTags() {
         return tags;
     }
 
-    public OffsetDateTime getLastUpdatedAt() {
-        return lastUpdatedAt;
+    public Instant getUpdatedAt() {
+        return updatedAt;
     }
 }

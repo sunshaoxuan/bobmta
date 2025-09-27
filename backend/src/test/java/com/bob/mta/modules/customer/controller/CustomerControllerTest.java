@@ -3,9 +3,13 @@ package com.bob.mta.modules.customer.controller;
 import com.bob.mta.common.api.PageResponse;
 import com.bob.mta.modules.customer.dto.CustomerDetailResponse;
 import com.bob.mta.modules.customer.dto.CustomerSummaryResponse;
+<<<<<<< HEAD
 import com.bob.mta.modules.customfield.service.impl.InMemoryCustomFieldService;
 import com.bob.mta.modules.customer.service.impl.InMemoryCustomerService;
 import com.bob.mta.modules.tag.service.impl.InMemoryTagService;
+=======
+import com.bob.mta.modules.customer.service.impl.InMemoryCustomerService;
+>>>>>>> origin/main
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
@@ -19,9 +23,13 @@ class CustomerControllerTest {
 
     @BeforeEach
     void setUp() {
+<<<<<<< HEAD
         InMemoryTagService tagService = new InMemoryTagService();
         InMemoryCustomFieldService customFieldService = new InMemoryCustomFieldService();
         controller = new CustomerController(new InMemoryCustomerService(tagService, customFieldService));
+=======
+        controller = new CustomerController(new InMemoryCustomerService());
+>>>>>>> origin/main
     }
 
     @Test

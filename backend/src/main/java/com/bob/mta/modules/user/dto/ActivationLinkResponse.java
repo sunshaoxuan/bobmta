@@ -1,13 +1,17 @@
 package com.bob.mta.modules.user.dto;
 
-import java.time.OffsetDateTime;
+import java.time.Instant;
 
+/**
+ * Response envelope returning an activation link token and expiry.
+ */
 public class ActivationLinkResponse {
 
     private final String token;
-    private final OffsetDateTime expiresAt;
 
-    public ActivationLinkResponse(String token, OffsetDateTime expiresAt) {
+    private final Instant expiresAt;
+
+    public ActivationLinkResponse(final String token, final Instant expiresAt) {
         this.token = token;
         this.expiresAt = expiresAt;
     }
@@ -16,7 +20,7 @@ public class ActivationLinkResponse {
         return token;
     }
 
-    public OffsetDateTime getExpiresAt() {
+    public Instant getExpiresAt() {
         return expiresAt;
     }
 }

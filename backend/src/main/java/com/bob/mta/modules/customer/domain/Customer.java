@@ -1,61 +1,86 @@
 package com.bob.mta.modules.customer.domain;
 
-import java.time.OffsetDateTime;
+import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 
+/**
+ * Aggregate root representing a tenant customer and its dynamic fields.
+ */
 public class Customer {
 
     private final String id;
-    private final String name;
-    private final String region;
-    private final String industry;
-    private final List<String> tags;
-    private final Map<String, String> contacts;
-    private final Map<String, String> customFields;
-    private final OffsetDateTime lastUpdatedAt;
 
-    public Customer(String id, String name, String region, String industry, List<String> tags,
-                    Map<String, String> contacts, Map<String, String> customFields, OffsetDateTime lastUpdatedAt) {
+    private final String code;
+
+    private final String name;
+
+    private final String shortName;
+
+    private final String group;
+
+    private final String region;
+
+    private final List<String> tags;
+
+    private final Map<String, Object> fields;
+
+    private final Instant updatedAt;
+
+    public Customer(
+            final String id,
+            final String code,
+            final String name,
+            final String shortName,
+            final String group,
+            final String region,
+            final List<String> tags,
+            final Map<String, Object> fields,
+            final Instant updatedAt) {
         this.id = id;
+        this.code = code;
         this.name = name;
+        this.shortName = shortName;
+        this.group = group;
         this.region = region;
-        this.industry = industry;
         this.tags = List.copyOf(tags);
-        this.contacts = Map.copyOf(contacts);
-        this.customFields = Map.copyOf(customFields);
-        this.lastUpdatedAt = lastUpdatedAt;
+        this.fields = Map.copyOf(fields);
+        this.updatedAt = updatedAt;
     }
 
     public String getId() {
         return id;
     }
 
+    public String getCode() {
+        return code;
+    }
+
     public String getName() {
         return name;
+    }
+
+    public String getShortName() {
+        return shortName;
+    }
+
+    public String getGroup() {
+        return group;
     }
 
     public String getRegion() {
         return region;
     }
 
-    public String getIndustry() {
-        return industry;
-    }
-
     public List<String> getTags() {
         return tags;
     }
 
-    public Map<String, String> getContacts() {
-        return contacts;
+    public Map<String, Object> getFields() {
+        return fields;
     }
 
-    public Map<String, String> getCustomFields() {
-        return customFields;
-    }
-
-    public OffsetDateTime getLastUpdatedAt() {
-        return lastUpdatedAt;
+    public Instant getUpdatedAt() {
+        return updatedAt;
     }
 }
