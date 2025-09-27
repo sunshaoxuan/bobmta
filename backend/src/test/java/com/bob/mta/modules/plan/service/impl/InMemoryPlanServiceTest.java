@@ -55,9 +55,11 @@ class InMemoryPlanServiceTest {
     @DisplayName("renderPlanIcs produces calendar payload")
     void shouldRenderIcs() {
         var plan = service.listPlans(null, null, null, null).get(0);
+        service.cancelPlan(plan.getId(), "admin", "客户原因取消");
         String ics = service.renderPlanIcs(plan.getId());
 
         assertThat(ics).contains("BEGIN:VCALENDAR");
+        assertThat(ics).contains("客户原因取消");
     }
 
     @Test
@@ -65,5 +67,18 @@ class InMemoryPlanServiceTest {
     void shouldThrowWhenMissing() {
         assertThatThrownBy(() -> service.getPlan("missing"))
                 .isInstanceOf(BusinessException.class);
+    }
+
+    @Test
+    @DisplayName("cancelPlan stores reason and operator metadata")
+    void shouldPersistCancellationMetadata() {
+        var plan = service.listPlans(null, null, null, null).get(0);
+
+        var updated = service.cancelPlan(plan.getId(), "operator", "客户要求顺延");
+
+        assertThat(updated.getStatus()).isEqualTo(PlanStatus.CANCELED);
+        assertThat(updated.getCancelReason()).isEqualTo("客户要求顺延");
+        assertThat(updated.getCanceledBy()).isEqualTo("operator");
+        assertThat(updated.getCanceledAt()).isNotNull();
     }
 }
