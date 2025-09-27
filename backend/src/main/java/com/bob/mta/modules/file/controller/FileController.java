@@ -1,11 +1,12 @@
 package com.bob.mta.modules.file.controller;
 
 import com.bob.mta.common.api.ApiResponse;
-import com.bob.mta.common.i18n.MessageResolver;
 import com.bob.mta.modules.audit.service.AuditRecorder;
 import com.bob.mta.modules.file.domain.FileMetadata;
 import com.bob.mta.modules.file.dto.FileResponse;
 import com.bob.mta.modules.file.dto.RegisterFileRequest;
+import com.bob.mta.i18n.Localization;
+import com.bob.mta.i18n.LocalizationKeys;
 import com.bob.mta.modules.file.service.FileService;
 import jakarta.validation.Valid;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -28,12 +29,10 @@ public class FileController {
 
     private final FileService fileService;
     private final AuditRecorder auditRecorder;
-    private final MessageResolver messageResolver;
 
-    public FileController(FileService fileService, AuditRecorder auditRecorder, MessageResolver messageResolver) {
+    public FileController(FileService fileService, AuditRecorder auditRecorder) {
         this.fileService = fileService;
         this.auditRecorder = auditRecorder;
-        this.messageResolver = messageResolver;
     }
 
     @PostMapping
@@ -51,7 +50,7 @@ public class FileController {
                 uploader);
         FileResponse response = FileResponse.from(metadata, fileService.buildDownloadUrl(metadata));
         auditRecorder.record("File", metadata.getId(), "REGISTER_FILE",
-                messageResolver.getMessage("audit.file.register"), null, response);
+                Localization.text(LocalizationKeys.Audit.FILE_REGISTER), null, response);
         return ApiResponse.success(response);
     }
 
@@ -76,7 +75,7 @@ public class FileController {
         FileMetadata metadata = fileService.get(id);
         fileService.delete(id);
         auditRecorder.record("File", id, "DELETE_FILE",
-                messageResolver.getMessage("audit.file.delete"),
+                Localization.text(LocalizationKeys.Audit.FILE_DELETE),
                 FileResponse.from(metadata, fileService.buildDownloadUrl(metadata)), null);
         return ApiResponse.success();
     }

@@ -1,8 +1,6 @@
 package com.bob.mta.modules.plan.controller;
 
 import com.bob.mta.common.api.PageResponse;
-import com.bob.mta.common.i18n.MessageResolver;
-import com.bob.mta.common.i18n.TestMessageResolverFactory;
 import com.bob.mta.modules.audit.domain.AuditLog;
 import com.bob.mta.modules.audit.service.AuditQuery;
 import com.bob.mta.modules.audit.service.AuditRecorder;
@@ -25,14 +23,12 @@ import com.bob.mta.modules.plan.service.command.PlanNodeCommand;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.security.authentication.TestingAuthenticationToken;
 import org.springframework.security.core.context.SecurityContextHolder;
-import org.springframework.context.i18n.LocaleContextHolder;
-
 import java.time.OffsetDateTime;
 import java.util.List;
-import java.util.Locale;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -43,24 +39,20 @@ class PlanControllerTest {
     private InMemoryPlanRepository planRepository;
     private InMemoryFileService fileService;
     private InMemoryAuditService auditService;
-    private MessageResolver messageResolver;
 
     @BeforeEach
     void setUp() {
-        LocaleContextHolder.setLocale(Locale.SIMPLIFIED_CHINESE);
         fileService = new InMemoryFileService();
         planRepository = new InMemoryPlanRepository();
-        messageResolver = TestMessageResolverFactory.create();
-        planService = new InMemoryPlanService(fileService, planRepository, messageResolver);
+        planService = new InMemoryPlanService(fileService, planRepository);
         auditService = new InMemoryAuditService();
         AuditRecorder recorder = new AuditRecorder(auditService, new ObjectMapper());
-        controller = new PlanController(planService, recorder, fileService, messageResolver);
+        controller = new PlanController(planService, recorder, fileService);
     }
 
     @AfterEach
     void tearDown() {
         SecurityContextHolder.clearContext();
-        LocaleContextHolder.resetLocaleContext();
     }
 
     @Test
@@ -84,15 +76,15 @@ class PlanControllerTest {
         OffsetDateTime end = OffsetDateTime.now().minusHours(1);
         CreatePlanCommand command = new CreatePlanCommand(
                 "tenant-001",
-                "过期巡检",
-                "客户临时巡检",
+                "Overdue maintenance",
+                "Customer ad-hoc maintenance",
                 "cust-001",
                 "admin",
                 start,
                 end,
                 "Asia/Tokyo",
                 List.of("admin"),
-                List.of(new PlanNodeCommand(null, "快速检查", "CHECKLIST", "admin", 1, 15, null, "", List.of()))
+                List.of(new PlanNodeCommand(null, "Quick check", "CHECKLIST", "admin", 1, 15, null, "", List.of()))
         );
         var created = planService.createPlan(command);
         planService.publishPlan(created.getId(), "admin");
@@ -121,8 +113,8 @@ class PlanControllerTest {
         var file = fileService.register("evidence.log", "text/plain", 128, "plan-files", "PLAN_NODE", nodeId,
                 "admin");
         CompleteNodeRequest request = new CompleteNodeRequest();
-        request.setResult("完成");
-        request.setLog("上传巡检记录");
+        request.setResult("Completed");
+        request.setLog("Uploaded inspection report");
         request.setFileIds(List.of(file.getId()));
 
         controller.completeNode(planId, nodeId, request);
@@ -153,7 +145,7 @@ class PlanControllerTest {
         ruleRequest.setChannels(List.of("EMAIL"));
         ruleRequest.setTemplateId("custom-template");
         ruleRequest.setRecipients(List.of("OWNER"));
-        ruleRequest.setDescription("开始前45分钟提醒负责人");
+        ruleRequest.setDescription("Remind owner 45 minutes before start");
         PlanReminderPolicyRequest request = new PlanReminderPolicyRequest();
         request.setRules(List.of(ruleRequest));
 
@@ -181,12 +173,12 @@ class PlanControllerTest {
     void cancelShouldExposeReasonAndOperator() {
         String planId = planService.listPlans(null, null, null, null).get(0).getId();
         CancelPlanRequest request = new CancelPlanRequest();
-        request.setReason("客户延期");
+        request.setReason("Customer deferred");
         SecurityContextHolder.getContext().setAuthentication(new TestingAuthenticationToken("admin", null));
 
         PlanDetailResponse response = controller.cancel(planId, request).getData();
 
-        assertThat(response.getCancelReason()).isEqualTo("客户延期");
+        assertThat(response.getCancelReason()).isEqualTo("Customer deferred");
         assertThat(response.getCanceledBy()).isEqualTo("admin");
         assertThat(response.getCanceledAt()).isNotNull();
     }
@@ -198,7 +190,7 @@ class PlanControllerTest {
         PlanHandoverRequest request = new PlanHandoverRequest();
         request.setNewOwner("operator");
         request.setParticipants(List.of("operator", "observer"));
-        request.setNote("夜间值班交接");
+        request.setNote("Night shift handover");
 
         PlanDetailResponse response = controller.handover(planId, request).getData();
 
@@ -264,8 +256,8 @@ class PlanControllerTest {
         var file = fileService.register("result.txt", "text/plain", 256, "plan-files", "PLAN_NODE", nodeId,
                 "operator");
         CompleteNodeRequest request = new CompleteNodeRequest();
-        request.setResult("巡检完成");
-        request.setLog("一切正常");
+        request.setResult("Inspection complete");
+        request.setLog("All systems normal");
         request.setFileIds(List.of(file.getId()));
 
         var response = controller.completeNode(planId, nodeId, request).getData();

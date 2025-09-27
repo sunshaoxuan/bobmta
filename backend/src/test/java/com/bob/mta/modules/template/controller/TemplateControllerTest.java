@@ -49,11 +49,11 @@ class TemplateControllerTest {
     void shouldCreateTemplate() {
         CreateTemplateRequest request = new CreateTemplateRequest();
         request.setType(TemplateType.LINK);
-        request.setName("监控");
+        request.setName("monitor");
         request.setContent("https://monitor/{{id}}");
 
         ApiResponse<TemplateResponse> response = controller.create(request);
-        assertThat(response.getData().getName()).isEqualTo("监控");
+        assertThat(response.getData().getName()).isEqualTo("monitor");
     }
 
     @Test
@@ -69,18 +69,18 @@ class TemplateControllerTest {
     void shouldUpdateTemplate() {
         var created = controller.create(buildRequest());
         UpdateTemplateRequest update = new UpdateTemplateRequest();
-        update.setName("更新后");
+        update.setName("updated");
         update.setContent("Body");
         ApiResponse<TemplateResponse> updated = controller.update(created.getData().getId(), update);
-        assertThat(updated.getData().getName()).isEqualTo("更新后");
+        assertThat(updated.getData().getName()).isEqualTo("updated");
     }
 
     @Test
     void shouldRenderRemoteTemplateWithRdpAttachment() {
         CreateTemplateRequest request = new CreateTemplateRequest();
         request.setType(TemplateType.REMOTE);
-        request.setName("远程桌面");
-        request.setContent("连接 {{host}}");
+        request.setName("Remote Desktop");
+        request.setContent("Connect {{host}}");
         request.setEndpoint("rdp://192.168.1.10?username=ops");
 
         ApiResponse<TemplateResponse> created = controller.create(request);
@@ -96,7 +96,7 @@ class TemplateControllerTest {
     private CreateTemplateRequest buildRequest() {
         CreateTemplateRequest request = new CreateTemplateRequest();
         request.setType(TemplateType.EMAIL);
-        request.setName("问候");
+        request.setName("Greeting");
         request.setSubject("Hello");
         request.setContent("Hi {{name}}");
         return request;

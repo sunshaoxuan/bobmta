@@ -1,7 +1,6 @@
 package com.bob.mta.modules.template.controller;
 
 import com.bob.mta.common.api.ApiResponse;
-import com.bob.mta.common.i18n.MessageResolver;
 import com.bob.mta.modules.audit.service.AuditRecorder;
 import com.bob.mta.modules.template.domain.RenderedTemplate;
 import com.bob.mta.modules.template.domain.TemplateDefinition;
@@ -11,6 +10,8 @@ import com.bob.mta.modules.template.dto.RenderTemplateRequest;
 import com.bob.mta.modules.template.dto.RenderedTemplateResponse;
 import com.bob.mta.modules.template.dto.TemplateResponse;
 import com.bob.mta.modules.template.dto.UpdateTemplateRequest;
+import com.bob.mta.i18n.Localization;
+import com.bob.mta.i18n.LocalizationKeys;
 import com.bob.mta.modules.template.service.TemplateService;
 import jakarta.validation.Valid;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -32,13 +33,10 @@ public class TemplateController {
 
     private final TemplateService templateService;
     private final AuditRecorder auditRecorder;
-    private final MessageResolver messageResolver;
 
-    public TemplateController(TemplateService templateService, AuditRecorder auditRecorder,
-                              MessageResolver messageResolver) {
+    public TemplateController(TemplateService templateService, AuditRecorder auditRecorder) {
         this.templateService = templateService;
         this.auditRecorder = auditRecorder;
-        this.messageResolver = messageResolver;
     }
 
     @GetMapping
@@ -68,7 +66,7 @@ public class TemplateController {
                 request.isEnabled(),
                 request.getDescription());
         auditRecorder.record("Template", String.valueOf(definition.getId()), "CREATE_TEMPLATE",
-                messageResolver.getMessage("audit.template.create"),
+                Localization.text(LocalizationKeys.Audit.TEMPLATE_CREATE),
                 null, TemplateResponse.from(definition));
         return ApiResponse.success(TemplateResponse.from(definition));
     }
@@ -88,7 +86,7 @@ public class TemplateController {
                 request.isEnabled(),
                 request.getDescription());
         auditRecorder.record("Template", String.valueOf(id), "UPDATE_TEMPLATE",
-                messageResolver.getMessage("audit.template.update"),
+                Localization.text(LocalizationKeys.Audit.TEMPLATE_UPDATE),
                 TemplateResponse.from(before), TemplateResponse.from(updated));
         return ApiResponse.success(TemplateResponse.from(updated));
     }
@@ -99,7 +97,7 @@ public class TemplateController {
         TemplateDefinition before = templateService.get(id);
         templateService.delete(id);
         auditRecorder.record("Template", String.valueOf(id), "DELETE_TEMPLATE",
-                messageResolver.getMessage("audit.template.delete"),
+                Localization.text(LocalizationKeys.Audit.TEMPLATE_DELETE),
                 TemplateResponse.from(before), null);
         return ApiResponse.success();
     }
@@ -111,7 +109,7 @@ public class TemplateController {
         RenderedTemplate rendered = templateService.render(id, request == null ? null : request.getContext());
         RenderedTemplateResponse response = RenderedTemplateResponse.from(rendered);
         auditRecorder.record("Template", String.valueOf(id), "RENDER_TEMPLATE",
-                messageResolver.getMessage("audit.template.render"), null, response);
+                Localization.text(LocalizationKeys.Audit.TEMPLATE_RENDER), null, response);
         return ApiResponse.success(response);
     }
 }
