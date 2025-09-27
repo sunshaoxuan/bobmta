@@ -25,6 +25,8 @@ import com.bob.mta.modules.plan.dto.PlanReminderPreviewResponse;
 import com.bob.mta.modules.plan.dto.PlanReminderRuleRequest;
 import com.bob.mta.modules.plan.dto.PlanSummaryResponse;
 import com.bob.mta.modules.plan.dto.UpdatePlanRequest;
+import com.bob.mta.i18n.Localization;
+import com.bob.mta.i18n.LocalizationKeys;
 import com.bob.mta.modules.plan.service.PlanService;
 import com.bob.mta.modules.plan.service.command.CreatePlanCommand;
 import com.bob.mta.modules.plan.service.command.PlanNodeCommand;
@@ -115,7 +117,8 @@ public class PlanController {
                                                                         @Valid @RequestBody PlanReminderPolicyRequest request) {
         Plan before = planService.getPlan(id);
         Plan updated = planService.updateReminderPolicy(id, toReminderRules(request.getRules()), currentUsername());
-        auditRecorder.record("Plan", id, "UPDATE_PLAN_REMINDERS", "更新计划提醒策略",
+        auditRecorder.record("Plan", id, "UPDATE_PLAN_REMINDERS",
+                Localization.text(LocalizationKeys.Audit.PLAN_REMINDER_UPDATE),
                 PlanReminderPolicyResponse.from(before.getReminderPolicy()),
                 PlanReminderPolicyResponse.from(updated.getReminderPolicy()));
         return ApiResponse.success(PlanReminderPolicyResponse.from(updated.getReminderPolicy()));
@@ -149,7 +152,8 @@ public class PlanController {
         );
         Plan plan = planService.createPlan(command);
         PlanDetailResponse detail = toDetailResponse(plan);
-        auditRecorder.record("Plan", plan.getId(), "CREATE_PLAN", "创建计划", null, detail);
+        auditRecorder.record("Plan", plan.getId(), "CREATE_PLAN",
+                Localization.text(LocalizationKeys.Audit.PLAN_CREATE), null, detail);
         return ApiResponse.success(detail);
     }
 
@@ -169,7 +173,8 @@ public class PlanController {
         PlanDetailResponse beforeSnapshot = toDetailResponse(before);
         Plan updated = planService.updatePlan(id, command);
         PlanDetailResponse afterSnapshot = toDetailResponse(updated);
-        auditRecorder.record("Plan", id, "UPDATE_PLAN", "更新计划", beforeSnapshot, afterSnapshot);
+        auditRecorder.record("Plan", id, "UPDATE_PLAN",
+                Localization.text(LocalizationKeys.Audit.PLAN_UPDATE), beforeSnapshot, afterSnapshot);
         return ApiResponse.success(afterSnapshot);
     }
 
@@ -179,7 +184,8 @@ public class PlanController {
         Plan before = planService.getPlan(id);
         PlanDetailResponse beforeSnapshot = toDetailResponse(before);
         planService.deletePlan(id);
-        auditRecorder.record("Plan", id, "DELETE_PLAN", "删除计划", beforeSnapshot, null);
+        auditRecorder.record("Plan", id, "DELETE_PLAN",
+                Localization.text(LocalizationKeys.Audit.PLAN_DELETE), beforeSnapshot, null);
         return ApiResponse.success();
     }
 
@@ -190,7 +196,8 @@ public class PlanController {
         PlanDetailResponse beforeSnapshot = toDetailResponse(before);
         Plan updated = planService.publishPlan(id, currentUsername());
         PlanDetailResponse afterSnapshot = toDetailResponse(updated);
-        auditRecorder.record("Plan", id, "PUBLISH_PLAN", "发布计划", beforeSnapshot, afterSnapshot);
+        auditRecorder.record("Plan", id, "PUBLISH_PLAN",
+                Localization.text(LocalizationKeys.Audit.PLAN_PUBLISH), beforeSnapshot, afterSnapshot);
         return ApiResponse.success(afterSnapshot);
     }
 
@@ -203,7 +210,8 @@ public class PlanController {
         PlanDetailResponse beforeSnapshot = toDetailResponse(before);
         Plan updated = planService.cancelPlan(id, currentUsername(), reason);
         PlanDetailResponse afterSnapshot = toDetailResponse(updated);
-        auditRecorder.record("Plan", id, "CANCEL_PLAN", "取消计划", beforeSnapshot, afterSnapshot);
+        auditRecorder.record("Plan", id, "CANCEL_PLAN",
+                Localization.text(LocalizationKeys.Audit.PLAN_CANCEL), beforeSnapshot, afterSnapshot);
         return ApiResponse.success(afterSnapshot);
     }
 
@@ -216,7 +224,8 @@ public class PlanController {
         Plan updated = planService.handoverPlan(id, request.getNewOwner(), request.getParticipants(),
                 request.getNote(), currentUsername());
         PlanDetailResponse afterSnapshot = toDetailResponse(updated);
-        auditRecorder.record("Plan", id, "HANDOVER_PLAN", "计划负责人交接", beforeSnapshot, afterSnapshot);
+        auditRecorder.record("Plan", id, "HANDOVER_PLAN",
+                Localization.text(LocalizationKeys.Audit.PLAN_HANDOVER), beforeSnapshot, afterSnapshot);
         return ApiResponse.success(afterSnapshot);
     }
 
@@ -227,7 +236,8 @@ public class PlanController {
         PlanNodeExecutionResponse before = snapshotExecution(planId, nodeId);
         PlanNodeExecution execution = planService.startNode(planId, nodeId, currentUsername());
         PlanNodeExecutionResponse after = PlanNodeExecutionResponse.from(execution, this::resolveAttachments);
-        auditRecorder.record("PlanNode", planId + "::" + nodeId, "START_NODE", "开始执行节点", before, after);
+        auditRecorder.record("PlanNode", planId + "::" + nodeId, "START_NODE",
+                Localization.text(LocalizationKeys.Audit.PLAN_NODE_START), before, after);
         return ApiResponse.success(after);
     }
 
@@ -240,8 +250,8 @@ public class PlanController {
         PlanNodeExecution execution = planService.completeNode(planId, nodeId, currentUsername(),
                 request.getResult(), request.getLog(), request.getFileIds());
         PlanNodeExecutionResponse after = PlanNodeExecutionResponse.from(execution, this::resolveAttachments);
-        auditRecorder.record("PlanNode", planId + "::" + nodeId, "COMPLETE_NODE", "完成节点",
-                before, after);
+        auditRecorder.record("PlanNode", planId + "::" + nodeId, "COMPLETE_NODE",
+                Localization.text(LocalizationKeys.Audit.PLAN_NODE_COMPLETE), before, after);
         return ApiResponse.success(after);
     }
 

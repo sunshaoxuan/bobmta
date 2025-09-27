@@ -5,6 +5,8 @@ import com.bob.mta.modules.audit.service.AuditRecorder;
 import com.bob.mta.modules.file.domain.FileMetadata;
 import com.bob.mta.modules.file.dto.FileResponse;
 import com.bob.mta.modules.file.dto.RegisterFileRequest;
+import com.bob.mta.i18n.Localization;
+import com.bob.mta.i18n.LocalizationKeys;
 import com.bob.mta.modules.file.service.FileService;
 import jakarta.validation.Valid;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -47,7 +49,8 @@ public class FileController {
                 request.getBizId(),
                 uploader);
         FileResponse response = FileResponse.from(metadata, fileService.buildDownloadUrl(metadata));
-        auditRecorder.record("File", metadata.getId(), "REGISTER_FILE", "登记文件元数据", null, response);
+        auditRecorder.record("File", metadata.getId(), "REGISTER_FILE",
+                Localization.text(LocalizationKeys.Audit.FILE_REGISTER), null, response);
         return ApiResponse.success(response);
     }
 
@@ -71,7 +74,9 @@ public class FileController {
     public ApiResponse<Void> delete(@PathVariable String id) {
         FileMetadata metadata = fileService.get(id);
         fileService.delete(id);
-        auditRecorder.record("File", id, "DELETE_FILE", "删除文件元数据", FileResponse.from(metadata, fileService.buildDownloadUrl(metadata)), null);
+        auditRecorder.record("File", id, "DELETE_FILE",
+                Localization.text(LocalizationKeys.Audit.FILE_DELETE),
+                FileResponse.from(metadata, fileService.buildDownloadUrl(metadata)), null);
         return ApiResponse.success();
     }
 }

@@ -10,6 +10,8 @@ import com.bob.mta.modules.template.dto.RenderTemplateRequest;
 import com.bob.mta.modules.template.dto.RenderedTemplateResponse;
 import com.bob.mta.modules.template.dto.TemplateResponse;
 import com.bob.mta.modules.template.dto.UpdateTemplateRequest;
+import com.bob.mta.i18n.Localization;
+import com.bob.mta.i18n.LocalizationKeys;
 import com.bob.mta.modules.template.service.TemplateService;
 import jakarta.validation.Valid;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -63,7 +65,8 @@ public class TemplateController {
                 request.getEndpoint(),
                 request.isEnabled(),
                 request.getDescription());
-        auditRecorder.record("Template", String.valueOf(definition.getId()), "CREATE_TEMPLATE", "创建模板",
+        auditRecorder.record("Template", String.valueOf(definition.getId()), "CREATE_TEMPLATE",
+                Localization.text(LocalizationKeys.Audit.TEMPLATE_CREATE),
                 null, TemplateResponse.from(definition));
         return ApiResponse.success(TemplateResponse.from(definition));
     }
@@ -82,7 +85,8 @@ public class TemplateController {
                 request.getEndpoint(),
                 request.isEnabled(),
                 request.getDescription());
-        auditRecorder.record("Template", String.valueOf(id), "UPDATE_TEMPLATE", "更新模板",
+        auditRecorder.record("Template", String.valueOf(id), "UPDATE_TEMPLATE",
+                Localization.text(LocalizationKeys.Audit.TEMPLATE_UPDATE),
                 TemplateResponse.from(before), TemplateResponse.from(updated));
         return ApiResponse.success(TemplateResponse.from(updated));
     }
@@ -92,7 +96,8 @@ public class TemplateController {
     public ApiResponse<Void> delete(@PathVariable long id) {
         TemplateDefinition before = templateService.get(id);
         templateService.delete(id);
-        auditRecorder.record("Template", String.valueOf(id), "DELETE_TEMPLATE", "删除模板",
+        auditRecorder.record("Template", String.valueOf(id), "DELETE_TEMPLATE",
+                Localization.text(LocalizationKeys.Audit.TEMPLATE_DELETE),
                 TemplateResponse.from(before), null);
         return ApiResponse.success();
     }
@@ -103,7 +108,8 @@ public class TemplateController {
                                                          @RequestBody(required = false) RenderTemplateRequest request) {
         RenderedTemplate rendered = templateService.render(id, request == null ? null : request.getContext());
         RenderedTemplateResponse response = RenderedTemplateResponse.from(rendered);
-        auditRecorder.record("Template", String.valueOf(id), "RENDER_TEMPLATE", "渲染模板", null, response);
+        auditRecorder.record("Template", String.valueOf(id), "RENDER_TEMPLATE",
+                Localization.text(LocalizationKeys.Audit.TEMPLATE_RENDER), null, response);
         return ApiResponse.success(response);
     }
 }

@@ -2,6 +2,8 @@ package com.bob.mta.modules.template.service.impl;
 
 import com.bob.mta.common.exception.BusinessException;
 import com.bob.mta.common.exception.ErrorCode;
+import com.bob.mta.i18n.Localization;
+import com.bob.mta.i18n.LocalizationKeys;
 import com.bob.mta.modules.template.domain.RenderedTemplate;
 import com.bob.mta.modules.template.domain.TemplateDefinition;
 import com.bob.mta.modules.template.domain.TemplateType;
@@ -31,11 +33,18 @@ public class InMemoryTemplateService implements TemplateService {
     }
 
     private void seedDefaults() {
-        create(TemplateType.EMAIL, "客户巡检通知", "【{{customer_name}}】巡检安排", "尊敬的{{customer_name}}，我们将在{{schedule_date}}进行巡检。",
-                List.of("ops@customer.com"), List.of(), null, true, "标准巡检邮件模板");
-        create(TemplateType.REMOTE, "跳板机远程桌面", null,
-                "请使用下载的RDP文件或命令 mstsc /v {{host}} 连接到跳板机。",
-                List.of(), List.of(), "rdp://{{host}}?username={{username}}", true, "Windows 跳板机 RDP 模板");
+        create(TemplateType.EMAIL,
+                Localization.text(LocalizationKeys.Seeds.TEMPLATE_EMAIL_NAME),
+                Localization.text(LocalizationKeys.Seeds.TEMPLATE_EMAIL_SUBJECT),
+                Localization.text(LocalizationKeys.Seeds.TEMPLATE_EMAIL_CONTENT),
+                List.of("ops@customer.com"), List.of(), null, true,
+                Localization.text(LocalizationKeys.Seeds.TEMPLATE_EMAIL_DESCRIPTION));
+        create(TemplateType.REMOTE,
+                Localization.text(LocalizationKeys.Seeds.TEMPLATE_REMOTE_NAME),
+                null,
+                Localization.text(LocalizationKeys.Seeds.TEMPLATE_REMOTE_CONTENT),
+                List.of(), List.of(), "rdp://{{host}}?username={{username}}", true,
+                Localization.text(LocalizationKeys.Seeds.TEMPLATE_REMOTE_DESCRIPTION));
     }
 
     @Override

@@ -5,6 +5,8 @@ import com.bob.mta.common.exception.ErrorCode;
 import com.bob.mta.modules.user.domain.ActivationToken;
 import com.bob.mta.modules.user.domain.User;
 import com.bob.mta.modules.user.domain.UserStatus;
+import com.bob.mta.i18n.Localization;
+import com.bob.mta.i18n.LocalizationKeys;
 import com.bob.mta.modules.user.service.UserService;
 import com.bob.mta.modules.user.service.command.CreateUserCommand;
 import com.bob.mta.modules.user.service.model.ActivationLink;
@@ -65,9 +67,9 @@ public class InMemoryUserService implements UserService {
         usersById.clear();
         usersByUsername.clear();
         idSequence.set(0);
-        registerActiveUser(nextId(), "admin", "系统管理员", "admin@example.com", "admin123",
+        registerActiveUser(nextId(), "admin", Localization.text(LocalizationKeys.Seeds.USER_ADMIN_DISPLAY_NAME), "admin@example.com", "admin123",
                 List.of("ADMIN", "OPERATOR"));
-        registerActiveUser(nextId(), "operator", "运维专员", "operator@example.com", "operator123",
+        registerActiveUser(nextId(), "operator", Localization.text(LocalizationKeys.Seeds.USER_OPERATOR_DISPLAY_NAME), "operator@example.com", "operator123",
                 List.of("OPERATOR"));
     }
 

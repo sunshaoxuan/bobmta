@@ -31,15 +31,15 @@ class InMemoryPlanServiceTest {
     void shouldCreatePlanWithExecutions() {
         CreatePlanCommand command = new CreatePlanCommand(
                 "tenant-x",
-                "测试计划",
-                "巡检准备",
+                "Test Plan",
+                "Inspection preparation",
                 "cust-001",
                 "admin",
                 OffsetDateTime.now().plusDays(1),
                 OffsetDateTime.now().plusDays(1).plusHours(2),
                 "Asia/Tokyo",
                 List.of("admin"),
-                List.of(new PlanNodeCommand(null, "检查清单", "CHECKLIST", "admin", 1, 30, null, "", List.of()))
+                List.of(new PlanNodeCommand(null, "Checklist", "CHECKLIST", "admin", 1, 30, null, "", List.of()))
         );
 
         var plan = service.createPlan(command);
@@ -57,7 +57,7 @@ class InMemoryPlanServiceTest {
         var plan = service.listPlans(null, null, null, null).get(0);
         List<PlanReminderRule> rules = List.of(
                 new PlanReminderRule(null, PlanReminderTrigger.BEFORE_PLAN_START, 90,
-                        List.of("EMAIL"), "template-90", List.of("OWNER"), "提前90分钟提醒负责人"));
+                        List.of("EMAIL"), "template-90", List.of("OWNER"), "Remind owner 90 minutes before start"));
 
         var updated = service.updateReminderPolicy(plan.getId(), rules, "admin");
 
@@ -96,11 +96,11 @@ class InMemoryPlanServiceTest {
     @DisplayName("renderPlanIcs produces calendar payload")
     void shouldRenderIcs() {
         var plan = service.listPlans(null, null, null, null).get(0);
-        service.cancelPlan(plan.getId(), "admin", "客户原因取消");
+        service.cancelPlan(plan.getId(), "admin", "Cancelled by customer");
         String ics = service.renderPlanIcs(plan.getId());
 
         assertThat(ics).contains("BEGIN:VCALENDAR");
-        assertThat(ics).contains("客户原因取消");
+        assertThat(ics).contains("Cancelled by customer");
     }
 
     @Test
@@ -115,10 +115,10 @@ class InMemoryPlanServiceTest {
     void shouldPersistCancellationMetadata() {
         var plan = service.listPlans(null, null, null, null).get(0);
 
-        var updated = service.cancelPlan(plan.getId(), "operator", "客户要求顺延");
+        var updated = service.cancelPlan(plan.getId(), "operator", "Customer requested delay");
 
         assertThat(updated.getStatus()).isEqualTo(PlanStatus.CANCELED);
-        assertThat(updated.getCancelReason()).isEqualTo("客户要求顺延");
+        assertThat(updated.getCancelReason()).isEqualTo("Customer requested delay");
         assertThat(updated.getCanceledBy()).isEqualTo("operator");
         assertThat(updated.getCanceledAt()).isNotNull();
     }
@@ -129,7 +129,7 @@ class InMemoryPlanServiceTest {
         var plan = service.listPlans(null, null, null, null).get(0);
 
         var updated = service.handoverPlan(plan.getId(), "operator", List.of("operator", "observer"),
-                "夜间交接", "admin");
+                "Night shift handover", "admin");
 
         assertThat(updated.getOwner()).isEqualTo("operator");
         assertThat(updated.getParticipants()).containsExactlyInAnyOrder("operator", "observer");
@@ -140,7 +140,7 @@ class InMemoryPlanServiceTest {
                 .filteredOn(activity -> activity.getType() == PlanActivityType.PLAN_HANDOVER)
                 .first()
                 .extracting(activity -> activity.getAttributes().get("note"))
-                .isEqualTo("夜间交接");
+                .isEqualTo("Night shift handover");
     }
 
     @Test
@@ -177,7 +177,7 @@ class InMemoryPlanServiceTest {
     void shouldRejectStartWhenCanceled() {
         var plan = service.listPlans(null, null, null, null).get(0);
         service.publishPlan(plan.getId(), "admin");
-        service.cancelPlan(plan.getId(), "admin", "客户取消");
+        service.cancelPlan(plan.getId(), "admin", "Customer cancelled");
 
         assertThatThrownBy(() -> service.startNode(plan.getId(), plan.getExecutions().get(0).getNodeId(), "admin"))
                 .isInstanceOf(BusinessException.class)
@@ -203,7 +203,7 @@ class InMemoryPlanServiceTest {
         service.publishPlan(plan.getId(), "admin");
         String nodeId = plan.getExecutions().get(0).getNodeId();
         service.startNode(plan.getId(), nodeId, "admin");
-        service.cancelPlan(plan.getId(), "admin", "客户取消");
+        service.cancelPlan(plan.getId(), "admin", "Customer cancelled");
 
         assertThatThrownBy(() -> service.completeNode(plan.getId(), nodeId, "admin", "ok", null, null))
                 .isInstanceOf(BusinessException.class)
@@ -217,15 +217,15 @@ class InMemoryPlanServiceTest {
         OffsetDateTime end = OffsetDateTime.now().minusHours(1);
         CreatePlanCommand overdueCommand = new CreatePlanCommand(
                 "tenant-001",
-                "应急排障",
-                "计划在凌晨完成巡检",
+                "Emergency troubleshooting",
+                "Plan to finish inspection at dawn",
                 "cust-003",
                 "admin",
                 start,
                 end,
                 "Asia/Tokyo",
                 List.of("admin"),
-                List.of(new PlanNodeCommand(null, "巡检执行", "CHECKLIST", "admin", 1, 20, null, "", List.of()))
+                List.of(new PlanNodeCommand(null, "Inspection execution", "CHECKLIST", "admin", 1, 20, null, "", List.of()))
         );
         var overduePlan = service.createPlan(overdueCommand);
         service.publishPlan(overduePlan.getId(), "admin");
@@ -234,7 +234,7 @@ class InMemoryPlanServiceTest {
                 .filter(plan -> !plan.getId().equals(overduePlan.getId()))
                 .findFirst()
                 .orElseThrow();
-        service.cancelPlan(planToCancel.getId(), "admin", "客户取消");
+        service.cancelPlan(planToCancel.getId(), "admin", "Customer cancelled");
 
         PlanAnalytics analytics = service.getAnalytics("tenant-001", null, null);
 
