@@ -1,8 +1,7 @@
 package com.bob.mta.modules.tag.controller;
 
 import com.bob.mta.common.api.ApiResponse;
-import com.bob.mta.i18n.Localization;
-import com.bob.mta.i18n.LocalizationKeys;
+import com.bob.mta.common.i18n.MessageResolver;
 import com.bob.mta.modules.audit.service.AuditRecorder;
 import com.bob.mta.modules.customer.service.CustomerService;
 import com.bob.mta.modules.plan.service.PlanService;
@@ -38,13 +37,15 @@ public class TagController {
     private final CustomerService customerService;
     private final PlanService planService;
     private final AuditRecorder auditRecorder;
+    private final MessageResolver messageResolver;
 
     public TagController(TagService tagService, CustomerService customerService, PlanService planService,
-                         AuditRecorder auditRecorder) {
+                         AuditRecorder auditRecorder, MessageResolver messageResolver) {
         this.tagService = tagService;
         this.customerService = customerService;
         this.planService = planService;
         this.auditRecorder = auditRecorder;
+        this.messageResolver = messageResolver;
     }
 
     @GetMapping
@@ -71,7 +72,7 @@ public class TagController {
                 request.getApplyRule(),
                 request.isEnabled());
         auditRecorder.record("Tag", String.valueOf(definition.getId()), "CREATE_TAG",
-                Localization.text(LocalizationKeys.Audit.TAG_CREATE),
+                messageResolver.getMessage("audit.tag.create"),
                 null, TagResponse.from(definition));
         return ApiResponse.success(TagResponse.from(definition));
     }
@@ -89,7 +90,7 @@ public class TagController {
                 request.getApplyRule(),
                 request.isEnabled());
         auditRecorder.record("Tag", String.valueOf(id), "UPDATE_TAG",
-                Localization.text(LocalizationKeys.Audit.TAG_UPDATE),
+                messageResolver.getMessage("audit.tag.update"),
                 TagResponse.from(before), TagResponse.from(updated));
         return ApiResponse.success(TagResponse.from(updated));
     }
@@ -100,7 +101,7 @@ public class TagController {
         TagDefinition before = tagService.getById(id);
         tagService.delete(id);
         auditRecorder.record("Tag", String.valueOf(id), "DELETE_TAG",
-                Localization.text(LocalizationKeys.Audit.TAG_DELETE),
+                messageResolver.getMessage("audit.tag.delete"),
                 TagResponse.from(before), null);
         return ApiResponse.success();
     }
@@ -111,7 +112,7 @@ public class TagController {
         validateEntity(request.getEntityType(), request.getEntityId());
         TagAssignment assignment = tagService.assign(id, request.getEntityType(), request.getEntityId());
         auditRecorder.record("TagAssignment", assignment.getEntityType().name() + ":" + assignment.getEntityId(),
-                "ASSIGN_TAG", Localization.text(LocalizationKeys.Audit.TAG_ASSIGN), null,
+                "ASSIGN_TAG", messageResolver.getMessage("audit.tag.assign"), null,
                 TagAssignmentResponse.from(assignment));
         return ApiResponse.success(TagAssignmentResponse.from(assignment));
     }
@@ -123,7 +124,7 @@ public class TagController {
                                               @PathVariable String entityId) {
         tagService.removeAssignment(id, entityType, entityId);
         auditRecorder.record("TagAssignment", entityType.name() + ":" + entityId,
-                "REMOVE_TAG", Localization.text(LocalizationKeys.Audit.TAG_REMOVE), null, null);
+                "REMOVE_TAG", messageResolver.getMessage("audit.tag.remove"), null, null);
         return ApiResponse.success();
     }
 

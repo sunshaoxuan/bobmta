@@ -1,6 +1,7 @@
 package com.bob.mta.modules.user.controller;
 
 import com.bob.mta.common.api.ApiResponse;
+import com.bob.mta.common.i18n.MessageResolver;
 import com.bob.mta.modules.audit.service.AuditRecorder;
 import com.bob.mta.modules.user.domain.UserStatus;
 import com.bob.mta.modules.user.dto.ActivateUserRequest;
@@ -40,10 +41,13 @@ public class UserController {
 
     private final UserService userService;
     private final AuditRecorder auditRecorder;
+    private final MessageResolver messageResolver;
 
-    public UserController(final UserService userService, final AuditRecorder auditRecorder) {
+    public UserController(final UserService userService, final AuditRecorder auditRecorder,
+                          final MessageResolver messageResolver) {
         this.userService = userService;
         this.auditRecorder = auditRecorder;
+        this.messageResolver = messageResolver;
     }
 
     @PreAuthorize("hasRole('ADMIN')")
@@ -74,7 +78,7 @@ public class UserController {
         final CreateUserResult result = userService.createUser(command);
         final CreateUserResponse response = CreateUserResponse.from(result);
         auditRecorder.record("User", response.getUser().getId(), "CREATE_USER",
-                Localization.text(LocalizationKeys.Audit.USER_CREATE), null, response);
+                messageResolver.getMessage("audit.user.create"), null, response);
         return ApiResponse.success(response);
     }
 
@@ -84,7 +88,7 @@ public class UserController {
         final ActivationLink activation = userService.resendActivation(id);
         final ActivationLinkResponse response = ActivationLinkResponse.from(activation);
         auditRecorder.record("UserActivation", id, "RESEND_ACTIVATION",
-                Localization.text(LocalizationKeys.Audit.USER_RESEND_ACTIVATION), null, response);
+                messageResolver.getMessage("audit.user.resendActivation"), null, response);
         return ApiResponse.success(response);
     }
 
@@ -93,7 +97,7 @@ public class UserController {
         final UserView user = userService.activateUser(request.getToken());
         final UserResponse response = UserResponse.from(user);
         auditRecorder.record("User", response.getId(), "ACTIVATE_USER",
-                Localization.text(LocalizationKeys.Audit.USER_ACTIVATE), null, response);
+                messageResolver.getMessage("audit.user.activate"), null, response);
         return ApiResponse.success(response);
     }
 
@@ -106,7 +110,7 @@ public class UserController {
         final UserView user = userService.assignRoles(id, request.getRoles());
         final UserResponse response = UserResponse.from(user);
         auditRecorder.record("User", id, "ASSIGN_ROLES",
-                Localization.text(LocalizationKeys.Audit.USER_ASSIGN_ROLES), before, response);
+                messageResolver.getMessage("audit.user.assignRoles"), before, response);
         return ApiResponse.success(response);
     }
 }

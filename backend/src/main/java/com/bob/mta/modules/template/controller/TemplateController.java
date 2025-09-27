@@ -1,6 +1,7 @@
 package com.bob.mta.modules.template.controller;
 
 import com.bob.mta.common.api.ApiResponse;
+import com.bob.mta.common.i18n.MessageResolver;
 import com.bob.mta.modules.audit.service.AuditRecorder;
 import com.bob.mta.modules.template.domain.RenderedTemplate;
 import com.bob.mta.modules.template.domain.TemplateDefinition;
@@ -33,10 +34,13 @@ public class TemplateController {
 
     private final TemplateService templateService;
     private final AuditRecorder auditRecorder;
+    private final MessageResolver messageResolver;
 
-    public TemplateController(TemplateService templateService, AuditRecorder auditRecorder) {
+    public TemplateController(TemplateService templateService, AuditRecorder auditRecorder,
+                              MessageResolver messageResolver) {
         this.templateService = templateService;
         this.auditRecorder = auditRecorder;
+        this.messageResolver = messageResolver;
     }
 
     @GetMapping
@@ -66,7 +70,7 @@ public class TemplateController {
                 request.isEnabled(),
                 request.getDescription());
         auditRecorder.record("Template", String.valueOf(definition.getId()), "CREATE_TEMPLATE",
-                Localization.text(LocalizationKeys.Audit.TEMPLATE_CREATE),
+                messageResolver.getMessage("audit.template.create"),
                 null, TemplateResponse.from(definition));
         return ApiResponse.success(TemplateResponse.from(definition));
     }
@@ -86,7 +90,7 @@ public class TemplateController {
                 request.isEnabled(),
                 request.getDescription());
         auditRecorder.record("Template", String.valueOf(id), "UPDATE_TEMPLATE",
-                Localization.text(LocalizationKeys.Audit.TEMPLATE_UPDATE),
+                messageResolver.getMessage("audit.template.update"),
                 TemplateResponse.from(before), TemplateResponse.from(updated));
         return ApiResponse.success(TemplateResponse.from(updated));
     }
@@ -97,7 +101,7 @@ public class TemplateController {
         TemplateDefinition before = templateService.get(id);
         templateService.delete(id);
         auditRecorder.record("Template", String.valueOf(id), "DELETE_TEMPLATE",
-                Localization.text(LocalizationKeys.Audit.TEMPLATE_DELETE),
+                messageResolver.getMessage("audit.template.delete"),
                 TemplateResponse.from(before), null);
         return ApiResponse.success();
     }
@@ -109,7 +113,7 @@ public class TemplateController {
         RenderedTemplate rendered = templateService.render(id, request == null ? null : request.getContext());
         RenderedTemplateResponse response = RenderedTemplateResponse.from(rendered);
         auditRecorder.record("Template", String.valueOf(id), "RENDER_TEMPLATE",
-                Localization.text(LocalizationKeys.Audit.TEMPLATE_RENDER), null, response);
+                messageResolver.getMessage("audit.template.render"), null, response);
         return ApiResponse.success(response);
     }
 }

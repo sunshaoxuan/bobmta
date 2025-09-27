@@ -30,7 +30,7 @@ class InMemoryPlanRepositoryTest {
     @Test
     void shouldStoreAndRetrievePlan() {
         Plan plan = new Plan(
-                "PLAN-100", "tenant-x", "Test Plan", "desc", "cust-1", "admin",
+                "PLAN-100", "tenant-x", "测试计划", "desc", "cust-1", "admin",
                 List.of("admin"), PlanStatus.DESIGN,
                 OffsetDateTime.now(), OffsetDateTime.now().plusHours(2),
                 null, null, null, null, null,

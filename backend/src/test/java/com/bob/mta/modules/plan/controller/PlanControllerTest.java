@@ -1,6 +1,8 @@
 package com.bob.mta.modules.plan.controller;
 
 import com.bob.mta.common.api.PageResponse;
+import com.bob.mta.common.i18n.MessageResolver;
+import com.bob.mta.common.i18n.TestMessageResolverFactory;
 import com.bob.mta.modules.audit.domain.AuditLog;
 import com.bob.mta.modules.audit.service.AuditQuery;
 import com.bob.mta.modules.audit.service.AuditRecorder;
@@ -27,8 +29,11 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.security.authentication.TestingAuthenticationToken;
 import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.context.i18n.LocaleContextHolder;
+
 import java.time.OffsetDateTime;
 import java.util.List;
+import java.util.Locale;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -39,27 +44,55 @@ class PlanControllerTest {
     private InMemoryPlanRepository planRepository;
     private InMemoryFileService fileService;
     private InMemoryAuditService auditService;
+    private MessageResolver messageResolver;
 
     @BeforeEach
     void setUp() {
+        LocaleContextHolder.setLocale(Locale.SIMPLIFIED_CHINESE);
         fileService = new InMemoryFileService();
         planRepository = new InMemoryPlanRepository();
-        planService = new InMemoryPlanService(fileService, planRepository);
+        messageResolver = TestMessageResolverFactory.create();
+        planService = new InMemoryPlanService(fileService, planRepository, messageResolver);
         auditService = new InMemoryAuditService();
         AuditRecorder recorder = new AuditRecorder(auditService, new ObjectMapper());
-        controller = new PlanController(planService, recorder, fileService);
+        controller = new PlanController(planService, recorder, fileService, messageResolver);
     }
 
     @AfterEach
     void tearDown() {
         SecurityContextHolder.clearContext();
+        LocaleContextHolder.resetLocaleContext();
     }
 
     @Test
     void listShouldReturnPlans() {
-        PageResponse<PlanSummaryResponse> page = controller.list(null, null, null, null, 0, 1).getData();
+        PageResponse<PlanSummaryResponse> page = controller.list(null, null, null, null, null, null, 0, 1).getData();
         assertThat(page.getItems()).hasSize(1);
         assertThat(page.getTotal()).isGreaterThanOrEqualTo(2);
+    }
+
+    @Test
+    void listShouldFilterByOwnerAndKeyword() {
+        CreatePlanCommand command = new CreatePlanCommand(
+                "tenant-002",
+                "数据中心深度巡检",
+                "针对苏州数据中心的全面巡检",
+                "cust-003",
+                "ops-lead",
+                OffsetDateTime.now().plusDays(5),
+                OffsetDateTime.now().plusDays(5).plusHours(3),
+                "Asia/Shanghai",
+                List.of("ops-lead"),
+                List.of(new PlanNodeCommand(null, "巡检准备", "CHECKLIST", "ops-lead", 1, 60, null, "", List.of()))
+        );
+        planService.createPlan(command);
+
+        PageResponse<PlanSummaryResponse> filtered = controller
+                .list(null, "ops-lead", "数据中心", null, null, null, 0, 10)
+                .getData();
+
+        assertThat(filtered.getItems()).hasSize(1);
+        assertThat(filtered.getItems().get(0).getOwner()).isEqualTo("ops-lead");
     }
 
     @Test
@@ -76,15 +109,15 @@ class PlanControllerTest {
         OffsetDateTime end = OffsetDateTime.now().minusHours(1);
         CreatePlanCommand command = new CreatePlanCommand(
                 "tenant-001",
-                "Overdue maintenance",
-                "Customer ad-hoc maintenance",
+                "过期巡检",
+                "客户临时巡检",
                 "cust-001",
                 "admin",
                 start,
                 end,
                 "Asia/Tokyo",
                 List.of("admin"),
-                List.of(new PlanNodeCommand(null, "Quick check", "CHECKLIST", "admin", 1, 15, null, "", List.of()))
+                List.of(new PlanNodeCommand(null, "快速检查", "CHECKLIST", "admin", 1, 15, null, "", List.of()))
         );
         var created = planService.createPlan(command);
         planService.publishPlan(created.getId(), "admin");
@@ -96,7 +129,7 @@ class PlanControllerTest {
 
     @Test
     void detailShouldReturnPlanWithNodesAndReminders() {
-        String planId = planService.listPlans(null, null, null, null).get(0).getId();
+        String planId = planService.listPlans(null, null, null, null, null, null).get(0).getId();
         PlanDetailResponse response = controller.detail(planId).getData();
         assertThat(response.getNodes()).isNotEmpty();
         assertThat(response.getTimeline()).isNotEmpty();
@@ -105,7 +138,7 @@ class PlanControllerTest {
 
     @Test
     void detailShouldExposeNodeAttachments() {
-        String planId = planService.listPlans(null, null, null, null).get(0).getId();
+        String planId = planService.listPlans(null, null, null, null, null, null).get(0).getId();
         String nodeId = planService.getPlan(planId).getExecutions().get(0).getNodeId();
         authenticate("admin");
         controller.publish(planId);
@@ -113,8 +146,8 @@ class PlanControllerTest {
         var file = fileService.register("evidence.log", "text/plain", 128, "plan-files", "PLAN_NODE", nodeId,
                 "admin");
         CompleteNodeRequest request = new CompleteNodeRequest();
-        request.setResult("Completed");
-        request.setLog("Uploaded inspection report");
+        request.setResult("完成");
+        request.setLog("上传巡检记录");
         request.setFileIds(List.of(file.getId()));
 
         controller.completeNode(planId, nodeId, request);
@@ -127,7 +160,7 @@ class PlanControllerTest {
 
     @Test
     void reminderPolicyShouldExposeDefaultRules() {
-        String planId = planService.listPlans(null, null, null, null).get(0).getId();
+        String planId = planService.listPlans(null, null, null, null, null, null).get(0).getId();
 
         var policy = controller.reminderPolicy(planId).getData();
 
@@ -137,7 +170,7 @@ class PlanControllerTest {
 
     @Test
     void updateReminderPolicyShouldRecordAuditAndPersistRules() {
-        String planId = planService.listPlans(null, null, null, null).get(0).getId();
+        String planId = planService.listPlans(null, null, null, null, null, null).get(0).getId();
         authenticate("admin");
         PlanReminderRuleRequest ruleRequest = new PlanReminderRuleRequest();
         ruleRequest.setTrigger(PlanReminderTrigger.BEFORE_PLAN_START);
@@ -145,7 +178,7 @@ class PlanControllerTest {
         ruleRequest.setChannels(List.of("EMAIL"));
         ruleRequest.setTemplateId("custom-template");
         ruleRequest.setRecipients(List.of("OWNER"));
-        ruleRequest.setDescription("Remind owner 45 minutes before start");
+        ruleRequest.setDescription("开始前45分钟提醒负责人");
         PlanReminderPolicyRequest request = new PlanReminderPolicyRequest();
         request.setRules(List.of(ruleRequest));
 
@@ -161,7 +194,7 @@ class PlanControllerTest {
 
     @Test
     void previewRemindersShouldReturnUpcomingEntries() {
-        String planId = planService.listPlans(null, null, null, null).get(0).getId();
+        String planId = planService.listPlans(null, null, null, null, null, null).get(0).getId();
 
         var preview = controller.previewReminders(planId, OffsetDateTime.now().minusMinutes(1)).getData();
 
@@ -171,26 +204,26 @@ class PlanControllerTest {
 
     @Test
     void cancelShouldExposeReasonAndOperator() {
-        String planId = planService.listPlans(null, null, null, null).get(0).getId();
+        String planId = planService.listPlans(null, null, null, null, null, null).get(0).getId();
         CancelPlanRequest request = new CancelPlanRequest();
-        request.setReason("Customer deferred");
+        request.setReason("客户延期");
         SecurityContextHolder.getContext().setAuthentication(new TestingAuthenticationToken("admin", null));
 
         PlanDetailResponse response = controller.cancel(planId, request).getData();
 
-        assertThat(response.getCancelReason()).isEqualTo("Customer deferred");
+        assertThat(response.getCancelReason()).isEqualTo("客户延期");
         assertThat(response.getCanceledBy()).isEqualTo("admin");
         assertThat(response.getCanceledAt()).isNotNull();
     }
 
     @Test
     void handoverShouldUpdateOwnerParticipantsAndAuditTrail() {
-        String planId = planService.listPlans(null, null, null, null).get(0).getId();
+        String planId = planService.listPlans(null, null, null, null, null, null).get(0).getId();
         authenticate("admin");
         PlanHandoverRequest request = new PlanHandoverRequest();
         request.setNewOwner("operator");
         request.setParticipants(List.of("operator", "observer"));
-        request.setNote("Night shift handover");
+        request.setNote("夜间值班交接");
 
         PlanDetailResponse response = controller.handover(planId, request).getData();
 
@@ -207,7 +240,7 @@ class PlanControllerTest {
 
     @Test
     void publishShouldRecordBeforeAndAfterInAudit() {
-        String planId = planService.listPlans(null, null, null, null).get(0).getId();
+        String planId = planService.listPlans(null, null, null, null, null, null).get(0).getId();
         authenticate("admin");
 
         controller.publish(planId);
@@ -220,7 +253,7 @@ class PlanControllerTest {
 
     @Test
     void timelineShouldExposePlanActivities() {
-        String planId = planService.listPlans(null, null, null, null).get(0).getId();
+        String planId = planService.listPlans(null, null, null, null, null, null).get(0).getId();
         authenticate("admin");
 
         controller.publish(planId);
@@ -233,7 +266,7 @@ class PlanControllerTest {
 
     @Test
     void startNodeShouldRecordStateTransitionInAudit() {
-        String planId = planService.listPlans(null, null, null, null).get(0).getId();
+        String planId = planService.listPlans(null, null, null, null, null, null).get(0).getId();
         String nodeId = planService.getPlan(planId).getExecutions().get(0).getNodeId();
         authenticate("operator");
         controller.publish(planId);
@@ -248,7 +281,7 @@ class PlanControllerTest {
 
     @Test
     void completeNodeShouldRecordStateTransitionInAudit() {
-        String planId = planService.listPlans(null, null, null, null).get(0).getId();
+        String planId = planService.listPlans(null, null, null, null, null, null).get(0).getId();
         String nodeId = planService.getPlan(planId).getExecutions().get(0).getNodeId();
         authenticate("operator");
         controller.publish(planId);
@@ -256,8 +289,8 @@ class PlanControllerTest {
         var file = fileService.register("result.txt", "text/plain", 256, "plan-files", "PLAN_NODE", nodeId,
                 "operator");
         CompleteNodeRequest request = new CompleteNodeRequest();
-        request.setResult("Inspection complete");
-        request.setLog("All systems normal");
+        request.setResult("巡检完成");
+        request.setLog("一切正常");
         request.setFileIds(List.of(file.getId()));
 
         var response = controller.completeNode(planId, nodeId, request).getData();
