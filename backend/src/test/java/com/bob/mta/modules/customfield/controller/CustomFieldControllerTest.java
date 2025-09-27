@@ -1,0 +1,65 @@
+package com.bob.mta.modules.customfield.controller;
+
+import com.bob.mta.common.api.ApiResponse;
+import com.bob.mta.modules.audit.service.AuditRecorder;
+import com.bob.mta.modules.audit.service.impl.InMemoryAuditService;
+import com.bob.mta.modules.customfield.domain.CustomFieldType;
+import com.bob.mta.modules.customfield.dto.CreateCustomFieldRequest;
+import com.bob.mta.modules.customfield.dto.CustomFieldDefinitionResponse;
+import com.bob.mta.modules.customfield.dto.CustomFieldValueRequest;
+import com.bob.mta.modules.customfield.service.impl.InMemoryCustomFieldService;
+import com.bob.mta.modules.customer.service.impl.InMemoryCustomerService;
+import com.bob.mta.modules.tag.service.impl.InMemoryTagService;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.springframework.security.authentication.TestingAuthenticationToken;
+import org.springframework.security.core.context.SecurityContextHolder;
+
+import java.util.List;
+
+import static org.assertj.core.api.Assertions.assertThat;
+
+class CustomFieldControllerTest {
+
+    private CustomFieldController controller;
+    private InMemoryCustomFieldService customFieldService;
+
+    @BeforeEach
+    void setUp() {
+        customFieldService = new InMemoryCustomFieldService();
+        InMemoryTagService tagService = new InMemoryTagService();
+        InMemoryCustomerService customerService = new InMemoryCustomerService(tagService, customFieldService);
+        AuditRecorder recorder = new AuditRecorder(new InMemoryAuditService(), new ObjectMapper());
+        controller = new CustomFieldController(customFieldService, customerService, recorder);
+        SecurityContextHolder.getContext().setAuthentication(new TestingAuthenticationToken("admin", "pass", "ROLE_ADMIN"));
+    }
+
+    @AfterEach
+    void tearDown() {
+        SecurityContextHolder.clearContext();
+    }
+
+    @Test
+    void shouldCreateCustomField() {
+        CreateCustomFieldRequest request = new CreateCustomFieldRequest();
+        request.setCode("ticket_url");
+        request.setLabel("工单地址");
+        request.setType(CustomFieldType.TEXT);
+
+        ApiResponse<CustomFieldDefinitionResponse> response = controller.createDefinition(request);
+        assertThat(response.getData().getCode()).isEqualTo("ticket_url");
+    }
+
+    @Test
+    void shouldUpdateCustomerValues() {
+        var definition = customFieldService.createDefinition("priority", "优先级", CustomFieldType.TEXT, false, null, null);
+        CustomFieldValueRequest valueRequest = new CustomFieldValueRequest();
+        valueRequest.setFieldId(definition.getId());
+        valueRequest.setValue("A");
+
+        ApiResponse<?> response = controller.updateCustomerValues("cust-001", List.of(valueRequest));
+        assertThat(response.getData()).isInstanceOf(List.class);
+    }
+}
