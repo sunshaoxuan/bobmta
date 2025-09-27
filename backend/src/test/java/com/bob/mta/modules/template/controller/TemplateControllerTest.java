@@ -16,6 +16,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.springframework.context.i18n.LocaleContextHolder;
 import org.springframework.security.authentication.TestingAuthenticationToken;
 import org.springframework.security.core.context.SecurityContextHolder;
 
@@ -27,18 +28,21 @@ class TemplateControllerTest {
 
     private TemplateController controller;
     private InMemoryTemplateService templateService;
+    private MessageResolver messageResolver;
 
     @BeforeEach
     void setUp() {
         templateService = new InMemoryTemplateService(new MultilingualTextService(new InMemoryMultilingualTextRepository()));
         AuditRecorder recorder = new AuditRecorder(new InMemoryAuditService(), new ObjectMapper());
-        controller = new TemplateController(templateService, recorder);
+        messageResolver = TestMessageResolverFactory.create();
+        controller = new TemplateController(templateService, recorder, messageResolver);
         SecurityContextHolder.getContext().setAuthentication(new TestingAuthenticationToken("admin", "pass", "ROLE_ADMIN"));
     }
 
     @AfterEach
     void tearDown() {
         SecurityContextHolder.clearContext();
+        LocaleContextHolder.resetLocaleContext();
     }
 
     @Test

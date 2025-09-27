@@ -19,6 +19,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.springframework.context.i18n.LocaleContextHolder;
 import org.springframework.security.authentication.TestingAuthenticationToken;
 import org.springframework.security.core.context.SecurityContextHolder;
 
@@ -30,20 +31,23 @@ class TagControllerTest {
 
     private TagController controller;
     private InMemoryPlanService planService;
+    private MessageResolver messageResolver;
 
     @BeforeEach
     void setUp() {
         InMemoryTagService tagService = new InMemoryTagService(new MultilingualTextService(new InMemoryMultilingualTextRepository()));
         InMemoryCustomerService customerService = new InMemoryCustomerService();
-        planService = new InMemoryPlanService(new InMemoryFileService(), new InMemoryPlanRepository());
+        messageResolver = TestMessageResolverFactory.create();
+        planService = new InMemoryPlanService(new InMemoryFileService(), new InMemoryPlanRepository(), messageResolver);
         AuditRecorder recorder = new AuditRecorder(new InMemoryAuditService(), new ObjectMapper());
-        controller = new TagController(tagService, customerService, planService, recorder);
+        controller = new TagController(tagService, customerService, planService, recorder, messageResolver);
         SecurityContextHolder.getContext().setAuthentication(new TestingAuthenticationToken("admin", "pass", "ROLE_ADMIN"));
     }
 
     @AfterEach
     void tearDown() {
         SecurityContextHolder.clearContext();
+        LocaleContextHolder.resetLocaleContext();
     }
 
     @Test
@@ -67,7 +71,7 @@ class TagControllerTest {
         var created = controller.create(buildRequest("plan", com.bob.mta.modules.tag.domain.TagScope.PLAN));
         AssignTagRequest assign = new AssignTagRequest();
         assign.setEntityType(TagEntityType.PLAN);
-        assign.setEntityId(planService.listPlans(null, null, null, null).get(0).getId());
+        assign.setEntityId(planService.listPlans(null, null, null, null, null, null).get(0).getId());
 
         controller.assign(created.getData().getId(), assign);
 
