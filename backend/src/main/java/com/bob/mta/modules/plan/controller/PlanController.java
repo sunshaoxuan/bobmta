@@ -123,6 +123,45 @@ public class PlanController {
     }
 
     @PreAuthorize("hasAnyRole('ADMIN','OPERATOR')")
+    @GetMapping("/{id}/timeline")
+    public ApiResponse<List<PlanActivityResponse>> timeline(@PathVariable String id) {
+        List<PlanActivityResponse> timeline = planService.getPlanTimeline(id).stream()
+                .map(PlanActivityResponse::from)
+                .toList();
+        return ApiResponse.success(timeline);
+    }
+
+    @PreAuthorize("hasAnyRole('ADMIN','OPERATOR')")
+    @GetMapping("/{id}/reminders")
+    public ApiResponse<PlanReminderPolicyResponse> reminderPolicy(@PathVariable String id) {
+        Plan plan = planService.getPlan(id);
+        return ApiResponse.success(PlanReminderPolicyResponse.from(plan.getReminderPolicy()));
+    }
+
+    @PreAuthorize("hasAnyRole('ADMIN','OPERATOR')")
+    @PutMapping("/{id}/reminders")
+    public ApiResponse<PlanReminderPolicyResponse> updateReminderPolicy(@PathVariable String id,
+                                                                        @Valid @RequestBody PlanReminderPolicyRequest request) {
+        Plan before = planService.getPlan(id);
+        Plan updated = planService.updateReminderPolicy(id, toReminderRules(request.getRules()), currentUsername());
+        auditRecorder.record("Plan", id, "UPDATE_PLAN_REMINDERS", "更新计划提醒策略",
+                PlanReminderPolicyResponse.from(before.getReminderPolicy()),
+                PlanReminderPolicyResponse.from(updated.getReminderPolicy()));
+        return ApiResponse.success(PlanReminderPolicyResponse.from(updated.getReminderPolicy()));
+    }
+
+    @PreAuthorize("hasAnyRole('ADMIN','OPERATOR')")
+    @GetMapping("/{id}/reminders/preview")
+    public ApiResponse<List<PlanReminderPreviewResponse>> previewReminders(@PathVariable String id,
+                                                                           @RequestParam(required = false)
+                                                                           OffsetDateTime referenceTime) {
+        List<PlanReminderPreviewResponse> preview = planService.previewReminderSchedule(id, referenceTime).stream()
+                .map(PlanReminderPreviewResponse::from)
+                .toList();
+        return ApiResponse.success(preview);
+    }
+
+    @PreAuthorize("hasAnyRole('ADMIN','OPERATOR')")
     @PostMapping
     public ApiResponse<PlanDetailResponse> create(@Valid @RequestBody CreatePlanRequest request) {
         CreatePlanCommand command = new CreatePlanCommand(
