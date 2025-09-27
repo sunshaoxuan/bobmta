@@ -1,10 +1,13 @@
 package com.bob.mta.modules.tag.controller;
 
 import com.bob.mta.common.api.ApiResponse;
+import com.bob.mta.common.i18n.MessageResolver;
+import com.bob.mta.common.i18n.TestMessageResolverFactory;
 import com.bob.mta.modules.audit.service.AuditRecorder;
 import com.bob.mta.modules.audit.service.impl.InMemoryAuditService;
-import com.bob.mta.modules.customfield.service.impl.InMemoryCustomFieldService;
 import com.bob.mta.modules.customer.service.impl.InMemoryCustomerService;
+import com.bob.mta.modules.file.service.impl.InMemoryFileService;
+import com.bob.mta.modules.plan.repository.InMemoryPlanRepository;
 import com.bob.mta.modules.plan.service.impl.InMemoryPlanService;
 import com.bob.mta.modules.tag.domain.TagEntityType;
 import com.bob.mta.modules.tag.dto.AssignTagRequest;
@@ -15,29 +18,36 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.springframework.context.i18n.LocaleContextHolder;
 import org.springframework.security.authentication.TestingAuthenticationToken;
 import org.springframework.security.core.context.SecurityContextHolder;
+
+import java.util.Locale;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
 class TagControllerTest {
 
     private TagController controller;
+    private InMemoryPlanService planService;
+    private MessageResolver messageResolver;
 
     @BeforeEach
     void setUp() {
+        LocaleContextHolder.setLocale(Locale.SIMPLIFIED_CHINESE);
         InMemoryTagService tagService = new InMemoryTagService();
-        InMemoryCustomFieldService customFieldService = new InMemoryCustomFieldService();
-        InMemoryCustomerService customerService = new InMemoryCustomerService(tagService, customFieldService);
-        InMemoryPlanService planService = new InMemoryPlanService();
+        InMemoryCustomerService customerService = new InMemoryCustomerService();
+        messageResolver = TestMessageResolverFactory.create();
+        planService = new InMemoryPlanService(new InMemoryFileService(), new InMemoryPlanRepository(), messageResolver);
         AuditRecorder recorder = new AuditRecorder(new InMemoryAuditService(), new ObjectMapper());
-        controller = new TagController(tagService, customerService, planService, recorder);
+        controller = new TagController(tagService, customerService, planService, recorder, messageResolver);
         SecurityContextHolder.getContext().setAuthentication(new TestingAuthenticationToken("admin", "pass", "ROLE_ADMIN"));
     }
 
     @AfterEach
     void tearDown() {
         SecurityContextHolder.clearContext();
+        LocaleContextHolder.resetLocaleContext();
     }
 
     @Test
@@ -58,7 +68,7 @@ class TagControllerTest {
         var created = controller.create(buildRequest("计划", com.bob.mta.modules.tag.domain.TagScope.PLAN));
         AssignTagRequest assign = new AssignTagRequest();
         assign.setEntityType(TagEntityType.PLAN);
-        assign.setEntityId("plan-001");
+        assign.setEntityId(planService.listPlans(null, null, null, null, null, null).get(0).getId());
 
         controller.assign(created.getData().getId(), assign);
 
