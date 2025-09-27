@@ -1,11 +1,13 @@
 package com.bob.mta.modules.user.controller;
 
 import com.bob.mta.common.api.ApiResponse;
+import com.bob.mta.modules.audit.service.AuditRecorder;
 import com.bob.mta.modules.user.domain.UserStatus;
 import com.bob.mta.modules.user.dto.ActivateUserRequest;
 import com.bob.mta.modules.user.dto.ActivationLinkResponse;
 import com.bob.mta.modules.user.dto.AssignRolesRequest;
 import com.bob.mta.modules.user.dto.CreateUserRequest;
+import com.bob.mta.modules.user.dto.CreateUserResponse;
 import com.bob.mta.modules.user.dto.UserResponse;
 import com.bob.mta.modules.user.service.UserService;
 import com.bob.mta.modules.user.service.command.CreateUserCommand;
@@ -15,9 +17,11 @@ import com.bob.mta.modules.user.service.model.UserView;
 import com.bob.mta.modules.user.service.query.UserQuery;
 import jakarta.validation.Valid;
 import org.springframework.http.MediaType;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -33,9 +37,51 @@ import java.util.List;
 public class UserController {
 
     private final UserService userService;
+    private final AuditRecorder auditRecorder;
 
-    public UserController(final UserService userService) {
+    public UserController(final UserService userService, final AuditRecorder auditRecorder) {
         this.userService = userService;
+        this.auditRecorder = auditRecorder;
+    }
+
+    @PreAuthorize("hasRole('ADMIN')")
+    @GetMapping
+    public ApiResponse<List<UserResponse>> listUsers(@RequestParam(required = false) final UserStatus status) {
+        final List<UserResponse> users = userService.listUsers(new UserQuery(status)).stream()
+                .map(UserResponse::from)
+                .toList();
+        return ApiResponse.success(users);
+    }
+
+    @PreAuthorize("hasRole('ADMIN')")
+    @GetMapping("/{id}")
+    public ApiResponse<UserResponse> getUser(@PathVariable("id") final String id) {
+        final UserView user = userService.getUser(id);
+        return ApiResponse.success(UserResponse.from(user));
+    }
+
+    @PreAuthorize("hasRole('ADMIN')")
+    @PostMapping(consumes = MediaType.APPLICATION_JSON_VALUE)
+    public ApiResponse<CreateUserResponse> createUser(@Valid @RequestBody final CreateUserRequest request) {
+        final CreateUserCommand command = new CreateUserCommand(
+                request.getUsername(),
+                request.getDisplayName(),
+                request.getEmail(),
+                request.getPassword(),
+                request.getRoles());
+        final CreateUserResult result = userService.createUser(command);
+        final CreateUserResponse response = CreateUserResponse.from(result);
+        auditRecorder.record("User", response.getUser().getId(), "CREATE_USER", "创建系统用户", null, response);
+        return ApiResponse.success(response);
+    }
+
+    @PreAuthorize("hasRole('ADMIN')")
+    @PostMapping(path = "/{id}/activation/resend")
+    public ApiResponse<ActivationLinkResponse> resendActivation(@PathVariable("id") final String id) {
+        final ActivationLink activation = userService.resendActivation(id);
+        final ActivationLinkResponse response = ActivationLinkResponse.from(activation);
+        auditRecorder.record("UserActivation", id, "RESEND_ACTIVATION", "重新发放用户激活链接", null, response);
+        return ApiResponse.success(response);
     }
 
     @GetMapping
