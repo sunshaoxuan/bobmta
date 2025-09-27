@@ -18,10 +18,10 @@ import com.bob.mta.modules.plan.service.impl.InMemoryPlanService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.security.authentication.TestingAuthenticationToken;
 import org.springframework.security.core.context.SecurityContextHolder;
-
 import java.time.OffsetDateTime;
 import java.util.List;
 
@@ -104,6 +104,7 @@ class PlanControllerTest {
 
         assertThat(preview).isNotEmpty();
         assertThat(preview).allSatisfy(entry -> assertThat(entry.getFireTime()).isAfter(OffsetDateTime.now().minusMinutes(1)));
+
     }
 
     @Test
