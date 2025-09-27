@@ -3,8 +3,8 @@ package com.bob.mta.modules.tag.controller;
 import com.bob.mta.common.api.ApiResponse;
 import com.bob.mta.modules.audit.service.AuditRecorder;
 import com.bob.mta.modules.audit.service.impl.InMemoryAuditService;
-import com.bob.mta.modules.customfield.service.impl.InMemoryCustomFieldService;
 import com.bob.mta.modules.customer.service.impl.InMemoryCustomerService;
+import com.bob.mta.modules.file.service.impl.InMemoryFileService;
 import com.bob.mta.modules.plan.service.impl.InMemoryPlanService;
 import com.bob.mta.modules.tag.domain.TagEntityType;
 import com.bob.mta.modules.tag.dto.AssignTagRequest;
@@ -23,13 +23,13 @@ import static org.assertj.core.api.Assertions.assertThat;
 class TagControllerTest {
 
     private TagController controller;
+    private InMemoryPlanService planService;
 
     @BeforeEach
     void setUp() {
         InMemoryTagService tagService = new InMemoryTagService();
-        InMemoryCustomFieldService customFieldService = new InMemoryCustomFieldService();
-        InMemoryCustomerService customerService = new InMemoryCustomerService(tagService, customFieldService);
-        InMemoryPlanService planService = new InMemoryPlanService();
+        InMemoryCustomerService customerService = new InMemoryCustomerService();
+        planService = new InMemoryPlanService(new InMemoryFileService());
         AuditRecorder recorder = new AuditRecorder(new InMemoryAuditService(), new ObjectMapper());
         controller = new TagController(tagService, customerService, planService, recorder);
         SecurityContextHolder.getContext().setAuthentication(new TestingAuthenticationToken("admin", "pass", "ROLE_ADMIN"));
@@ -58,7 +58,7 @@ class TagControllerTest {
         var created = controller.create(buildRequest("计划", com.bob.mta.modules.tag.domain.TagScope.PLAN));
         AssignTagRequest assign = new AssignTagRequest();
         assign.setEntityType(TagEntityType.PLAN);
-        assign.setEntityId("plan-001");
+        assign.setEntityId(planService.listPlans(null, null, null, null).get(0).getId());
 
         controller.assign(created.getData().getId(), assign);
 
