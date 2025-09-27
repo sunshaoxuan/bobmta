@@ -5,8 +5,13 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.bob.mta.common.exception.BusinessException;
 import com.bob.mta.modules.file.service.impl.InMemoryFileService;
+import com.bob.mta.modules.plan.domain.PlanActivityType;
+import com.bob.mta.modules.plan.domain.PlanReminderRule;
+import com.bob.mta.modules.plan.domain.PlanReminderSchedule;
+import com.bob.mta.modules.plan.domain.PlanReminderTrigger;
 import com.bob.mta.modules.plan.domain.PlanNodeExecution;
 import com.bob.mta.modules.plan.domain.PlanStatus;
+import com.bob.mta.modules.plan.domain.PlanAnalytics;
 import com.bob.mta.modules.plan.service.command.CreatePlanCommand;
 import com.bob.mta.modules.plan.service.command.PlanNodeCommand;
 import org.junit.jupiter.api.DisplayName;
@@ -39,12 +44,46 @@ class InMemoryPlanServiceTest {
 
         assertThat(plan.getExecutions()).hasSize(1);
         assertThat(plan.getStatus()).isEqualTo(PlanStatus.DESIGN);
+        assertThat(plan.getActivities())
+                .extracting(activity -> activity.getType())
+                .containsExactly(PlanActivityType.PLAN_CREATED);
+    }
+
+    @Test
+    @DisplayName("updateReminderPolicy replaces rules and appends timeline entry")
+    void shouldUpdateReminderPolicy() {
+        var plan = service.listPlans(null, null, null, null).get(0);
+        List<PlanReminderRule> rules = List.of(
+                new PlanReminderRule(null, PlanReminderTrigger.BEFORE_PLAN_START, 90,
+                        List.of("EMAIL"), "template-90", List.of("OWNER"), "提前90分钟提醒负责人"));
+
+        var updated = service.updateReminderPolicy(plan.getId(), rules, "admin");
+
+        assertThat(updated.getReminderPolicy().getRules()).hasSize(1);
+        assertThat(updated.getReminderPolicy().getRules().get(0).getOffsetMinutes()).isEqualTo(90);
+        assertThat(updated.getReminderPolicy().getUpdatedBy()).isEqualTo("admin");
+        assertThat(updated.getActivities())
+                .extracting(activity -> activity.getType())
+                .contains(PlanActivityType.REMINDER_POLICY_UPDATED);
+    }
+
+    @Test
+    @DisplayName("previewReminderSchedule filters to future events")
+    void shouldPreviewReminderSchedule() {
+        var plan = service.listPlans(null, null, null, null).get(0);
+
+        List<PlanReminderSchedule> schedule = service.previewReminderSchedule(plan.getId(), OffsetDateTime.now().minusDays(1));
+
+        assertThat(schedule).isNotEmpty();
+        assertThat(schedule)
+                .allSatisfy(entry -> assertThat(entry.getFireTime()).isAfter(OffsetDateTime.now().minusDays(1)));
     }
 
     @Test
     @DisplayName("startNode transitions plan to in-progress")
     void shouldStartNode() {
         var plan = service.listPlans(null, null, null, null).get(0);
+        service.publishPlan(plan.getId(), "admin");
         PlanNodeExecution execution = service.startNode(plan.getId(), plan.getExecutions().get(0).getNodeId(), "admin");
 
         assertThat(execution.getStatus()).isEqualTo(com.bob.mta.modules.plan.domain.PlanNodeStatus.IN_PROGRESS);
@@ -55,9 +94,11 @@ class InMemoryPlanServiceTest {
     @DisplayName("renderPlanIcs produces calendar payload")
     void shouldRenderIcs() {
         var plan = service.listPlans(null, null, null, null).get(0);
+        service.cancelPlan(plan.getId(), "admin", "客户原因取消");
         String ics = service.renderPlanIcs(plan.getId());
 
         assertThat(ics).contains("BEGIN:VCALENDAR");
+        assertThat(ics).contains("客户原因取消");
     }
 
     @Test
@@ -65,5 +106,120 @@ class InMemoryPlanServiceTest {
     void shouldThrowWhenMissing() {
         assertThatThrownBy(() -> service.getPlan("missing"))
                 .isInstanceOf(BusinessException.class);
+    }
+
+    @Test
+    @DisplayName("cancelPlan stores reason and operator metadata")
+    void shouldPersistCancellationMetadata() {
+        var plan = service.listPlans(null, null, null, null).get(0);
+
+        var updated = service.cancelPlan(plan.getId(), "operator", "客户要求顺延");
+
+        assertThat(updated.getStatus()).isEqualTo(PlanStatus.CANCELED);
+        assertThat(updated.getCancelReason()).isEqualTo("客户要求顺延");
+        assertThat(updated.getCanceledBy()).isEqualTo("operator");
+        assertThat(updated.getCanceledAt()).isNotNull();
+    }
+
+    @Test
+    @DisplayName("timeline captures node execution lifecycle")
+    void shouldCaptureTimelineForNodeLifecycle() {
+        var plan = service.listPlans(null, null, null, null).get(0);
+        service.publishPlan(plan.getId(), "admin");
+        String nodeId = plan.getExecutions().get(0).getNodeId();
+        service.startNode(plan.getId(), nodeId, "operator");
+        service.completeNode(plan.getId(), nodeId, "operator", "ok", null, null);
+
+        var timeline = service.getPlanTimeline(plan.getId());
+
+        assertThat(timeline)
+                .extracting(entry -> entry.getType())
+                .contains(PlanActivityType.PLAN_CREATED,
+                        PlanActivityType.PLAN_PUBLISHED,
+                        PlanActivityType.NODE_STARTED,
+                        PlanActivityType.NODE_COMPLETED);
+    }
+
+    @Test
+    @DisplayName("startNode rejects when plan is not published")
+    void shouldRejectStartWhenDesign() {
+        var plan = service.listPlans(null, null, null, null).get(0);
+
+        assertThatThrownBy(() -> service.startNode(plan.getId(), plan.getExecutions().get(0).getNodeId(), "admin"))
+                .isInstanceOf(BusinessException.class)
+                .hasMessageContaining("published");
+    }
+
+    @Test
+    @DisplayName("startNode rejects when plan is canceled")
+    void shouldRejectStartWhenCanceled() {
+        var plan = service.listPlans(null, null, null, null).get(0);
+        service.publishPlan(plan.getId(), "admin");
+        service.cancelPlan(plan.getId(), "admin", "客户取消");
+
+        assertThatThrownBy(() -> service.startNode(plan.getId(), plan.getExecutions().get(0).getNodeId(), "admin"))
+                .isInstanceOf(BusinessException.class)
+                .hasMessageContaining("no longer active");
+    }
+
+    @Test
+    @DisplayName("completeNode requires the node to be started first")
+    void shouldRejectCompleteWhenPending() {
+        var plan = service.listPlans(null, null, null, null).get(0);
+        service.publishPlan(plan.getId(), "admin");
+
+        assertThatThrownBy(() -> service.completeNode(plan.getId(), plan.getExecutions().get(0).getNodeId(),
+                "admin", "ok", null, null))
+                .isInstanceOf(BusinessException.class)
+                .hasMessageContaining("started");
+    }
+
+    @Test
+    @DisplayName("completeNode rejects when plan is canceled mid-execution")
+    void shouldRejectCompleteWhenPlanCanceled() {
+        var plan = service.listPlans(null, null, null, null).get(0);
+        service.publishPlan(plan.getId(), "admin");
+        String nodeId = plan.getExecutions().get(0).getNodeId();
+        service.startNode(plan.getId(), nodeId, "admin");
+        service.cancelPlan(plan.getId(), "admin", "客户取消");
+
+        assertThatThrownBy(() -> service.completeNode(plan.getId(), nodeId, "admin", "ok", null, null))
+                .isInstanceOf(BusinessException.class)
+                .hasMessageContaining("no longer active");
+    }
+
+    @Test
+    @DisplayName("analytics aggregates plan states and upcoming queue")
+    void shouldSummarizeAnalytics() {
+        OffsetDateTime start = OffsetDateTime.now().minusHours(3);
+        OffsetDateTime end = OffsetDateTime.now().minusHours(1);
+        CreatePlanCommand overdueCommand = new CreatePlanCommand(
+                "tenant-001",
+                "应急排障",
+                "计划在凌晨完成巡检",
+                "cust-003",
+                "admin",
+                start,
+                end,
+                "Asia/Tokyo",
+                List.of("admin"),
+                List.of(new PlanNodeCommand(null, "巡检执行", "CHECKLIST", "admin", 1, 20, null, "", List.of()))
+        );
+        var overduePlan = service.createPlan(overdueCommand);
+        service.publishPlan(overduePlan.getId(), "admin");
+
+        var planToCancel = service.listPlans(null, null, null, null).stream()
+                .filter(plan -> !plan.getId().equals(overduePlan.getId()))
+                .findFirst()
+                .orElseThrow();
+        service.cancelPlan(planToCancel.getId(), "admin", "客户取消");
+
+        PlanAnalytics analytics = service.getAnalytics("tenant-001", null, null);
+
+        assertThat(analytics.getTotalPlans()).isGreaterThanOrEqualTo(3);
+        assertThat(analytics.getInProgressCount()).isGreaterThanOrEqualTo(1);
+        assertThat(analytics.getCanceledCount()).isGreaterThanOrEqualTo(1);
+        assertThat(analytics.getOverdueCount()).isGreaterThanOrEqualTo(1);
+        assertThat(analytics.getUpcomingPlans()).isNotEmpty();
     }
 }

@@ -5,6 +5,7 @@ import com.bob.mta.modules.plan.domain.PlanNodeExecution;
 
 import java.util.List;
 import java.util.Map;
+import java.util.function.Function;
 
 public class PlanNodeResponse {
 
@@ -34,14 +35,15 @@ public class PlanNodeResponse {
         this.children = children;
     }
 
-    public static PlanNodeResponse from(PlanNode node, Map<String, PlanNodeExecution> executionIndex) {
+    public static PlanNodeResponse from(PlanNode node, Map<String, PlanNodeExecution> executionIndex,
+                                        Function<List<String>, List<PlanNodeAttachmentResponse>> attachmentLoader) {
         PlanNodeExecution execution = executionIndex.get(node.getId());
         List<PlanNodeResponse> childResponses = node.getChildren().stream()
-                .map(child -> from(child, executionIndex))
+                .map(child -> from(child, executionIndex, attachmentLoader))
                 .toList();
         return new PlanNodeResponse(node.getId(), node.getName(), node.getType(), node.getAssignee(),
                 node.getOrder(), node.getExpectedDurationMinutes(), node.getActionRef(), node.getDescription(),
-                PlanNodeExecutionResponse.from(execution), childResponses);
+                PlanNodeExecutionResponse.from(execution, attachmentLoader), childResponses);
     }
 
     public String getId() {
