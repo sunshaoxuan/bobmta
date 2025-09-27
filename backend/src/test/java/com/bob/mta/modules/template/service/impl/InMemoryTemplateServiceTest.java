@@ -13,7 +13,7 @@ class InMemoryTemplateServiceTest {
 
     @Test
     void shouldRenderTemplate() {
-        var template = service.create(TemplateType.EMAIL, "通知", "Hi {{name}}", "正文 {{name}}", null, null, null, true, null);
+        var template = service.create(TemplateType.EMAIL, "Notice", "Hi {{name}}", "Body {{name}}", null, null, null, true, null);
         var rendered = service.render(template.getId(), Map.of("name", "Bob"));
         assertThat(rendered.getSubject()).contains("Bob");
         assertThat(rendered.getContent()).contains("Bob");
@@ -28,7 +28,7 @@ class InMemoryTemplateServiceTest {
 
     @Test
     void shouldGenerateRdpAttachmentForRemoteTemplate() {
-        var template = service.create(TemplateType.REMOTE, "远程桌面", null, "连接 {{host}}",
+        var template = service.create(TemplateType.REMOTE, "Remote Desktop", null, "Connect {{host}}",
                 null, null, "rdp://10.0.0.5?username=svc", true, "RDP");
 
         var rendered = service.render(template.getId(), Map.of("host", "10.0.0.5"));

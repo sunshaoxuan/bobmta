@@ -2,6 +2,8 @@ package com.bob.mta.modules.tag.service.impl;
 
 import com.bob.mta.common.exception.BusinessException;
 import com.bob.mta.common.exception.ErrorCode;
+import com.bob.mta.i18n.Localization;
+import com.bob.mta.i18n.LocalizationKeys;
 import com.bob.mta.modules.tag.domain.TagAssignment;
 import com.bob.mta.modules.tag.domain.TagDefinition;
 import com.bob.mta.modules.tag.domain.TagEntityType;
@@ -30,8 +32,8 @@ public class InMemoryTagService implements TagService {
     }
 
     private void seedDefaults() {
-        create("重点客户", "#FF5722", "StarOutlined", TagScope.CUSTOMER, null, true);
-        create("年度计划", "#1890FF", "CalendarOutlined", TagScope.PLAN, null, true);
+        create(Localization.text(LocalizationKeys.Seeds.TAG_PRIORITY_NAME), "#FF5722", "StarOutlined", TagScope.CUSTOMER, null, true);
+        create(Localization.text(LocalizationKeys.Seeds.TAG_PLAN_ANNUAL_NAME), "#1890FF", "CalendarOutlined", TagScope.PLAN, null, true);
     }
 
     @Override
