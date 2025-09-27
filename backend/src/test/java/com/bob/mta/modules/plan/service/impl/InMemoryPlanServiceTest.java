@@ -12,6 +12,7 @@ import com.bob.mta.modules.plan.domain.PlanReminderTrigger;
 import com.bob.mta.modules.plan.domain.PlanNodeExecution;
 import com.bob.mta.modules.plan.domain.PlanStatus;
 import com.bob.mta.modules.plan.domain.PlanAnalytics;
+import com.bob.mta.modules.plan.repository.InMemoryPlanRepository;
 import com.bob.mta.modules.plan.service.command.CreatePlanCommand;
 import com.bob.mta.modules.plan.service.command.PlanNodeCommand;
 import org.junit.jupiter.api.DisplayName;
@@ -22,7 +23,8 @@ import java.util.List;
 
 class InMemoryPlanServiceTest {
 
-    private final InMemoryPlanService service = new InMemoryPlanService(new InMemoryFileService());
+    private final InMemoryPlanRepository repository = new InMemoryPlanRepository();
+    private final InMemoryPlanService service = new InMemoryPlanService(new InMemoryFileService(), repository);
 
     @Test
     @DisplayName("createPlan initializes nodes and executions")

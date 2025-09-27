@@ -16,6 +16,7 @@ import com.bob.mta.modules.plan.dto.PlanNodeAttachmentResponse;
 import com.bob.mta.modules.plan.dto.PlanReminderPolicyRequest;
 import com.bob.mta.modules.plan.dto.PlanReminderRuleRequest;
 import com.bob.mta.modules.plan.dto.PlanSummaryResponse;
+import com.bob.mta.modules.plan.repository.InMemoryPlanRepository;
 import com.bob.mta.modules.plan.service.impl.InMemoryPlanService;
 import com.bob.mta.modules.plan.service.command.CreatePlanCommand;
 import com.bob.mta.modules.plan.service.command.PlanNodeCommand;
@@ -35,13 +36,15 @@ class PlanControllerTest {
 
     private PlanController controller;
     private InMemoryPlanService planService;
+    private InMemoryPlanRepository planRepository;
     private InMemoryFileService fileService;
     private InMemoryAuditService auditService;
 
     @BeforeEach
     void setUp() {
         fileService = new InMemoryFileService();
-        planService = new InMemoryPlanService(fileService);
+        planRepository = new InMemoryPlanRepository();
+        planService = new InMemoryPlanService(fileService, planRepository);
         auditService = new InMemoryAuditService();
         AuditRecorder recorder = new AuditRecorder(auditService, new ObjectMapper());
         controller = new PlanController(planService, recorder, fileService);

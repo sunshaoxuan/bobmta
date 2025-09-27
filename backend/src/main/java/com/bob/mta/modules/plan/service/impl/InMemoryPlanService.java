@@ -15,6 +15,7 @@ import com.bob.mta.modules.plan.domain.PlanReminderRule;
 import com.bob.mta.modules.plan.domain.PlanReminderSchedule;
 import com.bob.mta.modules.plan.domain.PlanReminderTrigger;
 import com.bob.mta.modules.plan.domain.PlanStatus;
+import com.bob.mta.modules.plan.repository.PlanRepository;
 import com.bob.mta.modules.plan.service.PlanService;
 import com.bob.mta.modules.plan.service.command.CreatePlanCommand;
 import com.bob.mta.modules.plan.service.command.PlanNodeCommand;
@@ -32,9 +33,6 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ConcurrentMap;
-import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
 
 @Service
@@ -42,19 +40,20 @@ public class InMemoryPlanService implements PlanService {
 
     private static final DateTimeFormatter ICS_FORMATTER = DateTimeFormatter.ofPattern("yyyyMMdd'T'HHmmss'Z'", Locale.US)
             .withZone(ZoneOffset.UTC);
-
-    private final ConcurrentMap<String, Plan> plans = new ConcurrentHashMap<>();
-    private final AtomicLong idGenerator = new AtomicLong(5000);
-    private final AtomicLong nodeIdGenerator = new AtomicLong(1000);
-    private final AtomicLong reminderIdGenerator = new AtomicLong(9000);
     private final FileService fileService;
+    private final PlanRepository planRepository;
 
-    public InMemoryPlanService(FileService fileService) {
+    public InMemoryPlanService(FileService fileService, PlanRepository planRepository) {
         this.fileService = fileService;
+        this.planRepository = planRepository;
         seedPlans();
     }
 
     private void seedPlans() {
+        if (!planRepository.findAll().isEmpty()) {
+            return;
+        }
+
         List<PlanNodeCommand> nodes = List.of(
                 new PlanNodeCommand(null, "数据库备份", "REMOTE", "admin", 1, 60, "remote-template-1",
                         "连接到客户数据库并执行备份脚本", List.of()),
@@ -73,8 +72,8 @@ public class InMemoryPlanService implements PlanService {
                 List.of("admin", "operator"),
                 nodes
         );
-        Plan plan = buildPlan("PLAN-" + idGenerator.incrementAndGet(), command, OffsetDateTime.now());
-        plans.put(plan.getId(), plan);
+        Plan plan = buildPlan(planRepository.nextPlanId(), command, OffsetDateTime.now());
+        planRepository.save(plan);
 
         CreatePlanCommand command2 = new CreatePlanCommand(
                 "tenant-001",
@@ -89,13 +88,13 @@ public class InMemoryPlanService implements PlanService {
                 List.of(new PlanNodeCommand(null, "现场巡检", "CHECKLIST", "operator", 1, 180, null,
                         "按检查单逐项确认", List.of()))
         );
-        Plan plan2 = buildPlan("PLAN-" + idGenerator.incrementAndGet(), command2, OffsetDateTime.now());
-        plans.put(plan2.getId(), plan2);
+        Plan plan2 = buildPlan(planRepository.nextPlanId(), command2, OffsetDateTime.now());
+        planRepository.save(plan2);
     }
 
     @Override
     public List<Plan> listPlans(String customerId, PlanStatus status, OffsetDateTime from, OffsetDateTime to) {
-        return plans.values().stream()
+        return planRepository.findAll().stream()
                 .filter(plan -> !StringUtils.hasText(customerId) || Objects.equals(plan.getCustomerId(), customerId))
                 .filter(plan -> status == null || plan.getStatus() == status)
                 .filter(plan -> from == null || !plan.getPlannedEndTime().isBefore(from))
@@ -111,10 +110,10 @@ public class InMemoryPlanService implements PlanService {
 
     @Override
     public Plan createPlan(CreatePlanCommand command) {
-        String id = "PLAN-" + idGenerator.incrementAndGet();
+        String id = planRepository.nextPlanId();
         OffsetDateTime now = OffsetDateTime.now();
         Plan plan = buildPlan(id, command, now);
-        plans.put(id, plan);
+        planRepository.save(plan);
         return plan;
     }
 
@@ -142,7 +141,7 @@ public class InMemoryPlanService implements PlanService {
                 )));
         Plan updated = current.withDefinition(nodes, executions, now, command.getStartTime(), command.getEndTime(),
                 command.getDescription(), command.getParticipants(), timezone, activities);
-        plans.put(id, updated);
+        planRepository.save(updated);
         return updated;
     }
 
@@ -152,7 +151,7 @@ public class InMemoryPlanService implements PlanService {
         if (current.getStatus() != PlanStatus.DESIGN) {
             throw new BusinessException(ErrorCode.BAD_REQUEST, "Only design plans can be deleted");
         }
-        plans.remove(id);
+        planRepository.delete(id);
     }
 
     @Override
@@ -176,7 +175,7 @@ public class InMemoryPlanService implements PlanService {
                 )));
         Plan updated = current.withStatus(nextStatus, actualStart, null, current.getExecutions(), now,
                 null, null, null, activities);
-        plans.put(id, updated);
+        planRepository.save(updated);
         return updated;
     }
 
@@ -199,7 +198,7 @@ public class InMemoryPlanService implements PlanService {
                 )));
         Plan updated = current.withStatus(PlanStatus.CANCELED, null, now, current.getExecutions(), now,
                 reason, operator, now, activities);
-        plans.put(id, updated);
+        planRepository.save(updated);
         return updated;
     }
 
@@ -235,7 +234,7 @@ public class InMemoryPlanService implements PlanService {
                 )));
         Plan updated = current.withStatus(nextStatus, actualStart, null, executions, now,
                 null, null, null, activities);
-        plans.put(planId, updated);
+        planRepository.save(updated);
         return executions.stream().filter(exec -> exec.getNodeId().equals(nodeId)).findFirst().orElse(target);
     }
 
@@ -288,7 +287,7 @@ public class InMemoryPlanService implements PlanService {
         }
         Plan updated = current.withStatus(nextStatus, actualStart, actualEnd, executions, now,
                 null, null, null, activities);
-        plans.put(planId, updated);
+        planRepository.save(updated);
         return executions.stream().filter(exec -> exec.getNodeId().equals(nodeId)).findFirst().orElse(target);
     }
 
@@ -321,7 +320,7 @@ public class InMemoryPlanService implements PlanService {
                 attributes
         ));
         Plan updated = current.withOwnerAndParticipants(newOwner, updatedParticipants, now, activities);
-        plans.put(planId, updated);
+        planRepository.save(updated);
         return updated;
     }
 
@@ -333,7 +332,7 @@ public class InMemoryPlanService implements PlanService {
 
     @Override
     public String renderTenantCalendar(String tenantId) {
-        List<String> events = plans.values().stream()
+        List<String> events = planRepository.findAll().stream()
                 .filter(plan -> Objects.equals(plan.getTenantId(), tenantId))
                 .filter(plan -> plan.getStatus() != PlanStatus.CANCELED)
                 .map(this::buildEvent)
@@ -363,7 +362,7 @@ public class InMemoryPlanService implements PlanService {
                         "ruleCount", String.valueOf(normalized.size())
                 )));
         Plan updated = current.withReminderPolicy(policy, now, activities);
-        plans.put(planId, updated);
+        planRepository.save(updated);
         return updated;
     }
 
@@ -387,7 +386,7 @@ public class InMemoryPlanService implements PlanService {
     @Override
     public PlanAnalytics getAnalytics(String tenantId, OffsetDateTime from, OffsetDateTime to) {
         OffsetDateTime now = OffsetDateTime.now();
-        List<Plan> filtered = plans.values().stream()
+        List<Plan> filtered = planRepository.findAll().stream()
                 .filter(plan -> tenantId == null || Objects.equals(plan.getTenantId(), tenantId))
                 .filter(plan -> from == null || (plan.getPlannedEndTime() != null && !plan.getPlannedEndTime().isBefore(from)))
                 .filter(plan -> to == null || (plan.getPlannedStartTime() != null && !plan.getPlannedStartTime().isAfter(to)))
@@ -466,7 +465,7 @@ public class InMemoryPlanService implements PlanService {
 
     private PlanNode toNode(PlanNodeCommand command) {
         List<PlanNode> children = toNodes(command.getChildren());
-        String nodeId = StringUtils.hasText(command.getId()) ? command.getId() : "NODE-" + nodeIdGenerator.incrementAndGet();
+        String nodeId = StringUtils.hasText(command.getId()) ? command.getId() : planRepository.nextNodeId();
         return new PlanNode(nodeId, command.getName(), command.getType(), command.getAssignee(), command.getOrder(),
                 command.getExpectedDurationMinutes(), command.getActionRef(), command.getDescription(), children);
     }
@@ -487,11 +486,8 @@ public class InMemoryPlanService implements PlanService {
     }
 
     private Plan requirePlan(String id) {
-        Plan plan = plans.get(id);
-        if (plan == null) {
-            throw new BusinessException(ErrorCode.NOT_FOUND);
-        }
-        return plan;
+        return planRepository.findById(id)
+                .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND));
     }
 
     private PlanNodeExecution findExecution(Plan plan, String nodeId) {
@@ -647,6 +643,6 @@ public class InMemoryPlanService implements PlanService {
     }
 
     private String nextReminderId() {
-        return "REM-" + reminderIdGenerator.incrementAndGet();
+        return planRepository.nextReminderId();
     }
 }

@@ -5,6 +5,7 @@ import com.bob.mta.modules.audit.service.AuditRecorder;
 import com.bob.mta.modules.audit.service.impl.InMemoryAuditService;
 import com.bob.mta.modules.customer.service.impl.InMemoryCustomerService;
 import com.bob.mta.modules.file.service.impl.InMemoryFileService;
+import com.bob.mta.modules.plan.repository.InMemoryPlanRepository;
 import com.bob.mta.modules.plan.service.impl.InMemoryPlanService;
 import com.bob.mta.modules.tag.domain.TagEntityType;
 import com.bob.mta.modules.tag.dto.AssignTagRequest;
@@ -29,7 +30,7 @@ class TagControllerTest {
     void setUp() {
         InMemoryTagService tagService = new InMemoryTagService();
         InMemoryCustomerService customerService = new InMemoryCustomerService();
-        planService = new InMemoryPlanService(new InMemoryFileService());
+        planService = new InMemoryPlanService(new InMemoryFileService(), new InMemoryPlanRepository());
         AuditRecorder recorder = new AuditRecorder(new InMemoryAuditService(), new ObjectMapper());
         controller = new TagController(tagService, customerService, planService, recorder);
         SecurityContextHolder.getContext().setAuthentication(new TestingAuthenticationToken("admin", "pass", "ROLE_ADMIN"));
