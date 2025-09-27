@@ -84,23 +84,49 @@ public class UserController {
         return ApiResponse.success(response);
     }
 
+    @GetMapping
+    public ApiResponse<List<UserResponse>> listUsers(@RequestParam(required = false) final UserStatus status) {
+        final List<UserResponse> users = userService.listUsers(new UserQuery(status)).stream()
+                .map(UserResponse::from)
+                .toList();
+        return ApiResponse.success(users);
+    }
+
+    @GetMapping("/{id}")
+    public ApiResponse<UserResponse> getUser(@PathVariable("id") final String id) {
+        final UserView user = userService.getUser(id);
+        return ApiResponse.success(UserResponse.from(user));
+    }
+
+    @PostMapping(consumes = MediaType.APPLICATION_JSON_VALUE)
+    public ApiResponse<UserResponse> createUser(@Valid @RequestBody final CreateUserRequest request) {
+        final CreateUserCommand command = new CreateUserCommand(
+                request.getUsername(),
+                request.getDisplayName(),
+                request.getEmail(),
+                request.getPassword(),
+                request.getRoles());
+        final CreateUserResult result = userService.createUser(command);
+        return ApiResponse.success(UserResponse.from(result.user()));
+    }
+
+    @PostMapping(path = "/{id}/activation")
+    public ApiResponse<ActivationLinkResponse> resendActivation(@PathVariable("id") final String id) {
+        final ActivationLink activation = userService.resendActivation(id);
+        return ApiResponse.success(ActivationLinkResponse.from(activation));
+    }
+
     @PostMapping(path = "/activation", consumes = MediaType.APPLICATION_JSON_VALUE)
     public ApiResponse<UserResponse> activate(@Valid @RequestBody final ActivateUserRequest request) {
         final UserView user = userService.activateUser(request.getToken());
-        final UserResponse response = UserResponse.from(user);
-        auditRecorder.record("User", response.getId(), "ACTIVATE_USER", "激活用户账号", null, response);
-        return ApiResponse.success(response);
+        return ApiResponse.success(UserResponse.from(user));
     }
 
-    @PreAuthorize("hasRole('ADMIN')")
-    @PutMapping(path = "/{id}/roles", consumes = MediaType.APPLICATION_JSON_VALUE)
+    @PostMapping(path = "/{id}/roles", consumes = MediaType.APPLICATION_JSON_VALUE)
     public ApiResponse<UserResponse> assignRoles(
             @PathVariable("id") final String id,
             @Valid @RequestBody final AssignRolesRequest request) {
-        final UserResponse before = UserResponse.from(userService.getUser(id));
         final UserView user = userService.assignRoles(id, request.getRoles());
-        final UserResponse response = UserResponse.from(user);
-        auditRecorder.record("User", id, "ASSIGN_ROLES", "更新用户角色", before, response);
-        return ApiResponse.success(response);
+        return ApiResponse.success(UserResponse.from(user));
     }
 }
