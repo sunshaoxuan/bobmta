@@ -1,6 +1,8 @@
 package com.bob.mta.modules.tag.controller;
 
 import com.bob.mta.common.api.ApiResponse;
+import com.bob.mta.i18n.Localization;
+import com.bob.mta.i18n.LocalizationKeys;
 import com.bob.mta.modules.audit.service.AuditRecorder;
 import com.bob.mta.modules.customer.service.CustomerService;
 import com.bob.mta.modules.plan.service.PlanService;
@@ -68,7 +70,8 @@ public class TagController {
                 request.getScope(),
                 request.getApplyRule(),
                 request.isEnabled());
-        auditRecorder.record("Tag", String.valueOf(definition.getId()), "CREATE_TAG", "创建标签",
+        auditRecorder.record("Tag", String.valueOf(definition.getId()), "CREATE_TAG",
+                Localization.text(LocalizationKeys.Audit.TAG_CREATE),
                 null, TagResponse.from(definition));
         return ApiResponse.success(TagResponse.from(definition));
     }
@@ -85,7 +88,8 @@ public class TagController {
                 request.getScope(),
                 request.getApplyRule(),
                 request.isEnabled());
-        auditRecorder.record("Tag", String.valueOf(id), "UPDATE_TAG", "更新标签",
+        auditRecorder.record("Tag", String.valueOf(id), "UPDATE_TAG",
+                Localization.text(LocalizationKeys.Audit.TAG_UPDATE),
                 TagResponse.from(before), TagResponse.from(updated));
         return ApiResponse.success(TagResponse.from(updated));
     }
@@ -95,7 +99,8 @@ public class TagController {
     public ApiResponse<Void> delete(@PathVariable long id) {
         TagDefinition before = tagService.getById(id);
         tagService.delete(id);
-        auditRecorder.record("Tag", String.valueOf(id), "DELETE_TAG", "删除标签",
+        auditRecorder.record("Tag", String.valueOf(id), "DELETE_TAG",
+                Localization.text(LocalizationKeys.Audit.TAG_DELETE),
                 TagResponse.from(before), null);
         return ApiResponse.success();
     }
@@ -106,7 +111,8 @@ public class TagController {
         validateEntity(request.getEntityType(), request.getEntityId());
         TagAssignment assignment = tagService.assign(id, request.getEntityType(), request.getEntityId());
         auditRecorder.record("TagAssignment", assignment.getEntityType().name() + ":" + assignment.getEntityId(),
-                "ASSIGN_TAG", "关联标签", null, TagAssignmentResponse.from(assignment));
+                "ASSIGN_TAG", Localization.text(LocalizationKeys.Audit.TAG_ASSIGN), null,
+                TagAssignmentResponse.from(assignment));
         return ApiResponse.success(TagAssignmentResponse.from(assignment));
     }
 
@@ -117,7 +123,7 @@ public class TagController {
                                               @PathVariable String entityId) {
         tagService.removeAssignment(id, entityType, entityId);
         auditRecorder.record("TagAssignment", entityType.name() + ":" + entityId,
-                "REMOVE_TAG", "移除标签", null, null);
+                "REMOVE_TAG", Localization.text(LocalizationKeys.Audit.TAG_REMOVE), null, null);
         return ApiResponse.success();
     }
 

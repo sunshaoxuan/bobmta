@@ -18,14 +18,14 @@ class InMemoryTagServiceTest {
 
     @Test
     void shouldCreateAndRetrieveTag() {
-        var created = tagService.create("巡检", "#52C41A", "CheckCircleOutlined", TagScope.BOTH, null, true);
+        var created = tagService.create("inspection", "#52C41A", "CheckCircleOutlined", TagScope.BOTH, null, true);
         var fetched = tagService.getById(created.getId());
-        assertThat(fetched.getName()).isEqualTo("巡检");
+        assertThat(fetched.getName()).isEqualTo("inspection");
     }
 
     @Test
     void shouldAssignTagToCustomer() {
-        var created = tagService.create("重点", "#FA8C16", "FireOutlined", TagScope.CUSTOMER, null, true);
+        var created = tagService.create("critical", "#FA8C16", "FireOutlined", TagScope.CUSTOMER, null, true);
         TagAssignment assignment = tagService.assign(created.getId(), TagEntityType.CUSTOMER, "cust-100");
         assertThat(tagService.listAssignments(created.getId())).contains(assignment);
         List<?> tags = tagService.findByEntity(TagEntityType.CUSTOMER, "cust-100");
@@ -34,7 +34,7 @@ class InMemoryTagServiceTest {
 
     @Test
     void shouldRejectUnsupportedScope() {
-        var created = tagService.create("仅计划", "#1890FF", "CalendarOutlined", TagScope.PLAN, null, true);
+        var created = tagService.create("plan-only", "#1890FF", "CalendarOutlined", TagScope.PLAN, null, true);
         assertThatThrownBy(() -> tagService.assign(created.getId(), TagEntityType.CUSTOMER, "cust"))
                 .isInstanceOf(BusinessException.class)
                 .extracting(ex -> ((BusinessException) ex).getErrorCode())
