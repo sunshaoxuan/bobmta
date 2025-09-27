@@ -45,6 +45,7 @@ class InMemoryPlanServiceTest {
     @DisplayName("startNode transitions plan to in-progress")
     void shouldStartNode() {
         var plan = service.listPlans(null, null, null, null).get(0);
+        service.publishPlan(plan.getId(), "admin");
         PlanNodeExecution execution = service.startNode(plan.getId(), plan.getExecutions().get(0).getNodeId(), "admin");
 
         assertThat(execution.getStatus()).isEqualTo(com.bob.mta.modules.plan.domain.PlanNodeStatus.IN_PROGRESS);
@@ -80,5 +81,53 @@ class InMemoryPlanServiceTest {
         assertThat(updated.getCancelReason()).isEqualTo("客户要求顺延");
         assertThat(updated.getCanceledBy()).isEqualTo("operator");
         assertThat(updated.getCanceledAt()).isNotNull();
+    }
+
+    @Test
+    @DisplayName("startNode rejects when plan is not published")
+    void shouldRejectStartWhenDesign() {
+        var plan = service.listPlans(null, null, null, null).get(0);
+
+        assertThatThrownBy(() -> service.startNode(plan.getId(), plan.getExecutions().get(0).getNodeId(), "admin"))
+                .isInstanceOf(BusinessException.class)
+                .hasMessageContaining("published");
+    }
+
+    @Test
+    @DisplayName("startNode rejects when plan is canceled")
+    void shouldRejectStartWhenCanceled() {
+        var plan = service.listPlans(null, null, null, null).get(0);
+        service.publishPlan(plan.getId(), "admin");
+        service.cancelPlan(plan.getId(), "admin", "客户取消");
+
+        assertThatThrownBy(() -> service.startNode(plan.getId(), plan.getExecutions().get(0).getNodeId(), "admin"))
+                .isInstanceOf(BusinessException.class)
+                .hasMessageContaining("no longer active");
+    }
+
+    @Test
+    @DisplayName("completeNode requires the node to be started first")
+    void shouldRejectCompleteWhenPending() {
+        var plan = service.listPlans(null, null, null, null).get(0);
+        service.publishPlan(plan.getId(), "admin");
+
+        assertThatThrownBy(() -> service.completeNode(plan.getId(), plan.getExecutions().get(0).getNodeId(),
+                "admin", "ok", null, null))
+                .isInstanceOf(BusinessException.class)
+                .hasMessageContaining("started");
+    }
+
+    @Test
+    @DisplayName("completeNode rejects when plan is canceled mid-execution")
+    void shouldRejectCompleteWhenPlanCanceled() {
+        var plan = service.listPlans(null, null, null, null).get(0);
+        service.publishPlan(plan.getId(), "admin");
+        String nodeId = plan.getExecutions().get(0).getNodeId();
+        service.startNode(plan.getId(), nodeId, "admin");
+        service.cancelPlan(plan.getId(), "admin", "客户取消");
+
+        assertThatThrownBy(() -> service.completeNode(plan.getId(), nodeId, "admin", "ok", null, null))
+                .isInstanceOf(BusinessException.class)
+                .hasMessageContaining("no longer active");
     }
 }

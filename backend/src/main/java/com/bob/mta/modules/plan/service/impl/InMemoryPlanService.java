@@ -167,8 +167,12 @@ public class InMemoryPlanService implements PlanService {
     @Override
     public PlanNodeExecution startNode(String planId, String nodeId, String operator) {
         Plan current = requirePlan(planId);
+        ensurePlanExecutable(current);
         PlanNodeExecution target = findExecution(current, nodeId);
         if (target.getStatus() == PlanNodeStatus.DONE) {
+            return target;
+        }
+        if (target.getStatus() == PlanNodeStatus.IN_PROGRESS) {
             return target;
         }
         OffsetDateTime now = OffsetDateTime.now();
@@ -191,9 +195,13 @@ public class InMemoryPlanService implements PlanService {
     public PlanNodeExecution completeNode(String planId, String nodeId, String operator, String result,
                                           String log, List<String> fileIds) {
         Plan current = requirePlan(planId);
+        ensurePlanExecutable(current);
         PlanNodeExecution target = findExecution(current, nodeId);
         if (target.getStatus() == PlanNodeStatus.DONE) {
             return target;
+        }
+        if (target.getStatus() != PlanNodeStatus.IN_PROGRESS) {
+            throw new BusinessException(ErrorCode.BAD_REQUEST, "Node must be started before completion");
         }
         if (fileIds != null) {
             fileIds.forEach(fileService::get);
@@ -282,6 +290,15 @@ public class InMemoryPlanService implements PlanService {
                 .filter(exec -> exec.getNodeId().equals(nodeId))
                 .findFirst()
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND));
+    }
+
+    private void ensurePlanExecutable(Plan plan) {
+        if (plan.getStatus() == PlanStatus.DESIGN) {
+            throw new BusinessException(ErrorCode.BAD_REQUEST, "Plan must be published before executing nodes");
+        }
+        if (plan.getStatus() == PlanStatus.CANCELED || plan.getStatus() == PlanStatus.COMPLETED) {
+            throw new BusinessException(ErrorCode.BAD_REQUEST, "Plan is no longer active");
+        }
     }
 
     private List<PlanNodeExecution> replaceExecution(List<PlanNodeExecution> executions, String nodeId,
