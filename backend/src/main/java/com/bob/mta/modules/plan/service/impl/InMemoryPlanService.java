@@ -6,6 +6,7 @@ import com.bob.mta.modules.file.service.FileService;
 import com.bob.mta.modules.plan.domain.Plan;
 import com.bob.mta.modules.plan.domain.PlanActivity;
 import com.bob.mta.modules.plan.domain.PlanActivityType;
+import com.bob.mta.modules.plan.domain.PlanAnalytics;
 import com.bob.mta.modules.plan.domain.PlanNode;
 import com.bob.mta.modules.plan.domain.PlanNodeExecution;
 import com.bob.mta.modules.plan.domain.PlanNodeStatus;
@@ -348,6 +349,57 @@ public class InMemoryPlanService implements PlanService {
         schedule.sort(Comparator.comparing(PlanReminderSchedule::getFireTime)
                 .thenComparing(entry -> entry.getRule().getOffsetMinutes()));
         return schedule;
+    }
+
+    @Override
+    public PlanAnalytics getAnalytics(String tenantId, OffsetDateTime from, OffsetDateTime to) {
+        OffsetDateTime now = OffsetDateTime.now();
+        List<Plan> filtered = plans.values().stream()
+                .filter(plan -> tenantId == null || Objects.equals(plan.getTenantId(), tenantId))
+                .filter(plan -> from == null || (plan.getPlannedEndTime() != null && !plan.getPlannedEndTime().isBefore(from)))
+                .filter(plan -> to == null || (plan.getPlannedStartTime() != null && !plan.getPlannedStartTime().isAfter(to)))
+                .sorted(Comparator.comparing(Plan::getPlannedStartTime, Comparator.nullsLast(Comparator.naturalOrder())))
+                .toList();
+
+        long design = filtered.stream().filter(plan -> plan.getStatus() == PlanStatus.DESIGN).count();
+        long scheduled = filtered.stream().filter(plan -> plan.getStatus() == PlanStatus.SCHEDULED).count();
+        long inProgress = filtered.stream().filter(plan -> plan.getStatus() == PlanStatus.IN_PROGRESS).count();
+        long completed = filtered.stream().filter(plan -> plan.getStatus() == PlanStatus.COMPLETED).count();
+        long canceled = filtered.stream().filter(plan -> plan.getStatus() == PlanStatus.CANCELED).count();
+        long overdue = filtered.stream().filter(plan -> isOverdue(plan, now)).count();
+
+        List<PlanAnalytics.UpcomingPlan> upcoming = filtered.stream()
+                .filter(plan -> plan.getPlannedStartTime() != null)
+                .filter(plan -> plan.getStatus() != PlanStatus.CANCELED && plan.getStatus() != PlanStatus.COMPLETED)
+                .filter(plan -> !plan.getPlannedStartTime().isBefore(now))
+                .sorted(Comparator.comparing(Plan::getPlannedStartTime))
+                .limit(5)
+                .map(plan -> new PlanAnalytics.UpcomingPlan(
+                        plan.getId(),
+                        plan.getTitle(),
+                        plan.getStatus(),
+                        plan.getPlannedStartTime(),
+                        plan.getPlannedEndTime(),
+                        plan.getOwner(),
+                        plan.getCustomerId(),
+                        plan.getProgress()
+                ))
+                .toList();
+
+        return new PlanAnalytics(filtered.size(), design, scheduled, inProgress, completed, canceled, overdue, upcoming);
+    }
+
+    private boolean isOverdue(Plan plan, OffsetDateTime reference) {
+        if (plan.getStatus() == PlanStatus.CANCELED || plan.getStatus() == PlanStatus.COMPLETED) {
+            return false;
+        }
+        if (plan.getStatus() == PlanStatus.DESIGN) {
+            return false;
+        }
+        if (plan.getPlannedEndTime() == null) {
+            return false;
+        }
+        return plan.getPlannedEndTime().isBefore(reference);
     }
 
     private Plan buildPlan(String id, CreatePlanCommand command, OffsetDateTime now) {

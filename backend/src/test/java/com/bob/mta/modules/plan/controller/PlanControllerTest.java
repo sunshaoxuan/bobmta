@@ -16,6 +16,8 @@ import com.bob.mta.modules.plan.dto.PlanReminderPolicyRequest;
 import com.bob.mta.modules.plan.dto.PlanReminderRuleRequest;
 import com.bob.mta.modules.plan.dto.PlanSummaryResponse;
 import com.bob.mta.modules.plan.service.impl.InMemoryPlanService;
+import com.bob.mta.modules.plan.service.command.CreatePlanCommand;
+import com.bob.mta.modules.plan.service.command.PlanNodeCommand;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -54,6 +56,38 @@ class PlanControllerTest {
         PageResponse<PlanSummaryResponse> page = controller.list(null, null, null, null, 0, 1).getData();
         assertThat(page.getItems()).hasSize(1);
         assertThat(page.getTotal()).isGreaterThanOrEqualTo(2);
+    }
+
+    @Test
+    void analyticsShouldSummarizePlans() {
+        var analytics = controller.analytics(null, null, null).getData();
+
+        assertThat(analytics.getTotalPlans()).isGreaterThanOrEqualTo(2);
+        assertThat(analytics.getUpcomingPlans()).isNotEmpty();
+    }
+
+    @Test
+    void analyticsShouldHighlightOverduePlans() {
+        OffsetDateTime start = OffsetDateTime.now().minusHours(2);
+        OffsetDateTime end = OffsetDateTime.now().minusHours(1);
+        CreatePlanCommand command = new CreatePlanCommand(
+                "tenant-001",
+                "过期巡检",
+                "客户临时巡检",
+                "cust-001",
+                "admin",
+                start,
+                end,
+                "Asia/Tokyo",
+                List.of("admin"),
+                List.of(new PlanNodeCommand(null, "快速检查", "CHECKLIST", "admin", 1, 15, null, "", List.of()))
+        );
+        var created = planService.createPlan(command);
+        planService.publishPlan(created.getId(), "admin");
+
+        var analytics = controller.analytics(null, null, null).getData();
+
+        assertThat(analytics.getOverdueCount()).isGreaterThanOrEqualTo(1);
     }
 
     @Test

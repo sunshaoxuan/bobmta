@@ -11,6 +11,7 @@ import com.bob.mta.modules.plan.domain.PlanReminderSchedule;
 import com.bob.mta.modules.plan.domain.PlanReminderTrigger;
 import com.bob.mta.modules.plan.domain.PlanNodeExecution;
 import com.bob.mta.modules.plan.domain.PlanStatus;
+import com.bob.mta.modules.plan.domain.PlanAnalytics;
 import com.bob.mta.modules.plan.service.command.CreatePlanCommand;
 import com.bob.mta.modules.plan.service.command.PlanNodeCommand;
 import org.junit.jupiter.api.DisplayName;
@@ -185,5 +186,40 @@ class InMemoryPlanServiceTest {
         assertThatThrownBy(() -> service.completeNode(plan.getId(), nodeId, "admin", "ok", null, null))
                 .isInstanceOf(BusinessException.class)
                 .hasMessageContaining("no longer active");
+    }
+
+    @Test
+    @DisplayName("analytics aggregates plan states and upcoming queue")
+    void shouldSummarizeAnalytics() {
+        OffsetDateTime start = OffsetDateTime.now().minusHours(3);
+        OffsetDateTime end = OffsetDateTime.now().minusHours(1);
+        CreatePlanCommand overdueCommand = new CreatePlanCommand(
+                "tenant-001",
+                "应急排障",
+                "计划在凌晨完成巡检",
+                "cust-003",
+                "admin",
+                start,
+                end,
+                "Asia/Tokyo",
+                List.of("admin"),
+                List.of(new PlanNodeCommand(null, "巡检执行", "CHECKLIST", "admin", 1, 20, null, "", List.of()))
+        );
+        var overduePlan = service.createPlan(overdueCommand);
+        service.publishPlan(overduePlan.getId(), "admin");
+
+        var planToCancel = service.listPlans(null, null, null, null).stream()
+                .filter(plan -> !plan.getId().equals(overduePlan.getId()))
+                .findFirst()
+                .orElseThrow();
+        service.cancelPlan(planToCancel.getId(), "admin", "客户取消");
+
+        PlanAnalytics analytics = service.getAnalytics("tenant-001", null, null);
+
+        assertThat(analytics.getTotalPlans()).isGreaterThanOrEqualTo(3);
+        assertThat(analytics.getInProgressCount()).isGreaterThanOrEqualTo(1);
+        assertThat(analytics.getCanceledCount()).isGreaterThanOrEqualTo(1);
+        assertThat(analytics.getOverdueCount()).isGreaterThanOrEqualTo(1);
+        assertThat(analytics.getUpcomingPlans()).isNotEmpty();
     }
 }

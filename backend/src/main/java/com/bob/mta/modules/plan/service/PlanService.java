@@ -2,6 +2,7 @@ package com.bob.mta.modules.plan.service;
 
 import com.bob.mta.modules.plan.domain.Plan;
 import com.bob.mta.modules.plan.domain.PlanActivity;
+import com.bob.mta.modules.plan.domain.PlanAnalytics;
 import com.bob.mta.modules.plan.domain.PlanNodeExecution;
 import com.bob.mta.modules.plan.domain.PlanReminderRule;
 import com.bob.mta.modules.plan.domain.PlanReminderSchedule;
@@ -42,4 +43,6 @@ public interface PlanService {
     Plan updateReminderPolicy(String planId, List<PlanReminderRule> rules, String operator);
 
     List<PlanReminderSchedule> previewReminderSchedule(String planId, OffsetDateTime referenceTime);
+
+    PlanAnalytics getAnalytics(String tenantId, OffsetDateTime from, OffsetDateTime to);
 }
