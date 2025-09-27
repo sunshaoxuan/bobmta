@@ -1,32 +1,13 @@
 package com.bob.mta.modules.user.domain;
 
-import java.time.OffsetDateTime;
+import java.time.Instant;
 
-public class ActivationToken {
+/**
+ * Represents an activation token issued to a user awaiting verification.
+ */
+public record ActivationToken(String token, Instant expiresAt) {
 
-    private final String token;
-    private final String userId;
-    private final OffsetDateTime expiresAt;
-
-    public ActivationToken(String token, String userId, OffsetDateTime expiresAt) {
-        this.token = token;
-        this.userId = userId;
-        this.expiresAt = expiresAt;
-    }
-
-    public String getToken() {
-        return token;
-    }
-
-    public String getUserId() {
-        return userId;
-    }
-
-    public OffsetDateTime getExpiresAt() {
-        return expiresAt;
-    }
-
-    public boolean isExpired() {
-        return OffsetDateTime.now().isAfter(expiresAt);
+    public boolean isExpired(final Instant now) {
+        return expiresAt.isBefore(now) || expiresAt.equals(now);
     }
 }

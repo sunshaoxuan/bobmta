@@ -1,12 +1,15 @@
 package com.bob.mta.modules.customer.service;
 
-import com.bob.mta.modules.customer.domain.Customer;
+import com.bob.mta.common.api.PageResponse;
+import com.bob.mta.modules.customer.dto.CustomerDetailResponse;
+import com.bob.mta.modules.customer.dto.CustomerSummaryResponse;
 
-import java.util.List;
-
+/**
+ * Customer module operations.
+ */
 public interface CustomerService {
 
-    List<Customer> search(String keyword, String region);
+    PageResponse<CustomerSummaryResponse> listCustomers(int page, int pageSize, String keyword, String region);
 
-    Customer getById(String id);
+    CustomerDetailResponse getCustomer(String id);
 }
