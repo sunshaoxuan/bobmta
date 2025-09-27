@@ -140,7 +140,7 @@ public class TagController {
 
     private void validateEntity(TagEntityType entityType, String entityId) {
         switch (entityType) {
-            case CUSTOMER -> customerService.getById(entityId);
+            case CUSTOMER -> customerService.getCustomer(entityId);
             case PLAN -> planService.getPlan(entityId);
         }
     }
