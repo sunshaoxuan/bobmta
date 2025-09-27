@@ -93,7 +93,7 @@ public class CustomFieldController {
 
     @GetMapping("/customers/{customerId}")
     public ApiResponse<List<CustomFieldValueResponse>> getCustomerValues(@PathVariable String customerId) {
-        customerService.getById(customerId);
+        customerService.getCustomer(customerId);
         List<CustomFieldValueResponse> responses = customFieldService.listValues(customerId).stream()
                 .map(CustomFieldValueResponse::from)
                 .toList();
@@ -104,7 +104,7 @@ public class CustomFieldController {
     @PreAuthorize("hasAnyRole('ADMIN', 'OPERATOR')")
     public ApiResponse<List<CustomFieldValueResponse>> updateCustomerValues(@PathVariable String customerId,
                                                                             @RequestBody @Valid List<CustomFieldValueRequest> requests) {
-        customerService.getById(customerId);
+        customerService.getCustomer(customerId);
         Map<Long, String> values = requests.stream()
                 .collect(Collectors.toMap(CustomFieldValueRequest::getFieldId, CustomFieldValueRequest::getValue));
         List<CustomFieldValueResponse> updated = customFieldService.updateValues(customerId, values).stream()
