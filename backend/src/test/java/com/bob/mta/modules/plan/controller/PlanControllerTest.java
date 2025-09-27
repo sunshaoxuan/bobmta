@@ -11,6 +11,7 @@ import com.bob.mta.modules.plan.domain.PlanReminderTrigger;
 import com.bob.mta.modules.plan.dto.CancelPlanRequest;
 import com.bob.mta.modules.plan.dto.CompleteNodeRequest;
 import com.bob.mta.modules.plan.dto.PlanDetailResponse;
+import com.bob.mta.modules.plan.dto.PlanNodeAttachmentResponse;
 import com.bob.mta.modules.plan.dto.PlanReminderPolicyRequest;
 import com.bob.mta.modules.plan.dto.PlanReminderRuleRequest;
 import com.bob.mta.modules.plan.dto.PlanSummaryResponse;
@@ -31,14 +32,16 @@ class PlanControllerTest {
 
     private PlanController controller;
     private InMemoryPlanService planService;
+    private InMemoryFileService fileService;
     private InMemoryAuditService auditService;
 
     @BeforeEach
     void setUp() {
-        planService = new InMemoryPlanService(new InMemoryFileService());
+        fileService = new InMemoryFileService();
+        planService = new InMemoryPlanService(fileService);
         auditService = new InMemoryAuditService();
         AuditRecorder recorder = new AuditRecorder(auditService, new ObjectMapper());
-        controller = new PlanController(planService, recorder);
+        controller = new PlanController(planService, recorder, fileService);
     }
 
     @AfterEach
@@ -60,6 +63,28 @@ class PlanControllerTest {
         assertThat(response.getNodes()).isNotEmpty();
         assertThat(response.getTimeline()).isNotEmpty();
         assertThat(response.getReminderPolicy().getRules()).isNotEmpty();
+    }
+
+    @Test
+    void detailShouldExposeNodeAttachments() {
+        String planId = planService.listPlans(null, null, null, null).get(0).getId();
+        String nodeId = planService.getPlan(planId).getExecutions().get(0).getNodeId();
+        authenticate("admin");
+        controller.publish(planId);
+        controller.startNode(planId, nodeId);
+        var file = fileService.register("evidence.log", "text/plain", 128, "plan-files", "PLAN_NODE", nodeId,
+                "admin");
+        CompleteNodeRequest request = new CompleteNodeRequest();
+        request.setResult("完成");
+        request.setLog("上传巡检记录");
+        request.setFileIds(List.of(file.getId()));
+
+        controller.completeNode(planId, nodeId, request);
+
+        PlanDetailResponse response = controller.detail(planId).getData();
+        PlanNodeAttachmentResponse attachment = response.getNodes().get(0).getExecution().getAttachments().get(0);
+        assertThat(attachment.getId()).isEqualTo(file.getId());
+        assertThat(attachment.getDownloadUrl()).isEqualTo(fileService.buildDownloadUrl(file));
     }
 
     @Test
@@ -104,7 +129,6 @@ class PlanControllerTest {
 
         assertThat(preview).isNotEmpty();
         assertThat(preview).allSatisfy(entry -> assertThat(entry.getFireTime()).isAfter(OffsetDateTime.now().minusMinutes(1)));
-
     }
 
     @Test
@@ -169,17 +193,25 @@ class PlanControllerTest {
         authenticate("operator");
         controller.publish(planId);
         controller.startNode(planId, nodeId);
+        var file = fileService.register("result.txt", "text/plain", 256, "plan-files", "PLAN_NODE", nodeId,
+                "operator");
         CompleteNodeRequest request = new CompleteNodeRequest();
         request.setResult("巡检完成");
         request.setLog("一切正常");
+        request.setFileIds(List.of(file.getId()));
 
-        controller.completeNode(planId, nodeId, request);
+        var response = controller.completeNode(planId, nodeId, request).getData();
 
         var logs = auditService.query(new AuditQuery("PlanNode", planId + "::" + nodeId, "COMPLETE_NODE", "operator"));
         assertThat(logs).hasSize(1);
         AuditLog log = logs.get(0);
         assertThat(log.getOldData()).contains("\"status\":\"IN_PROGRESS\"");
         assertThat(log.getNewData()).contains("\"status\":\"DONE\"");
+        assertThat(response.getAttachments())
+                .extracting(PlanNodeAttachmentResponse::getId)
+                .contains(file.getId());
+        assertThat(response.getAttachments().get(0).getDownloadUrl())
+                .isEqualTo(fileService.buildDownloadUrl(file));
     }
 
     private void authenticate(String username) {

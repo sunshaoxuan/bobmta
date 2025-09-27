@@ -7,6 +7,7 @@ import com.bob.mta.modules.plan.domain.PlanStatus;
 import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 public class PlanDetailResponse {
@@ -62,10 +63,15 @@ public class PlanDetailResponse {
     }
 
     public static PlanDetailResponse from(Plan plan) {
+        return from(plan, ids -> List.of());
+    }
+
+    public static PlanDetailResponse from(Plan plan,
+                                          Function<List<String>, List<PlanNodeAttachmentResponse>> attachmentLoader) {
         Map<String, PlanNodeExecution> executionIndex = plan.getExecutions().stream()
                 .collect(Collectors.toMap(PlanNodeExecution::getNodeId, execution -> execution));
         List<PlanNodeResponse> nodeResponses = plan.getNodes().stream()
-                .map(node -> PlanNodeResponse.from(node, executionIndex))
+                .map(node -> PlanNodeResponse.from(node, executionIndex, attachmentLoader))
                 .toList();
         List<PlanActivityResponse> activities = plan.getActivities().stream()
                 .map(PlanActivityResponse::from)

@@ -210,9 +210,6 @@ public class InMemoryPlanService implements PlanService {
         if (target.getStatus() == PlanNodeStatus.DONE || target.getStatus() == PlanNodeStatus.IN_PROGRESS) {
             return target;
         }
-        if (target.getStatus() == PlanNodeStatus.IN_PROGRESS) {
-            return target;
-        }
         OffsetDateTime now = OffsetDateTime.now();
         PlanNode node = findNode(current, nodeId);
         List<PlanNodeExecution> executions = replaceExecution(current.getExecutions(), nodeId,
