@@ -34,6 +34,8 @@ public interface PlanService {
     PlanNodeExecution completeNode(String planId, String nodeId, String operator, String result,
                                    String log, List<String> fileIds);
 
+    Plan handoverPlan(String planId, String newOwner, List<String> participants, String note, String operator);
+
     String renderPlanIcs(String planId);
 
     String renderTenantCalendar(String tenantId);

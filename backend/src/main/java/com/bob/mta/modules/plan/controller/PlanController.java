@@ -18,6 +18,7 @@ import com.bob.mta.modules.plan.dto.PlanDetailResponse;
 import com.bob.mta.modules.plan.dto.PlanNodeAttachmentResponse;
 import com.bob.mta.modules.plan.dto.PlanNodeExecutionResponse;
 import com.bob.mta.modules.plan.dto.PlanNodeRequest;
+import com.bob.mta.modules.plan.dto.PlanHandoverRequest;
 import com.bob.mta.modules.plan.dto.PlanReminderPolicyRequest;
 import com.bob.mta.modules.plan.dto.PlanReminderPolicyResponse;
 import com.bob.mta.modules.plan.dto.PlanReminderPreviewResponse;
@@ -203,6 +204,19 @@ public class PlanController {
         Plan updated = planService.cancelPlan(id, currentUsername(), reason);
         PlanDetailResponse afterSnapshot = toDetailResponse(updated);
         auditRecorder.record("Plan", id, "CANCEL_PLAN", "取消计划", beforeSnapshot, afterSnapshot);
+        return ApiResponse.success(afterSnapshot);
+    }
+
+    @PreAuthorize("hasAnyRole('ADMIN','OPERATOR')")
+    @PostMapping("/{id}/handover")
+    public ApiResponse<PlanDetailResponse> handover(@PathVariable String id,
+                                                    @Valid @RequestBody PlanHandoverRequest request) {
+        Plan before = planService.getPlan(id);
+        PlanDetailResponse beforeSnapshot = toDetailResponse(before);
+        Plan updated = planService.handoverPlan(id, request.getNewOwner(), request.getParticipants(),
+                request.getNote(), currentUsername());
+        PlanDetailResponse afterSnapshot = toDetailResponse(updated);
+        auditRecorder.record("Plan", id, "HANDOVER_PLAN", "计划负责人交接", beforeSnapshot, afterSnapshot);
         return ApiResponse.success(afterSnapshot);
     }
 

@@ -11,6 +11,7 @@ import com.bob.mta.modules.plan.domain.PlanReminderTrigger;
 import com.bob.mta.modules.plan.dto.CancelPlanRequest;
 import com.bob.mta.modules.plan.dto.CompleteNodeRequest;
 import com.bob.mta.modules.plan.dto.PlanDetailResponse;
+import com.bob.mta.modules.plan.dto.PlanHandoverRequest;
 import com.bob.mta.modules.plan.dto.PlanNodeAttachmentResponse;
 import com.bob.mta.modules.plan.dto.PlanReminderPolicyRequest;
 import com.bob.mta.modules.plan.dto.PlanReminderRuleRequest;
@@ -177,6 +178,28 @@ class PlanControllerTest {
         assertThat(response.getCancelReason()).isEqualTo("客户延期");
         assertThat(response.getCanceledBy()).isEqualTo("admin");
         assertThat(response.getCanceledAt()).isNotNull();
+    }
+
+    @Test
+    void handoverShouldUpdateOwnerParticipantsAndAuditTrail() {
+        String planId = planService.listPlans(null, null, null, null).get(0).getId();
+        authenticate("admin");
+        PlanHandoverRequest request = new PlanHandoverRequest();
+        request.setNewOwner("operator");
+        request.setParticipants(List.of("operator", "observer"));
+        request.setNote("夜间值班交接");
+
+        PlanDetailResponse response = controller.handover(planId, request).getData();
+
+        assertThat(response.getOwner()).isEqualTo("operator");
+        assertThat(response.getParticipants()).containsExactlyInAnyOrder("operator", "observer");
+        var logs = auditService.query(new AuditQuery("Plan", planId, "HANDOVER_PLAN", "admin"));
+        assertThat(logs).hasSize(1);
+        assertThat(logs.get(0).getNewData()).contains("operator");
+        var timeline = controller.timeline(planId).getData();
+        assertThat(timeline)
+                .extracting(entry -> entry.getType())
+                .contains(PlanActivityType.PLAN_HANDOVER);
     }
 
     @Test

@@ -122,6 +122,26 @@ class InMemoryPlanServiceTest {
     }
 
     @Test
+    @DisplayName("handoverPlan updates owner and participants and appends timeline entry")
+    void shouldHandoverPlan() {
+        var plan = service.listPlans(null, null, null, null).get(0);
+
+        var updated = service.handoverPlan(plan.getId(), "operator", List.of("operator", "observer"),
+                "夜间交接", "admin");
+
+        assertThat(updated.getOwner()).isEqualTo("operator");
+        assertThat(updated.getParticipants()).containsExactlyInAnyOrder("operator", "observer");
+        assertThat(updated.getActivities())
+                .extracting(activity -> activity.getType())
+                .contains(PlanActivityType.PLAN_HANDOVER);
+        assertThat(updated.getActivities())
+                .filteredOn(activity -> activity.getType() == PlanActivityType.PLAN_HANDOVER)
+                .first()
+                .extracting(activity -> activity.getAttributes().get("note"))
+                .isEqualTo("夜间交接");
+    }
+
+    @Test
     @DisplayName("timeline captures node execution lifecycle")
     void shouldCaptureTimelineForNodeLifecycle() {
         var plan = service.listPlans(null, null, null, null).get(0);

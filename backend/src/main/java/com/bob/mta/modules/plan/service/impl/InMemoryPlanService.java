@@ -293,6 +293,39 @@ public class InMemoryPlanService implements PlanService {
     }
 
     @Override
+    public Plan handoverPlan(String planId, String newOwner, List<String> participants, String note, String operator) {
+        Plan current = requirePlan(planId);
+        if (!StringUtils.hasText(newOwner)) {
+            throw new BusinessException(ErrorCode.BAD_REQUEST, "New owner is required for handover");
+        }
+        if (current.getStatus() == PlanStatus.CANCELED || current.getStatus() == PlanStatus.COMPLETED) {
+            throw new BusinessException(ErrorCode.BAD_REQUEST, "Plan is no longer active");
+        }
+        OffsetDateTime now = OffsetDateTime.now();
+        List<String> updatedParticipants = participants == null || participants.isEmpty()
+                ? current.getParticipants()
+                : List.copyOf(participants);
+        Map<String, String> attributes = attributes(
+                "oldOwner", current.getOwner(),
+                "newOwner", newOwner,
+                "operator", operator,
+                "participantCount", String.valueOf(updatedParticipants.size()),
+                "note", StringUtils.hasText(note) ? note : null
+        );
+        List<PlanActivity> activities = appendActivity(current, new PlanActivity(
+                PlanActivityType.PLAN_HANDOVER,
+                now,
+                operator,
+                "计划负责人交接",
+                current.getId(),
+                attributes
+        ));
+        Plan updated = current.withOwnerAndParticipants(newOwner, updatedParticipants, now, activities);
+        plans.put(planId, updated);
+        return updated;
+    }
+
+    @Override
     public String renderPlanIcs(String planId) {
         Plan plan = requirePlan(planId);
         return wrapCalendar(List.of(buildEvent(plan)));

@@ -181,20 +181,21 @@ public class Plan {
                 newActivities, reminderPolicy);
     }
 
-    public Plan withTitleAndOwner(String newTitle, String newOwner, OffsetDateTime updatedAt,
-                                  List<PlanActivity> newActivities) {
-        return new Plan(id, tenantId, newTitle, description, customerId, newOwner, participants, status,
-                plannedStartTime, plannedEndTime, actualStartTime, actualEndTime,
-                cancelReason, canceledBy, canceledAt, timezone, nodes, executions, createdAt, updatedAt,
-                newActivities, reminderPolicy);
-    }
-
     public Plan withReminderPolicy(PlanReminderPolicy newPolicy, OffsetDateTime updatedAt,
                                    List<PlanActivity> newActivities) {
         return new Plan(id, tenantId, title, description, customerId, owner, participants, status,
                 plannedStartTime, plannedEndTime, actualStartTime, actualEndTime,
                 cancelReason, canceledBy, canceledAt, timezone, nodes, executions, createdAt, updatedAt,
                 newActivities, newPolicy);
+    }
+
+    public Plan withOwnerAndParticipants(String newOwner, List<String> newParticipants, OffsetDateTime updatedAt,
+                                         List<PlanActivity> newActivities) {
+        List<String> participants = newParticipants == null ? this.participants : List.copyOf(newParticipants);
+        return new Plan(id, tenantId, title, description, customerId, newOwner, participants, status,
+                plannedStartTime, plannedEndTime, actualStartTime, actualEndTime,
+                cancelReason, canceledBy, canceledAt, timezone, nodes, executions, createdAt, updatedAt,
+                newActivities, reminderPolicy);
     }
 
     public List<PlanActivity> getActivities() {
