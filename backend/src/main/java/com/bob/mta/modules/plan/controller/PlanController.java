@@ -7,13 +7,19 @@ import com.bob.mta.common.exception.ErrorCode;
 import com.bob.mta.modules.audit.service.AuditRecorder;
 import com.bob.mta.modules.plan.domain.Plan;
 import com.bob.mta.modules.plan.domain.PlanNodeExecution;
+import com.bob.mta.modules.plan.domain.PlanReminderRule;
 import com.bob.mta.modules.plan.domain.PlanStatus;
 import com.bob.mta.modules.plan.dto.CancelPlanRequest;
 import com.bob.mta.modules.plan.dto.CompleteNodeRequest;
 import com.bob.mta.modules.plan.dto.CreatePlanRequest;
+import com.bob.mta.modules.plan.dto.PlanActivityResponse;
 import com.bob.mta.modules.plan.dto.PlanDetailResponse;
 import com.bob.mta.modules.plan.dto.PlanNodeExecutionResponse;
 import com.bob.mta.modules.plan.dto.PlanNodeRequest;
+import com.bob.mta.modules.plan.dto.PlanReminderPolicyRequest;
+import com.bob.mta.modules.plan.dto.PlanReminderPolicyResponse;
+import com.bob.mta.modules.plan.dto.PlanReminderPreviewResponse;
+import com.bob.mta.modules.plan.dto.PlanReminderRuleRequest;
 import com.bob.mta.modules.plan.dto.PlanSummaryResponse;
 import com.bob.mta.modules.plan.dto.UpdatePlanRequest;
 import com.bob.mta.modules.plan.service.PlanService;
@@ -75,6 +81,45 @@ public class PlanController {
     }
 
     @PreAuthorize("hasAnyRole('ADMIN','OPERATOR')")
+    @GetMapping("/{id}/timeline")
+    public ApiResponse<List<PlanActivityResponse>> timeline(@PathVariable String id) {
+        List<PlanActivityResponse> timeline = planService.getPlanTimeline(id).stream()
+                .map(PlanActivityResponse::from)
+                .toList();
+        return ApiResponse.success(timeline);
+    }
+
+    @PreAuthorize("hasAnyRole('ADMIN','OPERATOR')")
+    @GetMapping("/{id}/reminders")
+    public ApiResponse<PlanReminderPolicyResponse> reminderPolicy(@PathVariable String id) {
+        Plan plan = planService.getPlan(id);
+        return ApiResponse.success(PlanReminderPolicyResponse.from(plan.getReminderPolicy()));
+    }
+
+    @PreAuthorize("hasAnyRole('ADMIN','OPERATOR')")
+    @PutMapping("/{id}/reminders")
+    public ApiResponse<PlanReminderPolicyResponse> updateReminderPolicy(@PathVariable String id,
+                                                                        @Valid @RequestBody PlanReminderPolicyRequest request) {
+        Plan before = planService.getPlan(id);
+        Plan updated = planService.updateReminderPolicy(id, toReminderRules(request.getRules()), currentUsername());
+        auditRecorder.record("Plan", id, "UPDATE_PLAN_REMINDERS", "更新计划提醒策略",
+                PlanReminderPolicyResponse.from(before.getReminderPolicy()),
+                PlanReminderPolicyResponse.from(updated.getReminderPolicy()));
+        return ApiResponse.success(PlanReminderPolicyResponse.from(updated.getReminderPolicy()));
+    }
+
+    @PreAuthorize("hasAnyRole('ADMIN','OPERATOR')")
+    @GetMapping("/{id}/reminders/preview")
+    public ApiResponse<List<PlanReminderPreviewResponse>> previewReminders(@PathVariable String id,
+                                                                           @RequestParam(required = false)
+                                                                           OffsetDateTime referenceTime) {
+        List<PlanReminderPreviewResponse> preview = planService.previewReminderSchedule(id, referenceTime).stream()
+                .map(PlanReminderPreviewResponse::from)
+                .toList();
+        return ApiResponse.success(preview);
+    }
+
+    @PreAuthorize("hasAnyRole('ADMIN','OPERATOR')")
     @PostMapping
     public ApiResponse<PlanDetailResponse> create(@Valid @RequestBody CreatePlanRequest request) {
         CreatePlanCommand command = new CreatePlanCommand(
@@ -125,8 +170,10 @@ public class PlanController {
     @PreAuthorize("hasAnyRole('ADMIN','OPERATOR')")
     @PostMapping("/{id}/publish")
     public ApiResponse<PlanDetailResponse> publish(@PathVariable String id) {
+        Plan before = planService.getPlan(id);
         Plan updated = planService.publishPlan(id, currentUsername());
-        auditRecorder.record("Plan", id, "PUBLISH_PLAN", "发布计划", null, PlanDetailResponse.from(updated));
+        auditRecorder.record("Plan", id, "PUBLISH_PLAN", "发布计划", PlanDetailResponse.from(before),
+                PlanDetailResponse.from(updated));
         return ApiResponse.success(PlanDetailResponse.from(updated));
     }
 
@@ -135,8 +182,10 @@ public class PlanController {
     public ApiResponse<PlanDetailResponse> cancel(@PathVariable String id,
                                                   @RequestBody(required = false) CancelPlanRequest request) {
         String reason = request != null ? request.getReason() : null;
+        Plan before = planService.getPlan(id);
         Plan updated = planService.cancelPlan(id, currentUsername(), reason);
-        auditRecorder.record("Plan", id, "CANCEL_PLAN", "取消计划", null, PlanDetailResponse.from(updated));
+        auditRecorder.record("Plan", id, "CANCEL_PLAN", "取消计划", PlanDetailResponse.from(before),
+                PlanDetailResponse.from(updated));
         return ApiResponse.success(PlanDetailResponse.from(updated));
     }
 
@@ -144,10 +193,11 @@ public class PlanController {
     @PostMapping("/{planId}/nodes/{nodeId}/start")
     public ApiResponse<PlanNodeExecutionResponse> startNode(@PathVariable String planId,
                                                              @PathVariable String nodeId) {
+        PlanNodeExecutionResponse before = snapshotExecution(planId, nodeId);
         PlanNodeExecution execution = planService.startNode(planId, nodeId, currentUsername());
-        auditRecorder.record("PlanNode", planId + "::" + nodeId, "START_NODE", "开始执行节点", null,
-                PlanNodeExecutionResponse.from(execution));
-        return ApiResponse.success(PlanNodeExecutionResponse.from(execution));
+        PlanNodeExecutionResponse after = PlanNodeExecutionResponse.from(execution);
+        auditRecorder.record("PlanNode", planId + "::" + nodeId, "START_NODE", "开始执行节点", before, after);
+        return ApiResponse.success(after);
     }
 
     @PreAuthorize("hasAnyRole('ADMIN','OPERATOR')")
@@ -155,11 +205,13 @@ public class PlanController {
     public ApiResponse<PlanNodeExecutionResponse> completeNode(@PathVariable String planId,
                                                                 @PathVariable String nodeId,
                                                                 @Valid @RequestBody CompleteNodeRequest request) {
+        PlanNodeExecutionResponse before = snapshotExecution(planId, nodeId);
         PlanNodeExecution execution = planService.completeNode(planId, nodeId, currentUsername(),
                 request.getResult(), request.getLog(), request.getFileIds());
+        PlanNodeExecutionResponse after = PlanNodeExecutionResponse.from(execution);
         auditRecorder.record("PlanNode", planId + "::" + nodeId, "COMPLETE_NODE", "完成节点",
-                null, PlanNodeExecutionResponse.from(execution));
-        return ApiResponse.success(PlanNodeExecutionResponse.from(execution));
+                before, after);
+        return ApiResponse.success(after);
     }
 
     @PreAuthorize("hasAnyRole('ADMIN','OPERATOR')")
@@ -180,10 +232,35 @@ public class PlanController {
                 .toList();
     }
 
+    private List<PlanReminderRule> toReminderRules(List<PlanReminderRuleRequest> rules) {
+        if (rules == null) {
+            return List.of();
+        }
+        return rules.stream()
+                .map(rule -> new PlanReminderRule(rule.getId(), rule.getTrigger(), rule.getOffsetMinutes(),
+                        rule.getChannels(), rule.getTemplateId(), rule.getRecipients(), rule.getDescription()))
+                .toList();
+    }
+
+    private PlanNodeExecutionResponse snapshotExecution(String planId, String nodeId) {
+        try {
+            PlanNodeExecution execution = planService.getPlan(planId).getExecutions().stream()
+                    .filter(exec -> exec.getNodeId().equals(nodeId))
+                    .findFirst()
+                    .orElseThrow();
+            return PlanNodeExecutionResponse.from(execution);
+        } catch (BusinessException ex) {
+            if (ex.getErrorCode() == ErrorCode.NOT_FOUND) {
+                return null;
+            }
+            throw ex;
+        }
+    }
+
     private String currentUsername() {
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
         if (authentication == null) {
-            throw new BusinessException(ErrorCode.UNAUTHORIZED);
+            return "system";
         }
         return authentication.getName();
     }

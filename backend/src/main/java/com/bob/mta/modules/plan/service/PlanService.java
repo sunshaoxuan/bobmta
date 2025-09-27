@@ -1,7 +1,10 @@
 package com.bob.mta.modules.plan.service;
 
 import com.bob.mta.modules.plan.domain.Plan;
+import com.bob.mta.modules.plan.domain.PlanActivity;
 import com.bob.mta.modules.plan.domain.PlanNodeExecution;
+import com.bob.mta.modules.plan.domain.PlanReminderRule;
+import com.bob.mta.modules.plan.domain.PlanReminderSchedule;
 import com.bob.mta.modules.plan.domain.PlanStatus;
 import com.bob.mta.modules.plan.service.command.CreatePlanCommand;
 import com.bob.mta.modules.plan.service.command.UpdatePlanCommand;
@@ -33,4 +36,10 @@ public interface PlanService {
     String renderPlanIcs(String planId);
 
     String renderTenantCalendar(String tenantId);
+
+    List<PlanActivity> getPlanTimeline(String planId);
+
+    Plan updateReminderPolicy(String planId, List<PlanReminderRule> rules, String operator);
+
+    List<PlanReminderSchedule> previewReminderSchedule(String planId, OffsetDateTime referenceTime);
 }
