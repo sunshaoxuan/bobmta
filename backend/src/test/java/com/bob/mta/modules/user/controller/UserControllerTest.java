@@ -8,6 +8,7 @@ import com.bob.mta.modules.user.dto.ActivateUserRequest;
 import com.bob.mta.modules.user.dto.ActivationLinkResponse;
 import com.bob.mta.modules.user.dto.AssignRolesRequest;
 import com.bob.mta.modules.user.dto.CreateUserRequest;
+import com.bob.mta.modules.user.dto.CreateUserResponse;
 import com.bob.mta.modules.user.dto.UserResponse;
 import com.bob.mta.modules.user.service.impl.InMemoryUserService;
 import java.time.Instant;
