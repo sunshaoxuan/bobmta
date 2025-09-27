@@ -1,7 +1,7 @@
 package com.bob.mta.modules.template.dto;
 
+import com.bob.mta.common.i18n.MultilingualTextPayload;
 import com.bob.mta.modules.template.domain.TemplateType;
-import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 
 import java.util.List;
@@ -11,13 +11,13 @@ public class CreateTemplateRequest {
     @NotNull
     private TemplateType type;
 
-    @NotBlank
-    private String name;
+    @NotNull
+    private MultilingualTextPayload name;
 
-    private String subject;
+    private MultilingualTextPayload subject;
 
-    @NotBlank
-    private String content;
+    @NotNull
+    private MultilingualTextPayload content;
 
     private List<String> to;
 
@@ -27,7 +27,7 @@ public class CreateTemplateRequest {
 
     private boolean enabled = true;
 
-    private String description;
+    private MultilingualTextPayload description;
 
     public TemplateType getType() {
         return type;
@@ -37,27 +37,27 @@ public class CreateTemplateRequest {
         this.type = type;
     }
 
-    public String getName() {
+    public MultilingualTextPayload getName() {
         return name;
     }
 
-    public void setName(String name) {
+    public void setName(MultilingualTextPayload name) {
         this.name = name;
     }
 
-    public String getSubject() {
+    public MultilingualTextPayload getSubject() {
         return subject;
     }
 
-    public void setSubject(String subject) {
+    public void setSubject(MultilingualTextPayload subject) {
         this.subject = subject;
     }
 
-    public String getContent() {
+    public MultilingualTextPayload getContent() {
         return content;
     }
 
-    public void setContent(String content) {
+    public void setContent(MultilingualTextPayload content) {
         this.content = content;
     }
 
@@ -93,11 +93,11 @@ public class CreateTemplateRequest {
         this.enabled = enabled;
     }
 
-    public String getDescription() {
+    public MultilingualTextPayload getDescription() {
         return description;
     }
 
-    public void setDescription(String description) {
+    public void setDescription(MultilingualTextPayload description) {
         this.description = description;
     }
 }
