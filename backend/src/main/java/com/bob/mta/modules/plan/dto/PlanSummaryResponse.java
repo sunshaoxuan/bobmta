@@ -17,6 +17,9 @@ public class PlanSummaryResponse {
     private final OffsetDateTime plannedEndTime;
     private final OffsetDateTime actualStartTime;
     private final OffsetDateTime actualEndTime;
+    private final String cancelReason;
+    private final String canceledBy;
+    private final OffsetDateTime canceledAt;
     private final String timezone;
     private final int progress;
     private final List<String> participants;
@@ -24,6 +27,7 @@ public class PlanSummaryResponse {
     public PlanSummaryResponse(String id, String title, String customerId, String owner, PlanStatus status,
                                OffsetDateTime plannedStartTime, OffsetDateTime plannedEndTime,
                                OffsetDateTime actualStartTime, OffsetDateTime actualEndTime,
+                               String cancelReason, String canceledBy, OffsetDateTime canceledAt,
                                String timezone, int progress, List<String> participants) {
         this.id = id;
         this.title = title;
@@ -34,6 +38,9 @@ public class PlanSummaryResponse {
         this.plannedEndTime = plannedEndTime;
         this.actualStartTime = actualStartTime;
         this.actualEndTime = actualEndTime;
+        this.cancelReason = cancelReason;
+        this.canceledBy = canceledBy;
+        this.canceledAt = canceledAt;
         this.timezone = timezone;
         this.progress = progress;
         this.participants = participants;
@@ -50,6 +57,9 @@ public class PlanSummaryResponse {
                 plan.getPlannedEndTime(),
                 plan.getActualStartTime(),
                 plan.getActualEndTime(),
+                plan.getCancelReason(),
+                plan.getCanceledBy(),
+                plan.getCanceledAt(),
                 plan.getTimezone(),
                 plan.getProgress(),
                 plan.getParticipants()
@@ -98,6 +108,18 @@ public class PlanSummaryResponse {
 
     public OffsetDateTime getActualEndTime() {
         return actualEndTime;
+    }
+
+    public String getCancelReason() {
+        return cancelReason;
+    }
+
+    public String getCanceledBy() {
+        return canceledBy;
+    }
+
+    public OffsetDateTime getCanceledAt() {
+        return canceledAt;
     }
 
     public String getTimezone() {

@@ -121,6 +121,7 @@ public class InMemoryPlanService implements PlanService {
         Plan updated = new Plan(current.getId(), current.getTenantId(), command.getTitle(), command.getDescription(),
                 current.getCustomerId(), current.getOwner(), command.getParticipants(), current.getStatus(),
                 command.getStartTime(), command.getEndTime(), current.getActualStartTime(), current.getActualEndTime(),
+                current.getCancelReason(), current.getCanceledBy(), current.getCanceledAt(),
                 timezone, nodes, executions, current.getCreatedAt(), now);
         plans.put(id, updated);
         return updated;
@@ -144,7 +145,8 @@ public class InMemoryPlanService implements PlanService {
         OffsetDateTime now = OffsetDateTime.now();
         PlanStatus nextStatus = current.getPlannedStartTime().isAfter(now) ? PlanStatus.SCHEDULED : PlanStatus.IN_PROGRESS;
         OffsetDateTime actualStart = nextStatus == PlanStatus.IN_PROGRESS ? now : current.getActualStartTime();
-        Plan updated = current.withStatus(nextStatus, actualStart, null, current.getExecutions(), now);
+        Plan updated = current.withStatus(nextStatus, actualStart, null, current.getExecutions(), now,
+                null, null, null);
         plans.put(id, updated);
         return updated;
     }
@@ -156,7 +158,8 @@ public class InMemoryPlanService implements PlanService {
             throw new BusinessException(ErrorCode.BAD_REQUEST, "Plan already completed or canceled");
         }
         OffsetDateTime now = OffsetDateTime.now();
-        Plan updated = current.withStatus(PlanStatus.CANCELED, current.getActualStartTime(), now, current.getExecutions(), now);
+        Plan updated = current.withStatus(PlanStatus.CANCELED, null, now, current.getExecutions(), now,
+                reason, operator, now);
         plans.put(id, updated);
         return updated;
     }
@@ -164,8 +167,12 @@ public class InMemoryPlanService implements PlanService {
     @Override
     public PlanNodeExecution startNode(String planId, String nodeId, String operator) {
         Plan current = requirePlan(planId);
+        ensurePlanExecutable(current);
         PlanNodeExecution target = findExecution(current, nodeId);
         if (target.getStatus() == PlanNodeStatus.DONE) {
+            return target;
+        }
+        if (target.getStatus() == PlanNodeStatus.IN_PROGRESS) {
             return target;
         }
         OffsetDateTime now = OffsetDateTime.now();
@@ -178,7 +185,8 @@ public class InMemoryPlanService implements PlanService {
         if (nextStatus == PlanStatus.IN_PROGRESS && actualStart == null) {
             actualStart = now;
         }
-        Plan updated = current.withStatus(nextStatus, actualStart, null, executions, now);
+        Plan updated = current.withStatus(nextStatus, actualStart, null, executions, now,
+                null, null, null);
         plans.put(planId, updated);
         return executions.stream().filter(exec -> exec.getNodeId().equals(nodeId)).findFirst().orElse(target);
     }
@@ -187,9 +195,13 @@ public class InMemoryPlanService implements PlanService {
     public PlanNodeExecution completeNode(String planId, String nodeId, String operator, String result,
                                           String log, List<String> fileIds) {
         Plan current = requirePlan(planId);
+        ensurePlanExecutable(current);
         PlanNodeExecution target = findExecution(current, nodeId);
         if (target.getStatus() == PlanNodeStatus.DONE) {
             return target;
+        }
+        if (target.getStatus() != PlanNodeStatus.IN_PROGRESS) {
+            throw new BusinessException(ErrorCode.BAD_REQUEST, "Node must be started before completion");
         }
         if (fileIds != null) {
             fileIds.forEach(fileService::get);
@@ -203,7 +215,8 @@ public class InMemoryPlanService implements PlanService {
         PlanStatus nextStatus = allDone ? PlanStatus.COMPLETED : current.getStatus();
         OffsetDateTime actualStart = current.getActualStartTime() != null ? current.getActualStartTime() : startTime;
         OffsetDateTime actualEnd = allDone ? now : current.getActualEndTime();
-        Plan updated = current.withStatus(nextStatus, actualStart, actualEnd, executions, now);
+        Plan updated = current.withStatus(nextStatus, actualStart, actualEnd, executions, now,
+                null, null, null);
         plans.put(planId, updated);
         return executions.stream().filter(exec -> exec.getNodeId().equals(nodeId)).findFirst().orElse(target);
     }
@@ -229,8 +242,8 @@ public class InMemoryPlanService implements PlanService {
         List<PlanNodeExecution> executions = initializeExecutions(nodes);
         return new Plan(id, command.getTenantId(), command.getTitle(), command.getDescription(),
                 command.getCustomerId(), command.getOwner(), command.getParticipants(), PlanStatus.DESIGN,
-                command.getStartTime(), command.getEndTime(), null, null, command.getTimezone(), nodes, executions,
-                now, now);
+                command.getStartTime(), command.getEndTime(), null, null, null, null, null,
+                command.getTimezone(), nodes, executions, now, now);
     }
 
     private List<PlanNode> toNodes(List<PlanNodeCommand> commands) {
@@ -279,6 +292,15 @@ public class InMemoryPlanService implements PlanService {
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND));
     }
 
+    private void ensurePlanExecutable(Plan plan) {
+        if (plan.getStatus() == PlanStatus.DESIGN) {
+            throw new BusinessException(ErrorCode.BAD_REQUEST, "Plan must be published before executing nodes");
+        }
+        if (plan.getStatus() == PlanStatus.CANCELED || plan.getStatus() == PlanStatus.COMPLETED) {
+            throw new BusinessException(ErrorCode.BAD_REQUEST, "Plan is no longer active");
+        }
+    }
+
     private List<PlanNodeExecution> replaceExecution(List<PlanNodeExecution> executions, String nodeId,
                                                       PlanNodeExecution replacement) {
         return executions.stream()
@@ -294,8 +316,22 @@ public class InMemoryPlanService implements PlanService {
             case COMPLETED -> "COMPLETED";
             default -> "CONFIRMED";
         };
-        String description = String.format("%s\\n负责人: %s\\n状态: %s",
-                plan.getDescription() == null ? "" : escape(plan.getDescription()), plan.getOwner(), plan.getStatus().name());
+        StringBuilder descriptionBuilder = new StringBuilder(String.format("%s\\n负责人: %s\\n状态: %s",
+                plan.getDescription() == null ? "" : escape(plan.getDescription()),
+                plan.getOwner(), plan.getStatus().name()));
+        if (plan.getStatus() == PlanStatus.CANCELED) {
+            if (StringUtils.hasText(plan.getCancelReason())) {
+                descriptionBuilder.append("\\n取消原因: ").append(escape(plan.getCancelReason()));
+            }
+            if (StringUtils.hasText(plan.getCanceledBy())) {
+                descriptionBuilder.append("\\n操作人: ").append(escape(plan.getCanceledBy()));
+            }
+            if (plan.getCanceledAt() != null) {
+                descriptionBuilder.append("\\n取消时间: ")
+                        .append(escape(plan.getCanceledAt().toString()));
+            }
+        }
+        String description = descriptionBuilder.toString();
         return "BEGIN:VEVENT\n" +
                 "UID:" + plan.getId() + "@bob-mta.local\n" +
                 "DTSTAMP:" + ICS_FORMATTER.format(OffsetDateTime.now()) + "\n" +
