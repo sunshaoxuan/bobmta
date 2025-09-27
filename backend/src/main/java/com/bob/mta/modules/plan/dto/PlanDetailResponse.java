@@ -30,6 +30,7 @@ public class PlanDetailResponse {
     private final int progress;
     private final List<PlanNodeResponse> nodes;
     private final List<PlanActivityResponse> timeline;
+    private final PlanReminderPolicyResponse reminderPolicy;
 
     public PlanDetailResponse(String id, String tenantId, String title, String description, String customerId,
                               String owner, List<String> participants, PlanStatus status,
@@ -37,7 +38,7 @@ public class PlanDetailResponse {
                               OffsetDateTime actualStartTime, OffsetDateTime actualEndTime,
                               String cancelReason, String canceledBy, OffsetDateTime canceledAt,
                               String timezone, int progress, List<PlanNodeResponse> nodes,
-                              List<PlanActivityResponse> timeline) {
+                              List<PlanActivityResponse> timeline, PlanReminderPolicyResponse reminderPolicy) {
         this.id = id;
         this.tenantId = tenantId;
         this.title = title;
@@ -57,6 +58,7 @@ public class PlanDetailResponse {
         this.progress = progress;
         this.nodes = nodes;
         this.timeline = timeline;
+        this.reminderPolicy = reminderPolicy;
     }
 
     public static PlanDetailResponse from(Plan plan) {
@@ -68,6 +70,7 @@ public class PlanDetailResponse {
         List<PlanActivityResponse> activities = plan.getActivities().stream()
                 .map(PlanActivityResponse::from)
                 .toList();
+        PlanReminderPolicyResponse reminderPolicy = PlanReminderPolicyResponse.from(plan.getReminderPolicy());
         return new PlanDetailResponse(
                 plan.getId(),
                 plan.getTenantId(),
@@ -87,7 +90,8 @@ public class PlanDetailResponse {
                 plan.getTimezone(),
                 plan.getProgress(),
                 nodeResponses,
-                activities
+                activities,
+                reminderPolicy
         );
     }
 
@@ -173,5 +177,9 @@ public class PlanDetailResponse {
 
     public List<PlanActivityResponse> getTimeline() {
         return timeline;
+    }
+
+    public PlanReminderPolicyResponse getReminderPolicy() {
+        return reminderPolicy;
     }
 }

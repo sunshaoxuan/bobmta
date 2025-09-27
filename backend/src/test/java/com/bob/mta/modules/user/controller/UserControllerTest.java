@@ -123,28 +123,4 @@ class UserControllerTest {
             return instant;
         }
     }
-
-    private static final class MutableClock extends java.time.Clock {
-
-        private Instant instant;
-
-        private MutableClock(final Instant instant) {
-            this.instant = instant;
-        }
-
-        @Override
-        public ZoneOffset getZone() {
-            return ZoneOffset.UTC;
-        }
-
-        @Override
-        public java.time.Clock withZone(final java.time.ZoneId zone) {
-            return this;
-        }
-
-        @Override
-        public Instant instant() {
-            return instant;
-        }
-    }
 }

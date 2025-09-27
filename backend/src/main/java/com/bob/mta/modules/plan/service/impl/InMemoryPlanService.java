@@ -9,6 +9,10 @@ import com.bob.mta.modules.plan.domain.PlanActivityType;
 import com.bob.mta.modules.plan.domain.PlanNode;
 import com.bob.mta.modules.plan.domain.PlanNodeExecution;
 import com.bob.mta.modules.plan.domain.PlanNodeStatus;
+import com.bob.mta.modules.plan.domain.PlanReminderPolicy;
+import com.bob.mta.modules.plan.domain.PlanReminderRule;
+import com.bob.mta.modules.plan.domain.PlanReminderSchedule;
+import com.bob.mta.modules.plan.domain.PlanReminderTrigger;
 import com.bob.mta.modules.plan.domain.PlanStatus;
 import com.bob.mta.modules.plan.service.PlanService;
 import com.bob.mta.modules.plan.service.command.CreatePlanCommand;
@@ -41,6 +45,7 @@ public class InMemoryPlanService implements PlanService {
     private final ConcurrentMap<String, Plan> plans = new ConcurrentHashMap<>();
     private final AtomicLong idGenerator = new AtomicLong(5000);
     private final AtomicLong nodeIdGenerator = new AtomicLong(1000);
+    private final AtomicLong reminderIdGenerator = new AtomicLong(9000);
     private final FileService fileService;
 
     public InMemoryPlanService(FileService fileService) {
@@ -202,7 +207,7 @@ public class InMemoryPlanService implements PlanService {
         Plan current = requirePlan(planId);
         ensurePlanExecutable(current);
         PlanNodeExecution target = findExecution(current, nodeId);
-        if (target.getStatus() == PlanNodeStatus.DONE) {
+        if (target.getStatus() == PlanNodeStatus.DONE || target.getStatus() == PlanNodeStatus.IN_PROGRESS) {
             return target;
         }
         if (target.getStatus() == PlanNodeStatus.IN_PROGRESS) {
@@ -311,6 +316,43 @@ public class InMemoryPlanService implements PlanService {
         return plan.getActivities();
     }
 
+    @Override
+    public Plan updateReminderPolicy(String planId, List<PlanReminderRule> rules, String operator) {
+        Plan current = requirePlan(planId);
+        OffsetDateTime now = OffsetDateTime.now();
+        List<PlanReminderRule> normalized = normalizeReminderRules(rules);
+        PlanReminderPolicy policy = current.getReminderPolicy().withRules(normalized, now, operator);
+        List<PlanActivity> activities = appendActivity(current, new PlanActivity(
+                PlanActivityType.REMINDER_POLICY_UPDATED,
+                now,
+                operator,
+                "更新提醒策略",
+                current.getId(),
+                attributes(
+                        "ruleCount", String.valueOf(normalized.size())
+                )));
+        Plan updated = current.withReminderPolicy(policy, now, activities);
+        plans.put(planId, updated);
+        return updated;
+    }
+
+    @Override
+    public List<PlanReminderSchedule> previewReminderSchedule(String planId, OffsetDateTime referenceTime) {
+        Plan plan = requirePlan(planId);
+        OffsetDateTime baseline = referenceTime == null ? OffsetDateTime.now() : referenceTime;
+        List<PlanReminderSchedule> schedule = new ArrayList<>();
+        for (PlanReminderRule rule : plan.getReminderPolicy().getRules()) {
+            OffsetDateTime fireTime = computeReminderFireTime(plan, rule);
+            if (fireTime == null || fireTime.isBefore(baseline)) {
+                continue;
+            }
+            schedule.add(new PlanReminderSchedule(planId, rule, fireTime));
+        }
+        schedule.sort(Comparator.comparing(PlanReminderSchedule::getFireTime)
+                .thenComparing(entry -> entry.getRule().getOffsetMinutes()));
+        return schedule;
+    }
+
     private Plan buildPlan(String id, CreatePlanCommand command, OffsetDateTime now) {
         List<PlanNode> nodes = toNodes(command.getNodes());
         List<PlanNodeExecution> executions = initializeExecutions(nodes);
@@ -324,10 +366,11 @@ public class InMemoryPlanService implements PlanService {
                         "title", command.getTitle(),
                         "owner", command.getOwner()
                 )));
+        PlanReminderPolicy reminderPolicy = new PlanReminderPolicy(defaultReminderRules(), now, command.getOwner());
         return new Plan(id, command.getTenantId(), command.getTitle(), command.getDescription(),
                 command.getCustomerId(), command.getOwner(), command.getParticipants(), PlanStatus.DESIGN,
                 command.getStartTime(), command.getEndTime(), null, null, null, null, null,
-                command.getTimezone(), nodes, executions, now, now, activities);
+                command.getTimezone(), nodes, executions, now, now, activities, reminderPolicy);
     }
 
     private List<PlanNode> toNodes(List<PlanNodeCommand> commands) {
@@ -474,5 +517,54 @@ public class InMemoryPlanService implements PlanService {
                 .replace("\n", "\\n")
                 .replace(",", "\\,")
                 .replace(";", "\\;");
+    }
+
+    private List<PlanReminderRule> defaultReminderRules() {
+        List<PlanReminderRule> rules = new ArrayList<>();
+        rules.add(new PlanReminderRule(nextReminderId(), PlanReminderTrigger.BEFORE_PLAN_START, 120,
+                List.of("EMAIL"), "plan-start-email", List.of("PARTICIPANTS"),
+                "计划开始前2小时提醒所有参与人"));
+        rules.add(new PlanReminderRule(nextReminderId(), PlanReminderTrigger.BEFORE_PLAN_START, 30,
+                List.of("IM", "SMS"), "plan-start-alert", List.of("OWNER"),
+                "计划开始前30分钟提醒负责人确认准备情况"));
+        rules.add(new PlanReminderRule(nextReminderId(), PlanReminderTrigger.BEFORE_PLAN_END, 15,
+                List.of("EMAIL"), "plan-summary-reminder", List.of("OWNER"),
+                "计划结束前15分钟提醒负责人准备总结输出"));
+        return rules;
+    }
+
+    private List<PlanReminderRule> normalizeReminderRules(List<PlanReminderRule> rules) {
+        List<PlanReminderRule> normalized = new ArrayList<>();
+        if (rules == null) {
+            return normalized;
+        }
+        for (PlanReminderRule rule : rules) {
+            if (rule == null) {
+                continue;
+            }
+            if (!StringUtils.hasText(rule.getTemplateId())) {
+                throw new BusinessException(ErrorCode.BAD_REQUEST, "Reminder templateId is required");
+            }
+            PlanReminderRule withId = StringUtils.hasText(rule.getId()) ? rule : rule.withId(nextReminderId());
+            normalized.add(withId);
+        }
+        normalized.sort(Comparator.comparing(PlanReminderRule::getTrigger)
+                .thenComparing(PlanReminderRule::getOffsetMinutes));
+        return normalized;
+    }
+
+    private OffsetDateTime computeReminderFireTime(Plan plan, PlanReminderRule rule) {
+        return switch (rule.getTrigger()) {
+            case BEFORE_PLAN_START -> plan.getPlannedStartTime() == null
+                    ? null
+                    : plan.getPlannedStartTime().minusMinutes(rule.getOffsetMinutes());
+            case BEFORE_PLAN_END -> plan.getPlannedEndTime() == null
+                    ? null
+                    : plan.getPlannedEndTime().minusMinutes(rule.getOffsetMinutes());
+        };
+    }
+
+    private String nextReminderId() {
+        return "REM-" + reminderIdGenerator.incrementAndGet();
     }
 }

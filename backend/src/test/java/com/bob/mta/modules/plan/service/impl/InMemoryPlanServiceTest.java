@@ -6,6 +6,9 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import com.bob.mta.common.exception.BusinessException;
 import com.bob.mta.modules.file.service.impl.InMemoryFileService;
 import com.bob.mta.modules.plan.domain.PlanActivityType;
+import com.bob.mta.modules.plan.domain.PlanReminderRule;
+import com.bob.mta.modules.plan.domain.PlanReminderSchedule;
+import com.bob.mta.modules.plan.domain.PlanReminderTrigger;
 import com.bob.mta.modules.plan.domain.PlanNodeExecution;
 import com.bob.mta.modules.plan.domain.PlanStatus;
 import com.bob.mta.modules.plan.service.command.CreatePlanCommand;
@@ -43,6 +46,36 @@ class InMemoryPlanServiceTest {
         assertThat(plan.getActivities())
                 .extracting(activity -> activity.getType())
                 .containsExactly(PlanActivityType.PLAN_CREATED);
+    }
+
+    @Test
+    @DisplayName("updateReminderPolicy replaces rules and appends timeline entry")
+    void shouldUpdateReminderPolicy() {
+        var plan = service.listPlans(null, null, null, null).get(0);
+        List<PlanReminderRule> rules = List.of(
+                new PlanReminderRule(null, PlanReminderTrigger.BEFORE_PLAN_START, 90,
+                        List.of("EMAIL"), "template-90", List.of("OWNER"), "提前90分钟提醒负责人"));
+
+        var updated = service.updateReminderPolicy(plan.getId(), rules, "admin");
+
+        assertThat(updated.getReminderPolicy().getRules()).hasSize(1);
+        assertThat(updated.getReminderPolicy().getRules().get(0).getOffsetMinutes()).isEqualTo(90);
+        assertThat(updated.getReminderPolicy().getUpdatedBy()).isEqualTo("admin");
+        assertThat(updated.getActivities())
+                .extracting(activity -> activity.getType())
+                .contains(PlanActivityType.REMINDER_POLICY_UPDATED);
+    }
+
+    @Test
+    @DisplayName("previewReminderSchedule filters to future events")
+    void shouldPreviewReminderSchedule() {
+        var plan = service.listPlans(null, null, null, null).get(0);
+
+        List<PlanReminderSchedule> schedule = service.previewReminderSchedule(plan.getId(), OffsetDateTime.now().minusDays(1));
+
+        assertThat(schedule).isNotEmpty();
+        assertThat(schedule)
+                .allSatisfy(entry -> assertThat(entry.getFireTime()).isAfter(OffsetDateTime.now().minusDays(1)));
     }
 
     @Test

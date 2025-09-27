@@ -23,12 +23,13 @@ public class PlanSummaryResponse {
     private final String timezone;
     private final int progress;
     private final List<String> participants;
+    private final int reminderRuleCount;
 
     public PlanSummaryResponse(String id, String title, String customerId, String owner, PlanStatus status,
                                OffsetDateTime plannedStartTime, OffsetDateTime plannedEndTime,
                                OffsetDateTime actualStartTime, OffsetDateTime actualEndTime,
                                String cancelReason, String canceledBy, OffsetDateTime canceledAt,
-                               String timezone, int progress, List<String> participants) {
+                               String timezone, int progress, List<String> participants, int reminderRuleCount) {
         this.id = id;
         this.title = title;
         this.customerId = customerId;
@@ -44,6 +45,7 @@ public class PlanSummaryResponse {
         this.timezone = timezone;
         this.progress = progress;
         this.participants = participants;
+        this.reminderRuleCount = reminderRuleCount;
     }
 
     public static PlanSummaryResponse from(Plan plan) {
@@ -62,7 +64,8 @@ public class PlanSummaryResponse {
                 plan.getCanceledAt(),
                 plan.getTimezone(),
                 plan.getProgress(),
-                plan.getParticipants()
+                plan.getParticipants(),
+                plan.getReminderPolicy().getRules().size()
         );
     }
 
@@ -132,5 +135,9 @@ public class PlanSummaryResponse {
 
     public List<String> getParticipants() {
         return participants;
+    }
+
+    public int getReminderRuleCount() {
+        return reminderRuleCount;
     }
 }

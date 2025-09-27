@@ -28,6 +28,7 @@ public class Plan {
     private final OffsetDateTime createdAt;
     private final OffsetDateTime updatedAt;
     private final List<PlanActivity> activities;
+    private final PlanReminderPolicy reminderPolicy;
 
     public Plan(String id, String tenantId, String title, String description, String customerId, String owner,
                 List<String> participants, PlanStatus status, OffsetDateTime plannedStartTime,
@@ -35,7 +36,7 @@ public class Plan {
                 String cancelReason, String canceledBy, OffsetDateTime canceledAt, String timezone,
                 List<PlanNode> nodes, List<PlanNodeExecution> executions,
                 OffsetDateTime createdAt, OffsetDateTime updatedAt,
-                List<PlanActivity> activities) {
+                List<PlanActivity> activities, PlanReminderPolicy reminderPolicy) {
         this.id = id;
         this.tenantId = tenantId;
         this.title = title;
@@ -57,6 +58,7 @@ public class Plan {
         this.createdAt = createdAt;
         this.updatedAt = updatedAt;
         this.activities = activities == null ? List.of() : List.copyOf(activities);
+        this.reminderPolicy = reminderPolicy == null ? PlanReminderPolicy.empty() : reminderPolicy;
         this.progress = calculateProgress(this.executions);
     }
 
@@ -165,7 +167,7 @@ public class Plan {
                 cancelReason != null ? cancelReason : this.cancelReason,
                 canceledBy != null ? canceledBy : this.canceledBy,
                 canceledAt != null ? canceledAt : this.canceledAt,
-                timezone, nodes, updatedExecutions, createdAt, updatedAt, newActivities);
+                timezone, nodes, updatedExecutions, createdAt, updatedAt, newActivities, reminderPolicy);
     }
 
     public Plan withDefinition(List<PlanNode> newNodes, List<PlanNodeExecution> newExecutions,
@@ -176,7 +178,7 @@ public class Plan {
         return new Plan(id, tenantId, title, newDescription, customerId, owner, newParticipants, status,
                 newPlannedStart, newPlannedEnd, actualStartTime, actualEndTime,
                 cancelReason, canceledBy, canceledAt, newTimezone, newNodes, newExecutions, createdAt, updatedAt,
-                newActivities);
+                newActivities, reminderPolicy);
     }
 
     public Plan withTitleAndOwner(String newTitle, String newOwner, OffsetDateTime updatedAt,
@@ -184,10 +186,22 @@ public class Plan {
         return new Plan(id, tenantId, newTitle, description, customerId, newOwner, participants, status,
                 plannedStartTime, plannedEndTime, actualStartTime, actualEndTime,
                 cancelReason, canceledBy, canceledAt, timezone, nodes, executions, createdAt, updatedAt,
-                newActivities);
+                newActivities, reminderPolicy);
+    }
+
+    public Plan withReminderPolicy(PlanReminderPolicy newPolicy, OffsetDateTime updatedAt,
+                                   List<PlanActivity> newActivities) {
+        return new Plan(id, tenantId, title, description, customerId, owner, participants, status,
+                plannedStartTime, plannedEndTime, actualStartTime, actualEndTime,
+                cancelReason, canceledBy, canceledAt, timezone, nodes, executions, createdAt, updatedAt,
+                newActivities, newPolicy);
     }
 
     public List<PlanActivity> getActivities() {
         return Collections.unmodifiableList(activities);
+    }
+
+    public PlanReminderPolicy getReminderPolicy() {
+        return reminderPolicy;
     }
 }
