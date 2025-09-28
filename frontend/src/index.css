@@ -1,12 +1,13 @@
 :root {
-  color-scheme: light dark;
-  background-color: #ffffff;
+  color-scheme: light;
+  background-color: #f4f7ff;
+  font-family: 'Segoe UI', 'PingFang SC', 'Hiragino Sans', 'Microsoft YaHei', sans-serif;
 }
 
 body {
   margin: 0;
   padding: 0;
-  background-color: #ffffff;
+  background-color: transparent;
 }
 
 a {
