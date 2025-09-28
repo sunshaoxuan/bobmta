@@ -6,6 +6,8 @@ export type MessageKey =
   | 'backendStatus'
   | 'backendSuccess'
   | 'backendError'
+  | 'backendErrorStatus'
+  | 'backendErrorNetwork'
   | 'backendPending'
   | 'localeLabel';
 
@@ -16,6 +18,8 @@ const translations: Record<Locale, Record<MessageKey, string>> = {
     backendStatus: 'バックエンド連携状況',
     backendSuccess: 'バックエンド応答：{status}',
     backendError: 'リクエスト失敗：{error}',
+    backendErrorStatus: 'ステータスコード：{status}',
+    backendErrorNetwork: 'ネットワークエラーが発生しました。',
     backendPending: 'バックエンド接続を確認しています...',
     localeLabel: '表示言語',
   },
@@ -25,6 +29,8 @@ const translations: Record<Locale, Record<MessageKey, string>> = {
     backendStatus: '后端连通性',
     backendSuccess: '后端响应：{status}',
     backendError: '请求失败：{error}',
+    backendErrorStatus: '状态码：{status}',
+    backendErrorNetwork: '发生网络错误。',
     backendPending: '正在检查后端连接...',
     localeLabel: '显示语言',
   },

@@ -18,9 +18,25 @@ public final class LocalizationKeys {
         public static final String BACKEND_STATUS = "frontend.app.backend.status";
         public static final String BACKEND_SUCCESS = "frontend.app.backend.success";
         public static final String BACKEND_ERROR = "frontend.app.backend.error";
+        public static final String BACKEND_ERROR_STATUS = "frontend.app.backend.error.status";
+        public static final String BACKEND_ERROR_NETWORK = "frontend.app.backend.error.network";
         public static final String BACKEND_PENDING = "frontend.app.backend.pending";
         public static final String LOCALE_LABEL = "frontend.app.locale.label";
         private Frontend() {
+        }
+    }
+
+    public static final class Validation {
+        public static final String MULTILINGUAL_DEFAULT_LOCALE_REQUIRED =
+                "validation.multilingual.defaultLocaleRequired";
+        public static final String MULTILINGUAL_DEFAULT_VALUE_REQUIRED =
+                "validation.multilingual.defaultValueRequired";
+        public static final String MULTILINGUAL_LOCALE_REQUIRED =
+                "validation.multilingual.localeRequired";
+        public static final String MULTILINGUAL_MERGE_DEFAULT_MISSING =
+                "validation.multilingual.mergeDefaultMissing";
+
+        private Validation() {
         }
     }
 

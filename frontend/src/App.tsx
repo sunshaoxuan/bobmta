@@ -1,6 +1,12 @@
 import { useEffect, useState } from 'react';
 import './App.css';
-import { availableLocales, defaultLocale, formatMessage, type Locale, type MessageKey } from './i18n/messages';
+import {
+  availableLocales,
+  defaultLocale,
+  formatMessage,
+  type Locale,
+  type MessageKey,
+} from './i18n/messages';
 
 type PingResponse = {
   status: string;
@@ -8,7 +14,10 @@ type PingResponse = {
 
 function App() {
   const [ping, setPing] = useState<PingResponse | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<{
+    key: MessageKey;
+    values?: Record<string, string | number>;
+  } | null>(null);
   const [locale, setLocale] = useState<Locale>(defaultLocale);
 
   const t = (key: MessageKey, values?: Record<string, string | number>) =>
@@ -25,13 +34,14 @@ function App() {
     })
       .then(async (response) => {
         if (!response.ok) {
-          throw new Error(`Request failed with status ${response.status}`);
+          setError({ key: 'backendErrorStatus', values: { status: response.status } });
+          return;
         }
         const body = (await response.json()) as PingResponse;
         setPing(body);
       })
-      .catch((err) => {
-        setError(err.message);
+      .catch(() => {
+        setError({ key: 'backendErrorNetwork' });
       });
   }, [locale]);
 
@@ -56,7 +66,7 @@ function App() {
       <section className="status-panel">
         <h2>{t('backendStatus')}</h2>
         {ping && <p className="success">{t('backendSuccess', { status: ping.status })}</p>}
-        {error && <p className="error">{t('backendError', { error })}</p>}
+        {error && <p className="error">{t('backendError', { error: t(error.key, error.values) })}</p>}
         {!ping && !error && <p>{t('backendPending')}</p>}
       </section>
     </div>

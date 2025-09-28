@@ -1,5 +1,8 @@
 package com.bob.mta.common.i18n;
 
+import com.bob.mta.i18n.Localization;
+import com.bob.mta.i18n.LocalizationKeys;
+
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Locale;
@@ -13,7 +16,8 @@ public class MultilingualText {
 
     private MultilingualText(String defaultLocale, Map<String, String> translations) {
         if (defaultLocale == null || defaultLocale.isBlank()) {
-            throw new IllegalArgumentException("defaultLocale is required");
+            throw new IllegalArgumentException(
+                    Localization.text(LocalizationKeys.Validation.MULTILINGUAL_DEFAULT_LOCALE_REQUIRED));
         }
         this.defaultLocale = normalize(defaultLocale);
         Map<String, String> normalized = new HashMap<>();
@@ -25,7 +29,8 @@ public class MultilingualText {
             });
         }
         if (!normalized.containsKey(this.defaultLocale)) {
-            throw new IllegalArgumentException("translations must contain default locale value");
+            throw new IllegalArgumentException(
+                    Localization.text(LocalizationKeys.Validation.MULTILINGUAL_DEFAULT_VALUE_REQUIRED));
         }
         this.translations = Collections.unmodifiableMap(normalized);
     }
@@ -42,7 +47,8 @@ public class MultilingualText {
 
     private static String normalize(String locale) {
         if (locale == null) {
-            throw new IllegalArgumentException("locale is required");
+            throw new IllegalArgumentException(
+                    Localization.text(LocalizationKeys.Validation.MULTILINGUAL_LOCALE_REQUIRED));
         }
         return locale.replace('_', '-').toLowerCase(Locale.ROOT);
     }
@@ -75,7 +81,8 @@ public class MultilingualText {
         String effectiveDefault = newDefaultLocale == null || newDefaultLocale.isBlank()
                 ? defaultLocale : normalize(newDefaultLocale);
         if (!merged.containsKey(effectiveDefault)) {
-            throw new IllegalArgumentException("default locale value missing after merge");
+            throw new IllegalArgumentException(
+                    Localization.text(LocalizationKeys.Validation.MULTILINGUAL_MERGE_DEFAULT_MISSING));
         }
         return new MultilingualText(effectiveDefault, merged);
     }
