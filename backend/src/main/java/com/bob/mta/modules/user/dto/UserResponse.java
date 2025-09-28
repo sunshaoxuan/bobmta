@@ -1,6 +1,7 @@
 package com.bob.mta.modules.user.dto;
 
 import com.bob.mta.modules.user.domain.UserStatus;
+import com.bob.mta.modules.user.service.model.UserView;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -58,5 +59,15 @@ public class UserResponse {
 
     public List<String> getRoles() {
         return new ArrayList<>(roles);
+    }
+
+    public static UserResponse from(final UserView user) {
+        return new UserResponse(
+                user.id(),
+                user.username(),
+                user.displayName(),
+                user.email(),
+                user.status(),
+                user.roles());
     }
 }

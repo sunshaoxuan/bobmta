@@ -1,6 +1,7 @@
 package com.bob.mta.modules.customfield.controller;
 
 import com.bob.mta.common.api.ApiResponse;
+import com.bob.mta.common.i18n.MessageResolver;
 import com.bob.mta.modules.audit.service.AuditRecorder;
 import com.bob.mta.modules.customfield.domain.CustomFieldDefinition;
 import com.bob.mta.modules.customfield.dto.CreateCustomFieldRequest;
@@ -32,12 +33,14 @@ public class CustomFieldController {
     private final CustomFieldService customFieldService;
     private final CustomerService customerService;
     private final AuditRecorder auditRecorder;
+    private final MessageResolver messageResolver;
 
     public CustomFieldController(CustomFieldService customFieldService, CustomerService customerService,
-                                 AuditRecorder auditRecorder) {
+                                 AuditRecorder auditRecorder, MessageResolver messageResolver) {
         this.customFieldService = customFieldService;
         this.customerService = customerService;
         this.auditRecorder = auditRecorder;
+        this.messageResolver = messageResolver;
     }
 
     @GetMapping
@@ -59,7 +62,8 @@ public class CustomFieldController {
                 request.isRequired(),
                 request.getOptions(),
                 request.getDescription());
-        auditRecorder.record("CustomField", String.valueOf(definition.getId()), "CREATE_CUSTOM_FIELD", "创建自定义字段",
+        auditRecorder.record("CustomField", String.valueOf(definition.getId()), "CREATE_CUSTOM_FIELD",
+                messageResolver.getMessage("audit.customField.create"),
                 null, CustomFieldDefinitionResponse.from(definition));
         return ApiResponse.success(CustomFieldDefinitionResponse.from(definition));
     }
@@ -76,7 +80,8 @@ public class CustomFieldController {
                 request.isRequired(),
                 request.getOptions(),
                 request.getDescription());
-        auditRecorder.record("CustomField", String.valueOf(id), "UPDATE_CUSTOM_FIELD", "更新自定义字段",
+        auditRecorder.record("CustomField", String.valueOf(id), "UPDATE_CUSTOM_FIELD",
+                messageResolver.getMessage("audit.customField.update"),
                 CustomFieldDefinitionResponse.from(before), CustomFieldDefinitionResponse.from(updated));
         return ApiResponse.success(CustomFieldDefinitionResponse.from(updated));
     }
@@ -86,14 +91,15 @@ public class CustomFieldController {
     public ApiResponse<Void> deleteDefinition(@PathVariable long id) {
         CustomFieldDefinition before = customFieldService.getDefinition(id);
         customFieldService.deleteDefinition(id);
-        auditRecorder.record("CustomField", String.valueOf(id), "DELETE_CUSTOM_FIELD", "删除自定义字段",
+        auditRecorder.record("CustomField", String.valueOf(id), "DELETE_CUSTOM_FIELD",
+                messageResolver.getMessage("audit.customField.delete"),
                 CustomFieldDefinitionResponse.from(before), null);
         return ApiResponse.success();
     }
 
     @GetMapping("/customers/{customerId}")
     public ApiResponse<List<CustomFieldValueResponse>> getCustomerValues(@PathVariable String customerId) {
-        customerService.getById(customerId);
+        customerService.getCustomer(customerId);
         List<CustomFieldValueResponse> responses = customFieldService.listValues(customerId).stream()
                 .map(CustomFieldValueResponse::from)
                 .toList();
@@ -104,13 +110,14 @@ public class CustomFieldController {
     @PreAuthorize("hasAnyRole('ADMIN', 'OPERATOR')")
     public ApiResponse<List<CustomFieldValueResponse>> updateCustomerValues(@PathVariable String customerId,
                                                                             @RequestBody @Valid List<CustomFieldValueRequest> requests) {
-        customerService.getById(customerId);
+        customerService.getCustomer(customerId);
         Map<Long, String> values = requests.stream()
                 .collect(Collectors.toMap(CustomFieldValueRequest::getFieldId, CustomFieldValueRequest::getValue));
         List<CustomFieldValueResponse> updated = customFieldService.updateValues(customerId, values).stream()
                 .map(CustomFieldValueResponse::from)
                 .toList();
-        auditRecorder.record("CustomFieldValue", customerId, "UPSERT_CUSTOM_FIELD_VALUE", "更新客户自定义字段", null, updated);
+        auditRecorder.record("CustomFieldValue", customerId, "UPSERT_CUSTOM_FIELD_VALUE",
+                messageResolver.getMessage("audit.customFieldValue.upsert"), null, updated);
         return ApiResponse.success(updated);
     }
 }

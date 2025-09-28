@@ -1,6 +1,7 @@
 package com.bob.mta.modules.file.controller;
 
 import com.bob.mta.common.api.ApiResponse;
+import com.bob.mta.common.i18n.MessageResolver;
 import com.bob.mta.modules.audit.service.AuditRecorder;
 import com.bob.mta.modules.file.domain.FileMetadata;
 import com.bob.mta.modules.file.dto.FileResponse;
@@ -27,10 +28,12 @@ public class FileController {
 
     private final FileService fileService;
     private final AuditRecorder auditRecorder;
+    private final MessageResolver messageResolver;
 
-    public FileController(FileService fileService, AuditRecorder auditRecorder) {
+    public FileController(FileService fileService, AuditRecorder auditRecorder, MessageResolver messageResolver) {
         this.fileService = fileService;
         this.auditRecorder = auditRecorder;
+        this.messageResolver = messageResolver;
     }
 
     @PostMapping
@@ -47,7 +50,8 @@ public class FileController {
                 request.getBizId(),
                 uploader);
         FileResponse response = FileResponse.from(metadata, fileService.buildDownloadUrl(metadata));
-        auditRecorder.record("File", metadata.getId(), "REGISTER_FILE", "登记文件元数据", null, response);
+        auditRecorder.record("File", metadata.getId(), "REGISTER_FILE",
+                messageResolver.getMessage("audit.file.register"), null, response);
         return ApiResponse.success(response);
     }
 
@@ -71,7 +75,9 @@ public class FileController {
     public ApiResponse<Void> delete(@PathVariable String id) {
         FileMetadata metadata = fileService.get(id);
         fileService.delete(id);
-        auditRecorder.record("File", id, "DELETE_FILE", "删除文件元数据", FileResponse.from(metadata, fileService.buildDownloadUrl(metadata)), null);
+        auditRecorder.record("File", id, "DELETE_FILE",
+                messageResolver.getMessage("audit.file.delete"),
+                FileResponse.from(metadata, fileService.buildDownloadUrl(metadata)), null);
         return ApiResponse.success();
     }
 }
