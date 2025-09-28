@@ -2,6 +2,11 @@ package com.bob.mta.modules.template.service.impl;
 
 import com.bob.mta.common.exception.BusinessException;
 import com.bob.mta.common.exception.ErrorCode;
+import com.bob.mta.common.i18n.MultilingualText;
+import com.bob.mta.common.i18n.MultilingualTextScope;
+import com.bob.mta.common.i18n.MultilingualTextService;
+import com.bob.mta.i18n.Localization;
+import com.bob.mta.i18n.LocalizationKeys;
 import com.bob.mta.modules.template.domain.RenderedTemplate;
 import com.bob.mta.modules.template.domain.TemplateDefinition;
 import com.bob.mta.modules.template.domain.TemplateType;
@@ -25,80 +30,127 @@ public class InMemoryTemplateService implements TemplateService {
 
     private final AtomicLong idGenerator = new AtomicLong(500);
     private final Map<Long, TemplateDefinition> definitions = new ConcurrentHashMap<>();
+    private final MultilingualTextService multilingualTextService;
 
-    public InMemoryTemplateService() {
+    public InMemoryTemplateService(MultilingualTextService multilingualTextService) {
+        this.multilingualTextService = multilingualTextService;
         seedDefaults();
     }
 
     private void seedDefaults() {
-        create(TemplateType.EMAIL, "客户巡检通知", "【{{customer_name}}】巡检安排", "尊敬的{{customer_name}}，我们将在{{schedule_date}}进行巡检。",
-                List.of("ops@customer.com"), List.of(), null, true, "标准巡检邮件模板");
-        create(TemplateType.REMOTE, "跳板机远程桌面", null,
-                "请使用下载的RDP文件或命令 mstsc /v {{host}} 连接到跳板机。",
-                List.of(), List.of(), "rdp://{{host}}?username={{username}}", true, "Windows 跳板机 RDP 模板");
+        create(TemplateType.EMAIL,
+                seedText(LocalizationKeys.Seeds.TEMPLATE_EMAIL_NAME),
+                seedText(LocalizationKeys.Seeds.TEMPLATE_EMAIL_SUBJECT),
+                seedText(LocalizationKeys.Seeds.TEMPLATE_EMAIL_CONTENT),
+                List.of("ops@customer.com"), List.of(), null, true,
+                seedText(LocalizationKeys.Seeds.TEMPLATE_EMAIL_DESCRIPTION));
+        create(TemplateType.REMOTE,
+                seedText(LocalizationKeys.Seeds.TEMPLATE_REMOTE_NAME),
+                null,
+                seedText(LocalizationKeys.Seeds.TEMPLATE_REMOTE_CONTENT),
+                List.of(), List.of(), "rdp://{{host}}?username={{username}}", true,
+                seedText(LocalizationKeys.Seeds.TEMPLATE_REMOTE_DESCRIPTION));
+    }
+
+    private MultilingualText seedText(String code) {
+        Locale defaultLocale = Localization.getDefaultLocale();
+        Map<String, String> translations = Map.of(
+                defaultLocale.toLanguageTag(), Localization.text(defaultLocale, code),
+                Locale.CHINA.toLanguageTag(), Localization.text(Locale.CHINA, code)
+        );
+        return MultilingualText.of(defaultLocale.toLanguageTag(), translations);
     }
 
     @Override
-    public List<TemplateDefinition> list(TemplateType type) {
+    public List<TemplateDefinition> list(TemplateType type, Locale locale) {
+        String localeTag = locale == null ? null : locale.toLanguageTag();
         return definitions.values().stream()
                 .filter(def -> type == null || def.getType() == type)
-                .sorted((a, b) -> a.getName().compareToIgnoreCase(b.getName()))
+                .sorted((a, b) -> a.getName().getValueOrDefault(localeTag)
+                        .compareToIgnoreCase(b.getName().getValueOrDefault(localeTag)))
                 .toList();
     }
 
     @Override
-    public TemplateDefinition get(long id) {
-        TemplateDefinition definition = definitions.get(id);
-        if (definition == null) {
-            throw new BusinessException(ErrorCode.TEMPLATE_NOT_FOUND);
+    public TemplateDefinition get(long id, Locale locale) {
+        return require(id);
+    }
+
+    @Override
+    public TemplateDefinition create(TemplateType type, MultilingualText name, MultilingualText subject, MultilingualText content, List<String> to,
+                                     List<String> cc, String endpoint, boolean enabled, MultilingualText description) {
+        long id = idGenerator.incrementAndGet();
+        TemplateDefinition definition = new TemplateDefinition(id, type, name, subject, content, to, cc, endpoint,
+                enabled, description, OffsetDateTime.now(), OffsetDateTime.now());
+        definitions.put(id, definition);
+        multilingualTextService.upsert(MultilingualTextScope.TEMPLATE_DEFINITION, String.valueOf(id), "name", name);
+        if (subject != null) {
+            multilingualTextService.upsert(MultilingualTextScope.TEMPLATE_DEFINITION, String.valueOf(id), "subject", subject);
+        }
+        if (content != null) {
+            multilingualTextService.upsert(MultilingualTextScope.TEMPLATE_DEFINITION, String.valueOf(id), "content", content);
+        }
+        if (description != null) {
+            multilingualTextService.upsert(MultilingualTextScope.TEMPLATE_DEFINITION, String.valueOf(id), "description", description);
         }
         return definition;
     }
 
     @Override
-    public TemplateDefinition create(TemplateType type, String name, String subject, String content, List<String> to,
-                                     List<String> cc, String endpoint, boolean enabled, String description) {
-        long id = idGenerator.incrementAndGet();
-        TemplateDefinition definition = new TemplateDefinition(id, type, name, subject, content, to, cc, endpoint,
-                enabled, description, OffsetDateTime.now(), OffsetDateTime.now());
-        definitions.put(id, definition);
-        return definition;
-    }
-
-    @Override
-    public TemplateDefinition update(long id, String name, String subject, String content, List<String> to, List<String> cc,
-                                     String endpoint, boolean enabled, String description) {
-        TemplateDefinition definition = get(id);
+    public TemplateDefinition update(long id, MultilingualText name, MultilingualText subject, MultilingualText content, List<String> to, List<String> cc,
+                                     String endpoint, boolean enabled, MultilingualText description) {
+        TemplateDefinition definition = require(id);
         TemplateDefinition updated = new TemplateDefinition(id, definition.getType(), name, subject, content, to, cc,
                 endpoint, enabled, description, definition.getCreatedAt(), OffsetDateTime.now());
         definitions.put(id, updated);
+        multilingualTextService.upsert(MultilingualTextScope.TEMPLATE_DEFINITION, String.valueOf(id), "name", name);
+        if (subject != null) {
+            multilingualTextService.upsert(MultilingualTextScope.TEMPLATE_DEFINITION, String.valueOf(id), "subject", subject);
+        }
+        if (content != null) {
+            multilingualTextService.upsert(MultilingualTextScope.TEMPLATE_DEFINITION, String.valueOf(id), "content", content);
+        }
+        if (description != null) {
+            multilingualTextService.upsert(MultilingualTextScope.TEMPLATE_DEFINITION, String.valueOf(id), "description", description);
+        }
         return updated;
     }
 
     @Override
     public void delete(long id) {
+        require(id);
         definitions.remove(id);
     }
 
     @Override
-    public RenderedTemplate render(long id, Map<String, String> context) {
-        TemplateDefinition definition = get(id);
+    public RenderedTemplate render(long id, Map<String, String> context, Locale locale) {
+        TemplateDefinition definition = require(id);
         if (!definition.isEnabled()) {
-            throw new BusinessException(ErrorCode.VALIDATION_ERROR, "Template disabled");
+            throw new BusinessException(ErrorCode.VALIDATION_ERROR,
+                    Localization.text(LocalizationKeys.Errors.TEMPLATE_DISABLED));
         }
         Map<String, String> safeContext = normalizeContext(context);
-        String subject = replacePlaceholders(definition.getSubject(), safeContext);
-        String content = replacePlaceholders(definition.getContent(), safeContext);
+        String localeTag = locale == null ? null : locale.toLanguageTag();
+        String subject = replacePlaceholders(definition.getSubject() == null ? null : definition.getSubject().getValueOrDefault(localeTag), safeContext);
+        String content = replacePlaceholders(definition.getContent() == null ? null : definition.getContent().getValueOrDefault(localeTag), safeContext);
         List<String> to = definition.getTo().stream().map(value -> replacePlaceholders(value, safeContext)).toList();
         List<String> cc = definition.getCc().stream().map(value -> replacePlaceholders(value, safeContext)).toList();
         String endpoint = replacePlaceholders(definition.getEndpoint(), safeContext);
 
         RemoteArtifact artifact = definition.getType() == TemplateType.REMOTE
-                ? buildRemoteArtifact(definition, endpoint)
+                ? buildRemoteArtifact(definition, endpoint, localeTag)
                 : RemoteArtifact.empty();
 
         return new RenderedTemplate(subject, content, to, cc, endpoint,
                 artifact.fileName(), artifact.content(), artifact.contentType(), artifact.metadata());
+    }
+
+    private TemplateDefinition require(long id) {
+        TemplateDefinition definition = definitions.get(id);
+        if (definition == null) {
+            throw new BusinessException(ErrorCode.TEMPLATE_NOT_FOUND);
+        }
+        return definition;
     }
 
     private String replacePlaceholders(String template, Map<String, String> context) {
@@ -122,7 +174,7 @@ public class InMemoryTemplateService implements TemplateService {
         return normalized;
     }
 
-    private RemoteArtifact buildRemoteArtifact(TemplateDefinition definition, String endpoint) {
+    private RemoteArtifact buildRemoteArtifact(TemplateDefinition definition, String endpoint, String localeTag) {
         if (!StringUtils.hasText(endpoint)) {
             return RemoteArtifact.empty();
         }
@@ -148,7 +200,7 @@ public class InMemoryTemplateService implements TemplateService {
             }
 
             if ("rdp".equals(scheme) && host != null) {
-                String fileName = definition.getName().replaceAll("\\s+", "-").toLowerCase(Locale.ROOT) + ".rdp";
+                String fileName = definition.getName().getValueOrDefault(localeTag).replaceAll("\\s+", "-").toLowerCase(Locale.ROOT) + ".rdp";
                 int port = uri.getPort() > 0 ? uri.getPort() : 3389;
                 String username = metadata.getOrDefault("username", "");
                 StringBuilder builder = new StringBuilder();
@@ -180,7 +232,7 @@ public class InMemoryTemplateService implements TemplateService {
             return new RemoteArtifact(null, null, null, Map.of(
                     "protocol", "UNKNOWN",
                     "endpoint", endpoint,
-                    "error", "Failed to parse endpoint"));
+                    "error", Localization.text(LocalizationKeys.Errors.TEMPLATE_ENDPOINT_INVALID)));
         }
     }
 

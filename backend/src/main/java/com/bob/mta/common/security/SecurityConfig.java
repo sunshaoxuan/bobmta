@@ -66,7 +66,7 @@ public class SecurityConfig {
         http.csrf(csrf -> csrf.disable());
         http.sessionManagement(sm -> sm.sessionCreationPolicy(SessionCreationPolicy.STATELESS));
         http.authorizeHttpRequests(authz -> authz
-                .requestMatchers("/api/ping", "/api/v1/auth/login", "/api/v1/users/activation").permitAll()
+                .requestMatchers("/api/ping", "/api/v1/auth/login", "/api/v1/users/activation", "/api/v1/i18n/**").permitAll()
                 .anyRequest().authenticated()
         );
         http.exceptionHandling(handling -> handling

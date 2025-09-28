@@ -8,6 +8,8 @@ import com.bob.mta.modules.customfield.dto.CustomFieldDefinitionResponse;
 import com.bob.mta.modules.customfield.dto.CustomFieldValueRequest;
 import com.bob.mta.modules.customfield.dto.CustomFieldValueResponse;
 import com.bob.mta.modules.customfield.dto.UpdateCustomFieldRequest;
+import com.bob.mta.i18n.Localization;
+import com.bob.mta.i18n.LocalizationKeys;
 import com.bob.mta.modules.customfield.service.CustomFieldService;
 import com.bob.mta.modules.customer.service.CustomerService;
 import jakarta.validation.Valid;
@@ -59,7 +61,8 @@ public class CustomFieldController {
                 request.isRequired(),
                 request.getOptions(),
                 request.getDescription());
-        auditRecorder.record("CustomField", String.valueOf(definition.getId()), "CREATE_CUSTOM_FIELD", "创建自定义字段",
+        auditRecorder.record("CustomField", String.valueOf(definition.getId()), "CREATE_CUSTOM_FIELD",
+                Localization.text(LocalizationKeys.Audit.CUSTOM_FIELD_CREATE),
                 null, CustomFieldDefinitionResponse.from(definition));
         return ApiResponse.success(CustomFieldDefinitionResponse.from(definition));
     }
@@ -76,7 +79,8 @@ public class CustomFieldController {
                 request.isRequired(),
                 request.getOptions(),
                 request.getDescription());
-        auditRecorder.record("CustomField", String.valueOf(id), "UPDATE_CUSTOM_FIELD", "更新自定义字段",
+        auditRecorder.record("CustomField", String.valueOf(id), "UPDATE_CUSTOM_FIELD",
+                Localization.text(LocalizationKeys.Audit.CUSTOM_FIELD_UPDATE),
                 CustomFieldDefinitionResponse.from(before), CustomFieldDefinitionResponse.from(updated));
         return ApiResponse.success(CustomFieldDefinitionResponse.from(updated));
     }
@@ -86,7 +90,8 @@ public class CustomFieldController {
     public ApiResponse<Void> deleteDefinition(@PathVariable long id) {
         CustomFieldDefinition before = customFieldService.getDefinition(id);
         customFieldService.deleteDefinition(id);
-        auditRecorder.record("CustomField", String.valueOf(id), "DELETE_CUSTOM_FIELD", "删除自定义字段",
+        auditRecorder.record("CustomField", String.valueOf(id), "DELETE_CUSTOM_FIELD",
+                Localization.text(LocalizationKeys.Audit.CUSTOM_FIELD_DELETE),
                 CustomFieldDefinitionResponse.from(before), null);
         return ApiResponse.success();
     }
@@ -110,7 +115,8 @@ public class CustomFieldController {
         List<CustomFieldValueResponse> updated = customFieldService.updateValues(customerId, values).stream()
                 .map(CustomFieldValueResponse::from)
                 .toList();
-        auditRecorder.record("CustomFieldValue", customerId, "UPSERT_CUSTOM_FIELD_VALUE", "更新客户自定义字段", null, updated);
+        auditRecorder.record("CustomFieldValue", customerId, "UPSERT_CUSTOM_FIELD_VALUE",
+                Localization.text(LocalizationKeys.Audit.CUSTOM_FIELD_VALUE_UPSERT), null, updated);
         return ApiResponse.success(updated);
     }
 }
