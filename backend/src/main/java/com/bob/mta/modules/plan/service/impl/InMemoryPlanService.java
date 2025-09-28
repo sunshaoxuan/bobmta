@@ -24,6 +24,7 @@ import com.bob.mta.modules.plan.service.command.CreatePlanCommand;
 import com.bob.mta.modules.plan.service.command.PlanNodeCommand;
 import com.bob.mta.modules.plan.service.command.UpdatePlanCommand;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
 import java.time.OffsetDateTime;
@@ -39,6 +40,7 @@ import java.util.Objects;
 import java.util.stream.Collectors;
 
 @Service
+@Transactional(readOnly = true)
 public class InMemoryPlanService implements PlanService {
 
     private static final DateTimeFormatter ICS_FORMATTER = DateTimeFormatter.ofPattern("yyyyMMdd'T'HHmmss'Z'", Locale.US)
@@ -111,6 +113,7 @@ public class InMemoryPlanService implements PlanService {
     }
 
     @Override
+    @Transactional
     public Plan createPlan(CreatePlanCommand command) {
         String id = planRepository.nextPlanId();
         OffsetDateTime now = OffsetDateTime.now();
@@ -120,6 +123,7 @@ public class InMemoryPlanService implements PlanService {
     }
 
     @Override
+    @Transactional
     public Plan updatePlan(String id, UpdatePlanCommand command) {
         Plan current = requirePlan(id);
         if (current.getStatus() != PlanStatus.DESIGN) {
@@ -148,6 +152,7 @@ public class InMemoryPlanService implements PlanService {
     }
 
     @Override
+    @Transactional
     public void deletePlan(String id) {
         Plan current = requirePlan(id);
         if (current.getStatus() != PlanStatus.DESIGN) {
@@ -157,6 +162,7 @@ public class InMemoryPlanService implements PlanService {
     }
 
     @Override
+    @Transactional
     public Plan publishPlan(String id, String operator) {
         Plan current = requirePlan(id);
         if (current.getStatus() != PlanStatus.DESIGN) {
@@ -182,6 +188,7 @@ public class InMemoryPlanService implements PlanService {
     }
 
     @Override
+    @Transactional
     public Plan cancelPlan(String id, String operator, String reason) {
         Plan current = requirePlan(id);
         if (current.getStatus() == PlanStatus.COMPLETED || current.getStatus() == PlanStatus.CANCELED) {
@@ -205,6 +212,7 @@ public class InMemoryPlanService implements PlanService {
     }
 
     @Override
+    @Transactional
     public PlanNodeExecution startNode(String planId, String nodeId, String operator) {
         Plan current = requirePlan(planId);
         ensurePlanExecutable(current);
@@ -241,8 +249,9 @@ public class InMemoryPlanService implements PlanService {
     }
 
     @Override
+    @Transactional
     public PlanNodeExecution completeNode(String planId, String nodeId, String operator, String result,
-                                          String log, List<String> fileIds) {
+                                   String log, List<String> fileIds) {
         Plan current = requirePlan(planId);
         ensurePlanExecutable(current);
         PlanNodeExecution target = findExecution(current, nodeId);
@@ -294,6 +303,7 @@ public class InMemoryPlanService implements PlanService {
     }
 
     @Override
+    @Transactional
     public Plan handoverPlan(String planId, String newOwner, List<String> participants, String note, String operator) {
         Plan current = requirePlan(planId);
         if (!StringUtils.hasText(newOwner)) {
@@ -349,6 +359,7 @@ public class InMemoryPlanService implements PlanService {
     }
 
     @Override
+    @Transactional
     public Plan updateReminderPolicy(String planId, List<PlanReminderRule> rules, String operator) {
         Plan current = requirePlan(planId);
         OffsetDateTime now = OffsetDateTime.now();

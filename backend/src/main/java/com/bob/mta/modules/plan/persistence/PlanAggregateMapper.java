@@ -13,7 +13,7 @@ public interface PlanAggregateMapper {
 
     int countPlans(PlanQueryParameters parameters);
 
-  PlanEntity findPlanById(@Param("planId") String planId);
+    PlanEntity findPlanById(@Param("planId") String planId);
 
     List<PlanParticipantEntity> findParticipantsByPlanIds(@Param("planIds") Collection<String> planIds);
 
