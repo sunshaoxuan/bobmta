@@ -15,7 +15,7 @@ import java.util.List;
 
 public interface PlanService {
 
-    PlanSearchResult listPlans(String customerId, String owner, String keyword, PlanStatus status,
+    PlanSearchResult listPlans(String tenantId, String customerId, String owner, String keyword, PlanStatus status,
                                OffsetDateTime from, OffsetDateTime to, int page, int size);
 
     Plan getPlan(String id);

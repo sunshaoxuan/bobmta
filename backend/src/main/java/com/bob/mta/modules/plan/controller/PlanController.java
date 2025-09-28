@@ -71,7 +71,8 @@ public class PlanController {
 
     @PreAuthorize("hasAnyRole('ADMIN','OPERATOR')")
     @GetMapping
-    public ApiResponse<PageResponse<PlanSummaryResponse>> list(@RequestParam(required = false) String customerId,
+    public ApiResponse<PageResponse<PlanSummaryResponse>> list(@RequestParam(required = false) String tenantId,
+                                                               @RequestParam(required = false) String customerId,
                                                                @RequestParam(required = false) String owner,
                                                                @RequestParam(required = false) String keyword,
                                                                @RequestParam(required = false) PlanStatus status,
@@ -79,7 +80,7 @@ public class PlanController {
                                                                @RequestParam(required = false) OffsetDateTime to,
                                                                @RequestParam(defaultValue = "0") int page,
                                                                @RequestParam(defaultValue = "10") int size) {
-        var result = planService.listPlans(customerId, owner, keyword, status, from, to, page, size);
+        var result = planService.listPlans(tenantId, customerId, owner, keyword, status, from, to, page, size);
         List<PlanSummaryResponse> pageItems = result.plans().stream()
                 .map(PlanSummaryResponse::from)
                 .toList();

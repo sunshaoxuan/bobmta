@@ -64,13 +64,14 @@ public class InMemoryPlanService implements PlanService {
     }
 
     @Override
-    public PlanSearchResult listPlans(String customerId, String owner, String keyword, PlanStatus status,
+    public PlanSearchResult listPlans(String tenantId, String customerId, String owner, String keyword, PlanStatus status,
                                       OffsetDateTime from, OffsetDateTime to, int page, int size) {
         int sanitizedSize = size <= 0 ? 10 : size;
         int sanitizedPage = Math.max(page, 0);
         int offset = sanitizedPage * sanitizedSize;
 
         PlanSearchCriteria baseCriteria = PlanSearchCriteria.builder()
+                .tenantId(StringUtils.hasText(tenantId) ? tenantId : null)
                 .customerId(StringUtils.hasText(customerId) ? customerId : null)
                 .owner(StringUtils.hasText(owner) ? owner : null)
                 .keyword(StringUtils.hasText(keyword) ? keyword : null)
@@ -82,6 +83,7 @@ public class InMemoryPlanService implements PlanService {
         int total = planRepository.countByCriteria(baseCriteria);
 
         PlanSearchCriteria pageCriteria = PlanSearchCriteria.builder()
+                .tenantId(baseCriteria.getTenantId())
                 .customerId(baseCriteria.getCustomerId())
                 .owner(baseCriteria.getOwner())
                 .keyword(baseCriteria.getKeyword())
