@@ -1,6 +1,7 @@
 package com.bob.mta.modules.user.controller;
 
 import com.bob.mta.common.api.ApiResponse;
+import com.bob.mta.common.i18n.MessageResolver;
 import com.bob.mta.modules.audit.service.AuditRecorder;
 import com.bob.mta.modules.user.domain.UserStatus;
 import com.bob.mta.modules.user.dto.ActivateUserRequest;
@@ -40,10 +41,13 @@ public class UserController {
 
     private final UserService userService;
     private final AuditRecorder auditRecorder;
+    private final MessageResolver messageResolver;
 
-    public UserController(final UserService userService, final AuditRecorder auditRecorder) {
+    public UserController(final UserService userService, final AuditRecorder auditRecorder,
+                          final MessageResolver messageResolver) {
         this.userService = userService;
         this.auditRecorder = auditRecorder;
+        this.messageResolver = messageResolver;
     }
 
     @PreAuthorize("hasRole('ADMIN')")
