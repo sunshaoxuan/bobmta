@@ -7,6 +7,8 @@ export type PlanListQuery = {
   owner?: string | null;
   keyword?: string | null;
   status?: string | null;
+  from?: string | null;
+  to?: string | null;
   signal?: AbortSignal;
 };
 
@@ -26,6 +28,12 @@ export async function fetchPlans(
   }
   if (query.status) {
     search.set('status', query.status);
+  }
+  if (query.from) {
+    search.set('from', query.from);
+  }
+  if (query.to) {
+    search.set('to', query.to);
   }
 
   try {

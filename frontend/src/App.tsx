@@ -14,6 +14,7 @@ import {
   Empty,
   Input,
   Layout,
+  Pagination,
   Progress,
   Select,
   Space,
@@ -60,7 +61,7 @@ type AppViewProps = {
 function AppView({ client, localization, session, planList }: AppViewProps) {
   const { locale, translate, availableLocales, loading, setLocale } = localization;
   const { state: sessionState, login, logout } = session;
-  const { state: planState, refresh } = planList;
+  const { state: planState, refresh, changePage, changePageSize } = planList;
   const [credentials, setCredentials] = useState<CredentialsState>({
     username: '',
     password: '',
@@ -386,6 +387,28 @@ function AppView({ client, localization, session, planList }: AppViewProps) {
                     locale={{ emptyText: translate('planEmpty') }}
                     scroll={{ x: true }}
                   />
+                  {planState.pagination.total > 0 && (
+                    <div className="plan-pagination">
+                      <Text type="secondary">
+                        {translate('planPaginationTotal', {
+                          total: planState.pagination.total,
+                        })}
+                      </Text>
+                      <Pagination
+                        current={planState.pagination.page + 1}
+                        pageSize={planState.pagination.pageSize}
+                        total={planState.pagination.total}
+                        showSizeChanger
+                        pageSizeOptions={['10', '20', '50']}
+                        onChange={(page) => {
+                          void changePage(page - 1);
+                        }}
+                        onShowSizeChange={(_, size) => {
+                          void changePageSize(size);
+                        }}
+                      />
+                    </div>
+                  )}
                 </RemoteState>
               </Space>
             )}
@@ -443,168 +466,6 @@ function App() {
   );
   const session = useSessionController(client);
   const planList = usePlanListController(client, session.state.session);
-
-  const describeRemoteError = (error: RemoteError | null) => {
-    if (!error) {
-      return null;
-    }
-    if (error.type === 'status') {
-      return t('backendErrorStatus', { status: error.status });
-    }
-    return t('backendErrorNetwork');
-  };
-
-  const formatDateTime = useCallback(
-    (value?: string | null) => {
-      if (!value) {
-        return '';
-      }
-      const date = new Date(value);
-      if (Number.isNaN(date.getTime())) {
-        return '';
-      }
-      return new Intl.DateTimeFormat(locale, {
-        year: 'numeric',
-        month: '2-digit',
-        day: '2-digit',
-        hour: '2-digit',
-        minute: '2-digit',
-      }).format(date);
-    },
-    [locale]
-  );
-
-  const formatPlanWindow = useCallback(
-    (plan: PlanSummary) => {
-      const start = formatDateTime(plan.plannedStartTime ?? null);
-      const end = formatDateTime(plan.plannedEndTime ?? null);
-      if (start && end) {
-        return t('planWindowRange', { start, end });
-      }
-      if (start) {
-        return start;
-      }
-      if (end) {
-        return end;
-      }
-      return t('planWindowMissing');
-    },
-    [formatDateTime, t]
-  );
-
-  const loadPlans = useCallback(
-    (signal?: AbortSignal) => {
-      if (!session) {
-        setPlans([]);
-        setPlansError(null);
-        setPlansLoading(false);
-        return;
-      }
-      setPlansLoading(true);
-      setPlansError(null);
-      fetch('/api/v1/plans?page=0&size=20', {
-        headers: {
-          'Accept-Language': locale,
-          Authorization: `Bearer ${session.token}`,
-        },
-        signal,
-      })
-        .then(async (response) => {
-          if (signal?.aborted) {
-            return;
-          }
-          if (!response.ok) {
-            setPlansError({ type: 'status', status: response.status });
-            return;
-          }
-          const body = (await response.json()) as ApiResponse<PageResponse<PlanSummary>>;
-          if (!body.data) {
-            setPlansError({ type: 'network' });
-            return;
-          }
-          setPlans(body.data.list ?? []);
-        })
-        .catch((error: unknown) => {
-          if (signal?.aborted) {
-            return;
-          }
-          if (error instanceof DOMException && error.name === 'AbortError') {
-            return;
-          }
-          setPlansError({ type: 'network' });
-        })
-        .finally(() => {
-          if (signal?.aborted) {
-            return;
-          }
-          setPlansLoading(false);
-        });
-    },
-    [locale, session]
-  );
-
-  useEffect(() => {
-    if (!session) {
-      setPlans([]);
-      setPlansError(null);
-      setPlansLoading(false);
-      return;
-    }
-    const controller = new AbortController();
-    loadPlans(controller.signal);
-    return () => {
-      controller.abort();
-    };
-  }, [session, locale, loadPlans]);
-
-  const handleLogin = (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    if (authLoading) {
-      return;
-    }
-    setAuthLoading(true);
-    setAuthError(null);
-    fetch('/api/v1/auth/login', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Accept-Language': locale,
-      },
-      body: JSON.stringify({
-        username: credentials.username.trim(),
-        password: credentials.password,
-      }),
-    })
-      .then(async (response) => {
-        if (!response.ok) {
-          setAuthError({ type: 'status', status: response.status });
-          return;
-        }
-        const body = (await response.json()) as ApiResponse<LoginResponse>;
-        if (!body.data) {
-          setAuthError({ type: 'network' });
-          return;
-        }
-        setSession(body.data);
-        setCredentials({ username: '', password: '' });
-        setAuthError(null);
-      })
-      .catch(() => {
-        setAuthError({ type: 'network' });
-      })
-      .finally(() => {
-        setAuthLoading(false);
-      });
-  };
-
-  const handleLogout = () => {
-    setSession(null);
-    setPlans([]);
-    setPlansError(null);
-  };
-
-  const authErrorDetail = describeRemoteError(authError);
-  const planErrorDetail = describeRemoteError(plansError);
 
   return (
     <ConfigProvider

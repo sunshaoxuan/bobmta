@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from '../../vendor/react/index.js';
-import { Button, Input, Select, Space } from '../../vendor/antd/index.js';
+import { Button, DatePicker, Input, Select, Space } from '../../vendor/antd/index.js';
 import type { PlanStatus } from '../api/types';
 import type { LocalizationState } from '../i18n/useLocalization';
 import type { PlanListFilters } from '../state/planList';
@@ -45,7 +45,7 @@ export function PlanFilters({ filters, translate, owners, onApply, onReset }: Pl
   };
 
   const handleReset = () => {
-    setFormValues({ owner: '', keyword: '', status: '' });
+    setFormValues({ owner: '', keyword: '', status: '', from: '', to: '' });
     onReset();
   };
 
@@ -72,6 +72,24 @@ export function PlanFilters({ filters, translate, owners, onApply, onReset }: Pl
             onChange={(value: string) =>
               setFormValues((current) => ({ ...current, status: (value as PlanStatus) ?? '' }))
             }
+          />
+        </div>
+        <div className="filter-field range-field">
+          <div className="filter-label">{translate('planFilterWindowLabel')}</div>
+          <DatePicker.RangePicker
+            value={[formValues.from || null, formValues.to || null]}
+            placeholder={[
+              translate('planFilterWindowPlaceholderStart'),
+              translate('planFilterWindowPlaceholderEnd'),
+            ]}
+            onChange={(value) => {
+              const [from, to] = value ?? [null, null];
+              setFormValues((current) => ({
+                ...current,
+                from: from ?? '',
+                to: to ?? '',
+              }));
+            }}
           />
         </div>
         <div className="filter-field keyword-field">

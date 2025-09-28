@@ -6,6 +6,8 @@ export type MockPlanQuery = {
   status?: PlanStatus | string;
   page?: number;
   size?: number;
+  from?: string;
+  to?: string;
 };
 
 const MOCK_PLANS: PlanSummary[] = [
@@ -81,6 +83,8 @@ export function queryMockPlanSummaries(query: MockPlanQuery = {}): PageResponse<
   const owner = normalize(query.owner);
   const keyword = normalize(query.keyword);
   const status = normalize(query.status);
+  const from = toEpoch(query.from);
+  const to = toEpoch(query.to);
 
   const filtered = MOCK_PLANS.filter((plan) => {
     if (owner && normalize(plan.owner) !== owner) {
@@ -94,6 +98,14 @@ export function queryMockPlanSummaries(query: MockPlanQuery = {}): PageResponse<
       if (!tokens.some((token) => normalize(token).includes(keyword))) {
         return false;
       }
+    }
+    const planStart = toEpoch(plan.plannedStartTime);
+    const planEnd = toEpoch(plan.plannedEndTime);
+    if (from && planEnd && planEnd < from) {
+      return false;
+    }
+    if (to && planStart && planStart > to) {
+      return false;
     }
     return true;
   });
@@ -112,6 +124,17 @@ export function queryMockPlanSummaries(query: MockPlanQuery = {}): PageResponse<
 
 function normalize(value?: string | null): string {
   return (value ?? '').trim().toLowerCase();
+}
+
+function toEpoch(value?: string | null): number | null {
+  if (!value) {
+    return null;
+  }
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return null;
+  }
+  return date.getTime();
 }
 
 function describeStatus(status: PlanStatus): string {

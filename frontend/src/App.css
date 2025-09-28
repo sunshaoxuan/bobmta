@@ -52,7 +52,6 @@
 .status-card {
   background: linear-gradient(135deg, rgba(22, 119, 255, 0.12), rgba(111, 207, 255, 0.08));
 }
-
 .logout-button {
   padding: 0;
 }
@@ -82,12 +81,29 @@
   flex: 1;
 }
 
+.plan-filters .range-field {
+  min-width: 280px;
+}
+
 .plan-filters .filter-select {
   min-width: 180px;
 }
 
 .plan-filters .antd-select-wrapper {
   width: 100%;
+}
+
+.plan-pagination {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+  margin-top: 12px;
+}
+
+.plan-pagination .antd-pagination-status {
+  font-size: 13px;
 }
 
 .state-error-detail {

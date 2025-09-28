@@ -70,6 +70,24 @@ export const Input: React.FC<InputProps> & {
   Password: React.FC<InputProps>;
 };
 
+export interface DatePickerProps extends React.InputHTMLAttributes<HTMLInputElement> {
+  value?: string | null;
+}
+export interface RangePickerProps {
+  value?: [string | null, string | null];
+  onChange?: (
+    value: [string | null, string | null] | null,
+    formatted: [string, string]
+  ) => void;
+  className?: string;
+  style?: React.CSSProperties;
+  placeholder?: [string, string];
+}
+export interface DatePickerComponent extends React.FC<DatePickerProps> {
+  RangePicker: React.FC<RangePickerProps>;
+}
+export const DatePicker: DatePickerComponent;
+
 export interface SelectOption {
   value: string;
   label: React.ReactNode;
@@ -132,6 +150,19 @@ export interface TableProps<T> {
 }
 export function Table<T>(props: TableProps<T>): React.ReactElement;
 
+export interface PaginationProps {
+  current?: number;
+  pageSize?: number;
+  total?: number;
+  showSizeChanger?: boolean;
+  pageSizeOptions?: string[];
+  onChange?: (page: number, pageSize: number) => void;
+  onShowSizeChange?: (page: number, pageSize: number) => void;
+  className?: string;
+  style?: React.CSSProperties;
+}
+export const Pagination: React.FC<PaginationProps>;
+
 export default {
   ConfigProvider,
   Layout,
@@ -141,9 +172,11 @@ export default {
   Alert,
   Button,
   Input,
+  DatePicker,
   Select,
   Table,
   Tag,
   Progress,
   Empty,
+  Pagination,
 };

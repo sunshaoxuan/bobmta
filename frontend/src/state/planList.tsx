@@ -12,6 +12,8 @@ export type PlanListFilters = {
   owner: string;
   keyword: string;
   status: PlanStatus | '';
+  from: string;
+  to: string;
 };
 
 export type PlanListState = {
@@ -31,6 +33,8 @@ export type PlanListController = {
   refresh: () => Promise<void>;
   applyFilters: (filters: Partial<PlanListFilters>) => Promise<void>;
   resetFilters: () => Promise<void>;
+  changePage: (page: number) => Promise<void>;
+  changePageSize: (pageSize: number) => Promise<void>;
 };
 
 const initialState: PlanListState = {
@@ -39,10 +43,12 @@ const initialState: PlanListState = {
     owner: '',
     keyword: '',
     status: '',
+    from: '',
+    to: '',
   },
   pagination: {
     page: 0,
-    pageSize: 20,
+    pageSize: 10,
     total: 0,
   },
   status: 'idle',
@@ -68,7 +74,14 @@ export function usePlanListController(
   const [state, setState] = useState<PlanListState>(initialState);
 
   const loadPlans = useCallback(
-    async (options?: { signal?: AbortSignal; filters?: Partial<PlanListFilters>; page?: number }) => {
+    async (
+      options?: {
+        signal?: AbortSignal;
+        filters?: Partial<PlanListFilters>;
+        page?: number;
+        pageSize?: number;
+      }
+    ) => {
       if (!session) {
         setState(initialState);
         return;
@@ -79,7 +92,7 @@ export function usePlanListController(
       setState((current) => {
         nextFilters = { ...current.filters, ...options?.filters };
         nextPage = options?.page ?? current.pagination.page;
-        pageSize = current.pagination.pageSize;
+        pageSize = Math.max(1, options?.pageSize ?? current.pagination.pageSize);
         return {
           ...current,
           status: 'loading',
@@ -88,6 +101,7 @@ export function usePlanListController(
           pagination: {
             ...current.pagination,
             page: nextPage,
+            pageSize,
           },
         };
       });
@@ -98,6 +112,8 @@ export function usePlanListController(
           owner: normalizeQueryValue(nextFilters.owner),
           keyword: normalizeQueryValue(nextFilters.keyword),
           status: normalizeQueryValue(nextFilters.status),
+          from: normalizeQueryValue(nextFilters.from),
+          to: normalizeQueryValue(nextFilters.to),
           signal: options?.signal,
         });
         setState((current) => ({
@@ -159,10 +175,27 @@ export function usePlanListController(
         owner: '',
         keyword: '',
         status: '',
+        from: '',
+        to: '',
       },
       page: 0,
     });
   }, [loadPlans]);
+
+  const changePage = useCallback(
+    async (page: number) => {
+      await loadPlans({ page: Math.max(0, page) });
+    },
+    [loadPlans]
+  );
+
+  const changePageSize = useCallback(
+    async (pageSize: number) => {
+      const normalized = Math.max(1, pageSize);
+      await loadPlans({ page: 0, pageSize: normalized });
+    },
+    [loadPlans]
+  );
 
   return useMemo(
     () => ({
@@ -170,8 +203,10 @@ export function usePlanListController(
       refresh,
       applyFilters,
       resetFilters,
+      changePage,
+      changePageSize,
     }),
-    [state, refresh, applyFilters, resetFilters]
+    [state, refresh, applyFilters, resetFilters, changePage, changePageSize]
   );
 }
 

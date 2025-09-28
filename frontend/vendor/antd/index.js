@@ -231,6 +231,89 @@ Password.displayName = 'InputPassword';
 
 export const Input = Object.assign(InputBase, { Password });
 
+const formatDateInput = (value) => {
+  if (!value) {
+    return '';
+  }
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return '';
+  }
+  const pad = (token) => token.toString().padStart(2, '0');
+  const year = date.getFullYear();
+  const month = pad(date.getMonth() + 1);
+  const day = pad(date.getDate());
+  const hours = pad(date.getHours());
+  const minutes = pad(date.getMinutes());
+  return `${year}-${month}-${day}T${hours}:${minutes}`;
+};
+
+const toIsoString = (value) => {
+  if (!value) {
+    return null;
+  }
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return null;
+  }
+  return date.toISOString();
+};
+
+export const DatePicker = forwardRef(
+  ({ value, onChange, className = '', style, placeholder }, ref) => (
+    <input
+      ref={ref}
+      type="datetime-local"
+      className={classNames('antd-date-picker', className)}
+      value={formatDateInput(value)}
+      onChange={(event) => {
+        const iso = toIsoString(event.target.value);
+        onChange?.(iso, iso ?? '');
+      }}
+      placeholder={placeholder}
+      style={style}
+    />
+  )
+);
+DatePicker.displayName = 'DatePicker';
+
+const RangePicker = forwardRef(
+  ({ value = [null, null], onChange, className = '', style, placeholder = [] }, ref) => {
+    const startValue = Array.isArray(value) ? value[0] : null;
+    const endValue = Array.isArray(value) ? value[1] : null;
+    const handleStartChange = (event) => {
+      const iso = toIsoString(event.target.value);
+      onChange?.([iso, endValue ?? null], [iso ?? '', formatDateInput(endValue) ?? '']);
+    };
+    const handleEndChange = (event) => {
+      const iso = toIsoString(event.target.value);
+      onChange?.([startValue ?? null, iso], [formatDateInput(startValue) ?? '', iso ?? '']);
+    };
+    return (
+      <div ref={ref} className={classNames('antd-range-picker', className)} style={style}>
+        <input
+          type="datetime-local"
+          className="antd-range-picker-input"
+          value={formatDateInput(startValue)}
+          placeholder={placeholder[0] ?? ''}
+          onChange={handleStartChange}
+        />
+        <span className="antd-range-picker-separator">~</span>
+        <input
+          type="datetime-local"
+          className="antd-range-picker-input"
+          value={formatDateInput(endValue)}
+          placeholder={placeholder[1] ?? ''}
+          onChange={handleEndChange}
+        />
+      </div>
+    );
+  }
+);
+RangePicker.displayName = 'DatePickerRange';
+
+DatePicker.RangePicker = RangePicker;
+
 export const Select = forwardRef(({ options = [], loading = false, className = '', style, onChange, value, ...rest }, ref) => (
   <div className={classNames('antd-select-wrapper', className)} style={style}>
     <select
@@ -370,6 +453,94 @@ export const Table = ({
   );
 };
 
+const buildPageList = (current, totalPages) => {
+  const pages = [];
+  for (let page = 1; page <= totalPages; page += 1) {
+    if (page === 1 || page === totalPages || Math.abs(page - current) <= 1 || totalPages <= 5) {
+      pages.push(page);
+    }
+  }
+  return pages.filter((page, index, array) => array.indexOf(page) === index).sort((a, b) => a - b);
+};
+
+export const Pagination = ({
+  current = 1,
+  pageSize = 10,
+  total = 0,
+  showSizeChanger = false,
+  pageSizeOptions = ['10', '20', '50'],
+  onChange,
+  onShowSizeChange,
+  className = '',
+  style,
+}) => {
+  const safePageSize = Math.max(1, Number(pageSize) || 1);
+  const totalPages = Math.max(1, Math.ceil(Number(total) / safePageSize));
+  const safeCurrent = Math.min(Math.max(1, Number(current) || 1), totalPages);
+  const changePage = (page) => {
+    if (page < 1 || page > totalPages) {
+      return;
+    }
+    onChange?.(page, safePageSize);
+  };
+  const pages = buildPageList(safeCurrent, totalPages);
+
+  return (
+    <div className={classNames('antd-pagination', className)} style={style}>
+      <button
+        type="button"
+        className="antd-pagination-nav"
+        onClick={() => changePage(safeCurrent - 1)}
+        disabled={safeCurrent <= 1}
+      >
+        ‹
+      </button>
+      <div className="antd-pagination-pages">
+        {pages.map((page) => (
+          <button
+            key={page}
+            type="button"
+            className={classNames(
+              'antd-pagination-page',
+              page === safeCurrent ? 'antd-pagination-page-active' : ''
+            )}
+            onClick={() => changePage(page)}
+          >
+            {page}
+          </button>
+        ))}
+      </div>
+      <button
+        type="button"
+        className="antd-pagination-nav"
+        onClick={() => changePage(safeCurrent + 1)}
+        disabled={safeCurrent >= totalPages}
+      >
+        ›
+      </button>
+      {showSizeChanger && (
+        <select
+          className="antd-pagination-size"
+          value={String(safePageSize)}
+          onChange={(event) => {
+            const nextSize = Number(event.target.value) || safePageSize;
+            onShowSizeChange?.(safeCurrent, nextSize);
+          }}
+        >
+          {pageSizeOptions.map((option) => (
+            <option key={option} value={option}>
+              {option}
+            </option>
+          ))}
+        </select>
+      )}
+      <span className="antd-pagination-status">
+        {safeCurrent} / {totalPages}
+      </span>
+    </div>
+  );
+};
+
 export default {
   ConfigProvider,
   Layout,
@@ -379,9 +550,11 @@ export default {
   Alert,
   Button,
   Input,
+  DatePicker,
   Select,
   Table,
   Tag,
   Progress,
   Empty,
+  Pagination,
 };

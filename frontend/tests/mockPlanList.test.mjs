@@ -37,3 +37,18 @@ test('mock plan query paginates results', () => {
   assert.equal(secondPage.pageSize, 2);
   assert.notDeepEqual(firstPage.list.map((plan) => plan.id), secondPage.list.map((plan) => plan.id));
 });
+
+test('mock plan query filters by planned window overlap', () => {
+  const from = new Date('2025-09-30T00:00:00+09:00').toISOString();
+  const to = new Date('2025-10-02T00:00:00+09:00').toISOString();
+  const windowPage = queryMockPlanSummaries({ from, to });
+
+  assert.ok(windowPage.total >= 2);
+  assert.ok(
+    windowPage.list.every((plan) => {
+      const start = new Date(plan.plannedStartTime ?? '').getTime();
+      const end = new Date(plan.plannedEndTime ?? '').getTime();
+      return end >= new Date(from).getTime() && start <= new Date(to).getTime();
+    })
+  );
+});
