@@ -429,6 +429,65 @@ function App() {
   const session = useSessionController(client);
   const planList = usePlanListController(client, session.state.session);
 
+  const planColumns = useMemo<TableColumnsType<PlanSummary>>(
+    () => [
+      {
+        title: t('planTableHeaderId'),
+        dataIndex: 'id',
+        key: 'id',
+        width: 160,
+        render: (value: string) => <Text code>{value}</Text>,
+      },
+      {
+        title: t('planTableHeaderTitle'),
+        dataIndex: 'title',
+        key: 'title',
+        ellipsis: true,
+        render: (value: string) => <Text strong>{value}</Text>,
+      },
+      {
+        title: t('planTableHeaderOwner'),
+        dataIndex: 'owner',
+        key: 'owner',
+        render: (value: string) => <Tag color="geekblue">{value}</Tag>,
+      },
+      {
+        title: t('planTableHeaderStatus'),
+        dataIndex: 'status',
+        key: 'status',
+        render: (_: PlanStatus, record) => (
+          <Tag color={PLAN_STATUS_COLOR[record.status]}>{t(STATUS_LABEL[record.status])}</Tag>
+        ),
+      },
+      {
+        title: t('planTableHeaderWindow'),
+        dataIndex: 'plannedStartTime',
+        key: 'window',
+        render: (_: unknown, record) => <Text>{formatPlanWindow(record)}</Text>,
+      },
+      {
+        title: t('planTableHeaderProgress'),
+        dataIndex: 'progress',
+        key: 'progress',
+        width: 200,
+        render: (value: number) => (
+          <Progress percent={Math.max(0, Math.min(100, Math.round(value ?? 0)))} size="small" />
+        ),
+      },
+      {
+        title: t('planTableHeaderParticipants'),
+        dataIndex: 'participants',
+        key: 'participants',
+        width: 160,
+        render: (_: string[], record) => <Tag color="purple">{record.participants.length}</Tag>,
+      },
+    ],
+    [formatPlanWindow, t]
+  );
+
+  const authButtonDisabled =
+    authLoading || credentials.username.trim().length === 0 || credentials.password.length === 0;
+
   return (
     <ConfigProvider
       theme={{
@@ -449,4 +508,42 @@ function App() {
   );
 }
 
+  const handleLogout = useCallback(() => {
+    setSession(null);
+    setPlans([]);
+    setPlansError(null);
+  }, []);
+
+  const authErrorDetail = describeRemoteError(authError);
+  const planErrorDetail = describeRemoteError(plansError);
+  const planColumns = useMemo<TableColumnsType<PlanSummary>>(
+    () => [
+      {
+        title: t('planTableHeaderId'),
+        dataIndex: 'id',
+        key: 'id',
+        width: 160,
+        render: (value: string) => <Text code>{value}</Text>,
+      },
+      {
+        title: t('planTableHeaderTitle'),
+        dataIndex: 'title',
+        key: 'title',
+        ellipsis: true,
+        render: (value: string) => <Text strong>{value}</Text>,
+      },
+      {
+        title: t('planTableHeaderOwner'),
+        dataIndex: 'owner',
+        key: 'owner',
+        render: (value: string) => <Tag color="geekblue">{value}</Tag>,
+      },
+      {
+        title: t('planTableHeaderStatus'),
+        dataIndex: 'status',
+        key: 'status',
+        render: (_: PlanStatus, record) => (
+          <Tag color={PLAN_STATUS_COLOR[record.status]}>{t(STATUS_LABEL[record.status])}</Tag>
+
+}
 export default App;
