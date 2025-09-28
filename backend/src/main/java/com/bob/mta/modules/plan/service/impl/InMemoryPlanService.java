@@ -19,10 +19,12 @@ import com.bob.mta.modules.plan.domain.PlanStatus;
 import com.bob.mta.modules.plan.repository.PlanRepository;
 import com.bob.mta.modules.plan.repository.PlanSearchCriteria;
 import com.bob.mta.modules.plan.service.PlanService;
+import com.bob.mta.modules.plan.service.PlanSearchResult;
 import com.bob.mta.modules.plan.service.command.CreatePlanCommand;
 import com.bob.mta.modules.plan.service.command.PlanNodeCommand;
 import com.bob.mta.modules.plan.service.command.UpdatePlanCommand;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
 import java.time.OffsetDateTime;
@@ -38,6 +40,7 @@ import java.util.Objects;
 import java.util.stream.Collectors;
 
 @Service
+@Transactional(readOnly = true)
 public class InMemoryPlanService implements PlanService {
 
     private static final DateTimeFormatter ICS_FORMATTER = DateTimeFormatter.ofPattern("yyyyMMdd'T'HHmmss'Z'", Locale.US)
@@ -51,59 +54,16 @@ public class InMemoryPlanService implements PlanService {
         this.fileService = fileService;
         this.planRepository = planRepository;
         this.messageResolver = messageResolver;
-        seedPlans();
-    }
-
-    private void seedPlans() {
-        if (!planRepository.findAll().isEmpty()) {
-            return;
-        }
-
-        List<PlanNodeCommand> nodes = List.of(
-                new PlanNodeCommand(null, Localization.text(LocalizationKeys.Seeds.PLAN_NODE_BACKUP_TITLE), "REMOTE",
-                        "admin", 1, 60, "remote-template-1",
-                        Localization.text(LocalizationKeys.Seeds.PLAN_NODE_BACKUP_DESCRIPTION), List.of()),
-                new PlanNodeCommand(null, Localization.text(LocalizationKeys.Seeds.PLAN_NODE_NOTIFY_TITLE), "EMAIL",
-                        "operator", 2, 15, "email-template-1",
-                        Localization.text(LocalizationKeys.Seeds.PLAN_NODE_NOTIFY_DESCRIPTION), List.of())
-        );
-        CreatePlanCommand command = new CreatePlanCommand(
-                "tenant-001",
-                Localization.text(LocalizationKeys.Seeds.PLAN_PRIMARY_TITLE),
-                Localization.text(LocalizationKeys.Seeds.PLAN_PRIMARY_DESCRIPTION),
-                "cust-001",
-                "admin",
-                OffsetDateTime.now().plusDays(3),
-                OffsetDateTime.now().plusDays(3).plusHours(4),
-                "Asia/Tokyo",
-                List.of("admin", "operator"),
-                nodes
-        );
-        Plan plan = buildPlan(planRepository.nextPlanId(), command, OffsetDateTime.now());
-        planRepository.save(plan);
-
-        CreatePlanCommand command2 = new CreatePlanCommand(
-                "tenant-001",
-                Localization.text(LocalizationKeys.Seeds.PLAN_SECONDARY_TITLE),
-                Localization.text(LocalizationKeys.Seeds.PLAN_SECONDARY_DESCRIPTION),
-                "cust-002",
-                "operator",
-                OffsetDateTime.now().plusWeeks(1),
-                OffsetDateTime.now().plusWeeks(1).plusHours(6),
-                "Asia/Tokyo",
-                List.of("operator"),
-                List.of(new PlanNodeCommand(null, Localization.text(LocalizationKeys.Seeds.PLAN_SECONDARY_NODE_TITLE),
-                        "CHECKLIST", "operator", 1, 180, null,
-                        Localization.text(LocalizationKeys.Seeds.PLAN_SECONDARY_NODE_DESCRIPTION), List.of()))
-        );
-        Plan plan2 = buildPlan(planRepository.nextPlanId(), command2, OffsetDateTime.now());
-        planRepository.save(plan2);
     }
 
     @Override
-    public List<Plan> listPlans(String customerId, String owner, String keyword, PlanStatus status,
-                                OffsetDateTime from, OffsetDateTime to) {
-        PlanSearchCriteria criteria = PlanSearchCriteria.builder()
+    public PlanSearchResult listPlans(String customerId, String owner, String keyword, PlanStatus status,
+                                      OffsetDateTime from, OffsetDateTime to, int page, int size) {
+        int sanitizedSize = size <= 0 ? 10 : size;
+        int sanitizedPage = Math.max(page, 0);
+        int offset = sanitizedPage * sanitizedSize;
+
+        PlanSearchCriteria baseCriteria = PlanSearchCriteria.builder()
                 .customerId(StringUtils.hasText(customerId) ? customerId : null)
                 .owner(StringUtils.hasText(owner) ? owner : null)
                 .keyword(StringUtils.hasText(keyword) ? keyword : null)
@@ -111,9 +71,26 @@ public class InMemoryPlanService implements PlanService {
                 .from(from)
                 .to(to)
                 .build();
-        return planRepository.findByCriteria(criteria).stream()
-                .sorted(Comparator.comparing(Plan::getPlannedStartTime))
+
+        int total = planRepository.countByCriteria(baseCriteria);
+
+        PlanSearchCriteria pageCriteria = PlanSearchCriteria.builder()
+                .customerId(baseCriteria.getCustomerId())
+                .owner(baseCriteria.getOwner())
+                .keyword(baseCriteria.getKeyword())
+                .status(baseCriteria.getStatus())
+                .from(baseCriteria.getFrom())
+                .to(baseCriteria.getTo())
+                .limit(sanitizedSize)
+                .offset(offset)
+                .build();
+
+        List<Plan> plans = planRepository.findByCriteria(pageCriteria).stream()
+                .sorted(Comparator.comparing(Plan::getPlannedStartTime, Comparator.nullsLast(Comparator.naturalOrder()))
+                        .thenComparing(Plan::getId, Comparator.nullsLast(Comparator.naturalOrder())))
                 .collect(Collectors.toList());
+
+        return new PlanSearchResult(plans, total);
     }
 
     private boolean matchesKeyword(Plan plan, String keyword) {
@@ -136,6 +113,7 @@ public class InMemoryPlanService implements PlanService {
     }
 
     @Override
+    @Transactional
     public Plan createPlan(CreatePlanCommand command) {
         String id = planRepository.nextPlanId();
         OffsetDateTime now = OffsetDateTime.now();
@@ -145,6 +123,7 @@ public class InMemoryPlanService implements PlanService {
     }
 
     @Override
+    @Transactional
     public Plan updatePlan(String id, UpdatePlanCommand command) {
         Plan current = requirePlan(id);
         if (current.getStatus() != PlanStatus.DESIGN) {
@@ -173,6 +152,7 @@ public class InMemoryPlanService implements PlanService {
     }
 
     @Override
+    @Transactional
     public void deletePlan(String id) {
         Plan current = requirePlan(id);
         if (current.getStatus() != PlanStatus.DESIGN) {
@@ -182,6 +162,7 @@ public class InMemoryPlanService implements PlanService {
     }
 
     @Override
+    @Transactional
     public Plan publishPlan(String id, String operator) {
         Plan current = requirePlan(id);
         if (current.getStatus() != PlanStatus.DESIGN) {
@@ -207,6 +188,7 @@ public class InMemoryPlanService implements PlanService {
     }
 
     @Override
+    @Transactional
     public Plan cancelPlan(String id, String operator, String reason) {
         Plan current = requirePlan(id);
         if (current.getStatus() == PlanStatus.COMPLETED || current.getStatus() == PlanStatus.CANCELED) {
@@ -230,6 +212,7 @@ public class InMemoryPlanService implements PlanService {
     }
 
     @Override
+    @Transactional
     public PlanNodeExecution startNode(String planId, String nodeId, String operator) {
         Plan current = requirePlan(planId);
         ensurePlanExecutable(current);
@@ -266,8 +249,9 @@ public class InMemoryPlanService implements PlanService {
     }
 
     @Override
+    @Transactional
     public PlanNodeExecution completeNode(String planId, String nodeId, String operator, String result,
-                                          String log, List<String> fileIds) {
+                                   String log, List<String> fileIds) {
         Plan current = requirePlan(planId);
         ensurePlanExecutable(current);
         PlanNodeExecution target = findExecution(current, nodeId);
@@ -319,6 +303,7 @@ public class InMemoryPlanService implements PlanService {
     }
 
     @Override
+    @Transactional
     public Plan handoverPlan(String planId, String newOwner, List<String> participants, String note, String operator) {
         Plan current = requirePlan(planId);
         if (!StringUtils.hasText(newOwner)) {
@@ -374,6 +359,7 @@ public class InMemoryPlanService implements PlanService {
     }
 
     @Override
+    @Transactional
     public Plan updateReminderPolicy(String planId, List<PlanReminderRule> rules, String operator) {
         Plan current = requirePlan(planId);
         OffsetDateTime now = OffsetDateTime.now();
