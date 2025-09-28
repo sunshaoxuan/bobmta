@@ -7,6 +7,7 @@ import com.bob.mta.common.exception.BusinessException;
 import com.bob.mta.i18n.Localization;
 import com.bob.mta.i18n.LocalizationKeys;
 import com.bob.mta.modules.file.service.impl.InMemoryFileService;
+import com.bob.mta.modules.plan.domain.Plan;
 import com.bob.mta.modules.plan.domain.PlanActivityType;
 import com.bob.mta.modules.plan.domain.PlanReminderRule;
 import com.bob.mta.modules.plan.domain.PlanReminderSchedule;
@@ -18,14 +19,28 @@ import com.bob.mta.modules.plan.repository.InMemoryPlanRepository;
 import com.bob.mta.modules.plan.service.command.CreatePlanCommand;
 import com.bob.mta.modules.plan.service.command.PlanNodeCommand;
 import org.junit.jupiter.api.Test;
+import org.springframework.context.i18n.LocaleContextHolder;
 
 import java.time.OffsetDateTime;
 import java.util.List;
+import java.util.Locale;
 
 class InMemoryPlanServiceTest {
 
     private final InMemoryPlanRepository repository = new InMemoryPlanRepository();
-    private final InMemoryPlanService service = new InMemoryPlanService(new InMemoryFileService(), repository);
+    private final MessageResolver messageResolver = TestMessageResolverFactory.create();
+    private final InMemoryPlanService service = new InMemoryPlanService(new InMemoryFileService(), repository,
+            messageResolver);
+
+    @BeforeEach
+    void setUpLocale() {
+        LocaleContextHolder.setLocale(Locale.SIMPLIFIED_CHINESE);
+    }
+
+    @AfterEach
+    void resetLocale() {
+        LocaleContextHolder.resetLocaleContext();
+    }
 
     @Test
     void shouldCreatePlanWithExecutions() {
@@ -56,7 +71,7 @@ class InMemoryPlanServiceTest {
 
     @Test
     void shouldUpdateReminderPolicy() {
-        var plan = service.listPlans(null, null, null, null).get(0);
+        var plan = service.listPlans(null, null, null, null, null, null).get(0);
         List<PlanReminderRule> rules = List.of(
                 new PlanReminderRule(null, PlanReminderTrigger.BEFORE_PLAN_START, 90,
                         List.of("EMAIL"), "template-90", List.of("OWNER"),
@@ -74,7 +89,7 @@ class InMemoryPlanServiceTest {
 
     @Test
     void shouldPreviewReminderSchedule() {
-        var plan = service.listPlans(null, null, null, null).get(0);
+        var plan = service.listPlans(null, null, null, null, null, null).get(0);
 
         List<PlanReminderSchedule> schedule = service.previewReminderSchedule(plan.getId(), OffsetDateTime.now().minusDays(1));
 
@@ -85,7 +100,7 @@ class InMemoryPlanServiceTest {
 
     @Test
     void shouldStartNode() {
-        var plan = service.listPlans(null, null, null, null).get(0);
+        var plan = service.listPlans(null, null, null, null, null, null).get(0);
         service.publishPlan(plan.getId(), "admin");
         PlanNodeExecution execution = service.startNode(plan.getId(), plan.getExecutions().get(0).getNodeId(), "admin");
 
@@ -112,7 +127,7 @@ class InMemoryPlanServiceTest {
 
     @Test
     void shouldPersistCancellationMetadata() {
-        var plan = service.listPlans(null, null, null, null).get(0);
+        var plan = service.listPlans(null, null, null, null, null, null).get(0);
 
         var updated = service.cancelPlan(plan.getId(), "operator", "R-001");
 
@@ -124,7 +139,7 @@ class InMemoryPlanServiceTest {
 
     @Test
     void shouldHandoverPlan() {
-        var plan = service.listPlans(null, null, null, null).get(0);
+        var plan = service.listPlans(null, null, null, null, null, null).get(0);
 
         var updated = service.handoverPlan(plan.getId(), "operator", List.of("operator", "observer"),
                 Localization.text(LocalizationKeys.Seeds.PLAN_ACTIVITY_HANDOVER), "admin");
@@ -143,7 +158,7 @@ class InMemoryPlanServiceTest {
 
     @Test
     void shouldCaptureTimelineForNodeLifecycle() {
-        var plan = service.listPlans(null, null, null, null).get(0);
+        var plan = service.listPlans(null, null, null, null, null, null).get(0);
         service.publishPlan(plan.getId(), "admin");
         String nodeId = plan.getExecutions().get(0).getNodeId();
         service.startNode(plan.getId(), nodeId, "operator");
@@ -161,7 +176,7 @@ class InMemoryPlanServiceTest {
 
     @Test
     void shouldRejectStartWhenDesign() {
-        var plan = service.listPlans(null, null, null, null).get(0);
+        var plan = service.listPlans(null, null, null, null, null, null).get(0);
 
         assertThatThrownBy(() -> service.startNode(plan.getId(), plan.getExecutions().get(0).getNodeId(), "admin"))
                 .isInstanceOf(BusinessException.class)
@@ -170,7 +185,7 @@ class InMemoryPlanServiceTest {
 
     @Test
     void shouldRejectStartWhenCanceled() {
-        var plan = service.listPlans(null, null, null, null).get(0);
+        var plan = service.listPlans(null, null, null, null, null, null).get(0);
         service.publishPlan(plan.getId(), "admin");
         service.cancelPlan(plan.getId(), "admin",
                 Localization.text(LocalizationKeys.Seeds.PLAN_ACTIVITY_CANCELLED));
@@ -182,7 +197,7 @@ class InMemoryPlanServiceTest {
 
     @Test
     void shouldRejectCompleteWhenPending() {
-        var plan = service.listPlans(null, null, null, null).get(0);
+        var plan = service.listPlans(null, null, null, null, null, null).get(0);
         service.publishPlan(plan.getId(), "admin");
 
         assertThatThrownBy(() -> service.completeNode(plan.getId(), plan.getExecutions().get(0).getNodeId(),
@@ -193,7 +208,7 @@ class InMemoryPlanServiceTest {
 
     @Test
     void shouldRejectCompleteWhenPlanCanceled() {
-        var plan = service.listPlans(null, null, null, null).get(0);
+        var plan = service.listPlans(null, null, null, null, null, null).get(0);
         service.publishPlan(plan.getId(), "admin");
         String nodeId = plan.getExecutions().get(0).getNodeId();
         service.startNode(plan.getId(), nodeId, "admin");
@@ -227,7 +242,7 @@ class InMemoryPlanServiceTest {
         var overduePlan = service.createPlan(overdueCommand);
         service.publishPlan(overduePlan.getId(), "admin");
 
-        var planToCancel = service.listPlans(null, null, null, null).stream()
+        var planToCancel = service.listPlans(null, null, null, null, null, null).stream()
                 .filter(plan -> !plan.getId().equals(overduePlan.getId()))
                 .findFirst()
                 .orElseThrow();
