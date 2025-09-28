@@ -134,13 +134,44 @@
                 AND planned_start_time &lt;= #{plannedEndTo}
             </if>
         </where>
-        ORDER BY created_at DESC
+        ORDER BY planned_start_time NULLS LAST, plan_id
         <if test="limit != null">
             LIMIT #{limit}
         </if>
         <if test="offset != null">
             OFFSET #{offset}
         </if>
+    </select>
+
+    <select id="countPlans" parameterType="com.bob.mta.modules.plan.persistence.PlanQueryParameters" resultType="int">
+        SELECT COUNT(1)
+        FROM mt_plan
+        <where>
+            <if test="tenantId != null">
+                tenant_id = #{tenantId}
+            </if>
+            <if test="customerId != null">
+                AND customer_id = #{customerId}
+            </if>
+            <if test="owner != null">
+                AND owner_id = #{owner}
+            </if>
+            <if test="keyword != null and keyword != ''">
+                AND (
+                title ILIKE CONCAT('%', #{keyword}, '%')
+                OR description ILIKE CONCAT('%', #{keyword}, '%')
+                )
+            </if>
+            <if test="status != null">
+                AND status = #{status}
+            </if>
+            <if test="plannedStartFrom != null">
+                AND planned_end_time &gt;= #{plannedStartFrom}
+            </if>
+            <if test="plannedEndTo != null">
+                AND planned_start_time &lt;= #{plannedEndTo}
+            </if>
+        </where>
     </select>
 
     <select id="findPlanById" parameterType="string" resultMap="PlanEntityResult">

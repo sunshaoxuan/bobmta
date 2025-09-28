@@ -46,6 +46,12 @@ public class PlanPersistencePlanRepository implements PlanRepository {
     }
 
     @Override
+    public int countByCriteria(PlanSearchCriteria criteria) {
+        PlanQueryParameters parameters = PlanQueryParameters.fromCriteria(criteria);
+        return mapper.countPlans(parameters);
+    }
+
+    @Override
     public Optional<Plan> findById(String id) {
         PlanEntity entity = mapper.findPlanById(id);
         if (entity == null) {
@@ -139,8 +145,12 @@ public class PlanPersistencePlanRepository implements PlanRepository {
         Map<String, List<PlanReminderRuleEntity>> reminderRules = groupByPlanId(
                 mapper.findReminderRulesByPlanIds(planIds), PlanReminderRuleEntity::planId);
 
+        Comparator<PlanEntity> comparator = Comparator
+                .comparing(PlanEntity::plannedStartTime, Comparator.nullsLast(Comparator.naturalOrder()))
+                .thenComparing(PlanEntity::id, Comparator.nullsLast(Comparator.naturalOrder()));
+
         return planEntities.stream()
-                .sorted(Comparator.comparing(PlanEntity::createdAt, Comparator.nullsLast(Comparator.naturalOrder())))
+                .sorted(comparator)
                 .map(entity -> new PlanAggregate(
                         entity,
                         participants.getOrDefault(entity.id(), List.of()),

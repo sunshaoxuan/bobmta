@@ -11,7 +11,9 @@ public interface PlanAggregateMapper {
 
     List<PlanEntity> findPlans(PlanQueryParameters parameters);
 
-    PlanEntity findPlanById(@Param("planId") String planId);
+    int countPlans(PlanQueryParameters parameters);
+
+  PlanEntity findPlanById(@Param("planId") String planId);
 
     List<PlanParticipantEntity> findParticipantsByPlanIds(@Param("planIds") Collection<String> planIds);
 

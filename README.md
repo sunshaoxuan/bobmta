@@ -36,6 +36,10 @@
   - 新增 `PlanSeedDataInitializer` 仅在内存仓储环境注入示例计划，避免持久化数据库被默认数据污染，同时补充启动级单元测试。
   - `InMemoryPlanRepository` 仅在缺失 MyBatis 映射时装配，与 `PlanPersistencePlanRepository` 条件互斥，确保持久化实现优先生效。
   - 前端交付登录表单与计划列表面板，利用多语言资源展示计划状态、时间窗与进度，并支持手动刷新。
+- 迭代 #7：统一计划列表分页与查询契约，为 MyBatis 与前端页面提供一致的数据入口。
+  - `PlanSearchCriteria` 扩展 limit/offset，仓储新增 `countByCriteria`，MyBatis XML 提供 `countPlans` 以支撑数据库统计。
+  - `PlanService` 返回 `PlanSearchResult`，控制层直接使用仓储分页结果组装 `PageResponse`，避免内存子集分页的总数误差。
+  - 内存仓储与持久化实现统一按照计划开始时间排序并应用分页裁剪，补充单元测试覆盖页码、统计和顺序一致性。
 
 ### 🔄 正在进行
 - 梳理控制层到仓储层的事务边界与审计写入顺序，明确未来切换至数据库后的并发与一致性策略，并保证国际化信息与事件顺序一致。

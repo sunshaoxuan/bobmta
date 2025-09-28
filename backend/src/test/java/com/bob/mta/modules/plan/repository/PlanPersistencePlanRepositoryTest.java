@@ -147,6 +147,7 @@ class PlanPersistencePlanRepositoryTest {
     @Test
     void shouldFindPlansByCriteria() {
         when(mapper.findPlans(any())).thenReturn(List.of(aggregate.plan()));
+        when(mapper.countPlans(any())).thenReturn(1);
         when(mapper.findParticipantsByPlanIds(List.of("plan-1"))).thenReturn(aggregate.participants());
         when(mapper.findNodesByPlanIds(List.of("plan-1"))).thenReturn(aggregate.nodes());
         when(mapper.findExecutionsByPlanIds(List.of("plan-1"))).thenReturn(aggregate.executions());
@@ -167,6 +168,18 @@ class PlanPersistencePlanRepositoryTest {
         verify(mapper).findAttachmentsByPlanIds(List.of("plan-1"));
         verify(mapper).findActivitiesByPlanIds(List.of("plan-1"));
         verify(mapper).findReminderRulesByPlanIds(List.of("plan-1"));
+    }
+
+    @Test
+    void shouldCountPlansByCriteria() {
+        when(mapper.countPlans(any())).thenReturn(3);
+
+        int total = repository.countByCriteria(PlanSearchCriteria.builder()
+                .tenantId("tenant-1")
+                .build());
+
+        assertThat(total).isEqualTo(3);
+        verify(mapper).countPlans(any());
     }
 
     @Test

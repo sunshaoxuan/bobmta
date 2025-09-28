@@ -33,8 +33,8 @@ public record PlanQueryParameters(
                 criteria.getStatus(),
                 criteria.getFrom(),
                 criteria.getTo(),
-                null,
-                null
+                criteria.getLimit(),
+                criteria.getOffset()
         );
     }
 }

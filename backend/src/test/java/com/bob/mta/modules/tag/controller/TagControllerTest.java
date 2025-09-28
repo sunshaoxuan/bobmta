@@ -71,7 +71,7 @@ class TagControllerTest {
         var created = controller.create(buildRequest("plan", com.bob.mta.modules.tag.domain.TagScope.PLAN), "ja-JP");
         AssignTagRequest assign = new AssignTagRequest();
         assign.setEntityType(TagEntityType.PLAN);
-        assign.setEntityId(planService.listPlans(null, null, null, null, null, null).get(0).getId());
+        assign.setEntityId(planService.listPlans(null, null, null, null, null, null, 0, 10).plans().get(0).getId());
 
         controller.assign(created.getData().getId(), assign);
 

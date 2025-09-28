@@ -19,6 +19,7 @@ import com.bob.mta.modules.plan.domain.PlanStatus;
 import com.bob.mta.modules.plan.repository.PlanRepository;
 import com.bob.mta.modules.plan.repository.PlanSearchCriteria;
 import com.bob.mta.modules.plan.service.PlanService;
+import com.bob.mta.modules.plan.service.PlanSearchResult;
 import com.bob.mta.modules.plan.service.command.CreatePlanCommand;
 import com.bob.mta.modules.plan.service.command.PlanNodeCommand;
 import com.bob.mta.modules.plan.service.command.UpdatePlanCommand;
@@ -54,9 +55,13 @@ public class InMemoryPlanService implements PlanService {
     }
 
     @Override
-    public List<Plan> listPlans(String customerId, String owner, String keyword, PlanStatus status,
-                                OffsetDateTime from, OffsetDateTime to) {
-        PlanSearchCriteria criteria = PlanSearchCriteria.builder()
+    public PlanSearchResult listPlans(String customerId, String owner, String keyword, PlanStatus status,
+                                      OffsetDateTime from, OffsetDateTime to, int page, int size) {
+        int sanitizedSize = size <= 0 ? 10 : size;
+        int sanitizedPage = Math.max(page, 0);
+        int offset = sanitizedPage * sanitizedSize;
+
+        PlanSearchCriteria baseCriteria = PlanSearchCriteria.builder()
                 .customerId(StringUtils.hasText(customerId) ? customerId : null)
                 .owner(StringUtils.hasText(owner) ? owner : null)
                 .keyword(StringUtils.hasText(keyword) ? keyword : null)
@@ -64,9 +69,26 @@ public class InMemoryPlanService implements PlanService {
                 .from(from)
                 .to(to)
                 .build();
-        return planRepository.findByCriteria(criteria).stream()
-                .sorted(Comparator.comparing(Plan::getPlannedStartTime))
+
+        int total = planRepository.countByCriteria(baseCriteria);
+
+        PlanSearchCriteria pageCriteria = PlanSearchCriteria.builder()
+                .customerId(baseCriteria.getCustomerId())
+                .owner(baseCriteria.getOwner())
+                .keyword(baseCriteria.getKeyword())
+                .status(baseCriteria.getStatus())
+                .from(baseCriteria.getFrom())
+                .to(baseCriteria.getTo())
+                .limit(sanitizedSize)
+                .offset(offset)
+                .build();
+
+        List<Plan> plans = planRepository.findByCriteria(pageCriteria).stream()
+                .sorted(Comparator.comparing(Plan::getPlannedStartTime, Comparator.nullsLast(Comparator.naturalOrder()))
+                        .thenComparing(Plan::getId, Comparator.nullsLast(Comparator.naturalOrder())))
                 .collect(Collectors.toList());
+
+        return new PlanSearchResult(plans, total);
     }
 
     private boolean matchesKeyword(Plan plan, String keyword) {

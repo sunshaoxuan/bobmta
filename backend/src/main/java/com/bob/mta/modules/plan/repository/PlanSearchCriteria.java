@@ -13,6 +13,8 @@ public final class PlanSearchCriteria {
     private final PlanStatus status;
     private final OffsetDateTime from;
     private final OffsetDateTime to;
+    private final Integer limit;
+    private final Integer offset;
 
     private PlanSearchCriteria(Builder builder) {
         this.tenantId = builder.tenantId;
@@ -22,6 +24,8 @@ public final class PlanSearchCriteria {
         this.status = builder.status;
         this.from = builder.from;
         this.to = builder.to;
+        this.limit = builder.limit;
+        this.offset = builder.offset;
     }
 
     public static Builder builder() {
@@ -56,6 +60,14 @@ public final class PlanSearchCriteria {
         return to;
     }
 
+    public Integer getLimit() {
+        return limit;
+    }
+
+    public Integer getOffset() {
+        return offset;
+    }
+
     public static final class Builder {
 
         private String tenantId;
@@ -65,6 +77,8 @@ public final class PlanSearchCriteria {
         private PlanStatus status;
         private OffsetDateTime from;
         private OffsetDateTime to;
+        private Integer limit;
+        private Integer offset;
 
         private Builder() {
         }
@@ -101,6 +115,16 @@ public final class PlanSearchCriteria {
 
         public Builder to(OffsetDateTime to) {
             this.to = to;
+            return this;
+        }
+
+        public Builder limit(Integer limit) {
+            this.limit = limit;
+            return this;
+        }
+
+        public Builder offset(Integer offset) {
+            this.offset = offset;
             return this;
         }
 

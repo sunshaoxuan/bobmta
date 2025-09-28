@@ -6,6 +6,7 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean
 import org.springframework.stereotype.Repository;
 
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
@@ -13,6 +14,7 @@ import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.Locale;
 import java.util.Objects;
+import java.util.stream.Collectors;
 
 @Repository
 @ConditionalOnMissingBean(PlanAggregateMapper.class)
@@ -30,25 +32,21 @@ public class InMemoryPlanRepository implements PlanRepository {
 
     @Override
     public List<Plan> findByCriteria(PlanSearchCriteria criteria) {
+        List<Plan> filtered = filter(criteria);
         if (criteria == null) {
-            return findAll();
+            return filtered;
         }
-        return storage.values().stream()
-                .filter(plan -> criteria.getTenantId() == null
-                        || Objects.equals(plan.getTenantId(), criteria.getTenantId()))
-                .filter(plan -> criteria.getCustomerId() == null
-                        || Objects.equals(plan.getCustomerId(), criteria.getCustomerId()))
-                .filter(plan -> criteria.getOwner() == null
-                        || Objects.equals(plan.getOwner(), criteria.getOwner()))
-                .filter(plan -> matchesKeyword(plan, criteria.getKeyword()))
-                .filter(plan -> criteria.getStatus() == null || plan.getStatus() == criteria.getStatus())
-                .filter(plan -> criteria.getFrom() == null
-                        || (plan.getPlannedEndTime() != null
-                        && !plan.getPlannedEndTime().isBefore(criteria.getFrom())))
-                .filter(plan -> criteria.getTo() == null
-                        || (plan.getPlannedStartTime() != null
-                        && !plan.getPlannedStartTime().isAfter(criteria.getTo())))
-                .toList();
+        int offset = criteria.getOffset() == null ? 0 : Math.max(criteria.getOffset(), 0);
+        Integer limit = criteria.getLimit() != null && criteria.getLimit() > 0 ? criteria.getLimit() : null;
+        return filtered.stream()
+                .skip(offset)
+                .limit(limit == null ? Long.MAX_VALUE : limit)
+                .collect(Collectors.toList());
+    }
+
+    @Override
+    public int countByCriteria(PlanSearchCriteria criteria) {
+        return filter(criteria).size();
     }
 
     @Override
@@ -87,6 +85,31 @@ public class InMemoryPlanRepository implements PlanRepository {
         }
         return containsIgnoreCase(plan.getTitle(), keyword)
                 || containsIgnoreCase(plan.getDescription(), keyword);
+    }
+
+    private List<Plan> filter(PlanSearchCriteria criteria) {
+        Comparator<Plan> comparator = Comparator
+                .comparing(Plan::getPlannedStartTime, Comparator.nullsLast(Comparator.naturalOrder()))
+                .thenComparing(Plan::getId, Comparator.nullsLast(Comparator.naturalOrder()));
+
+        return storage.values().stream()
+                .filter(plan -> criteria == null || criteria.getTenantId() == null
+                        || Objects.equals(plan.getTenantId(), criteria.getTenantId()))
+                .filter(plan -> criteria == null || criteria.getCustomerId() == null
+                        || Objects.equals(plan.getCustomerId(), criteria.getCustomerId()))
+                .filter(plan -> criteria == null || criteria.getOwner() == null
+                        || Objects.equals(plan.getOwner(), criteria.getOwner()))
+                .filter(plan -> criteria == null || matchesKeyword(plan, criteria.getKeyword()))
+                .filter(plan -> criteria == null || criteria.getStatus() == null
+                        || plan.getStatus() == criteria.getStatus())
+                .filter(plan -> criteria == null || criteria.getFrom() == null
+                        || (plan.getPlannedEndTime() != null
+                        && !plan.getPlannedEndTime().isBefore(criteria.getFrom())))
+                .filter(plan -> criteria == null || criteria.getTo() == null
+                        || (plan.getPlannedStartTime() != null
+                        && !plan.getPlannedStartTime().isAfter(criteria.getTo())))
+                .sorted(comparator)
+                .collect(Collectors.toList());
     }
 
     private boolean containsIgnoreCase(String value, String needle) {
