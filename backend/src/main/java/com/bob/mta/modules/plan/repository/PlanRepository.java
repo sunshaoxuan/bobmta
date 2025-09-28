@@ -11,6 +11,8 @@ public interface PlanRepository {
 
     List<Plan> findByCriteria(PlanSearchCriteria criteria);
 
+    int countByCriteria(PlanSearchCriteria criteria);
+
     Optional<Plan> findById(String id);
 
     void save(Plan plan);

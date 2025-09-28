@@ -13,9 +13,6 @@ import org.springframework.boot.context.properties.EnableConfigurationProperties
     DataSourceTransactionManagerAutoConfiguration.class,
     JdbcTemplateAutoConfiguration.class
 })
-
-
-@SpringBootApplication
 @EnableConfigurationProperties(JwtProperties.class)
 public class BobMtaApplication {
     public static void main(String[] args) {
