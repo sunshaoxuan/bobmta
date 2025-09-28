@@ -8,7 +8,6 @@
     "build": "tsc -p tsconfig.app.json",
     "preview": "node scripts/preview.js"
   },
-
   "dependencies": {},
   "devDependencies": {}
 }

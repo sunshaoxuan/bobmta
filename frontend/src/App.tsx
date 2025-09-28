@@ -1,4 +1,10 @@
-import React, { useCallback, useEffect, useMemo, useState } from '../vendor/react/index.js';
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+  type ReactNode,
+} from '../vendor/react/index.js';
 import './App.css';
 import {
   Alert,
@@ -16,60 +22,25 @@ import {
   Typography,
 } from '../vendor/antd/index.js';
 import type { TableColumnsType } from '../vendor/antd/index.js';
+import { createApiClient, type ApiClient, type ApiError } from './api/client';
+import { fetchPing } from './api/system';
+import type { PlanStatus, PlanSummary } from './api/types';
 import {
-  DEFAULT_LOCALE,
-  fetchLocalization,
-  formatMessage,
-  getCachedLocalization,
-  getSupportedLocales,
-  type Locale,
-  type LocalizationBundle,
-  type UiMessageKey,
-} from './i18n/localization';
+  useLocalizationState,
+  type LocalizationState,
+} from './i18n/useLocalization';
+import { type Locale, type UiMessageKey } from './i18n/localization';
+import {
+  usePlanListController,
+  type PlanListController,
+} from './state/planList';
+import {
+  useSessionController,
+  type SessionController,
+} from './state/session';
 
 const { Header, Content } = Layout;
 const { Title, Paragraph, Text } = Typography;
-
-type ApiResponse<T> = {
-  code: number;
-  message: string;
-  data: T | null;
-};
-
-type PingResponse = {
-  status: string;
-};
-
-type LoginResponse = {
-  token: string;
-  expiresAt: string;
-  displayName: string;
-  roles: string[];
-};
-
-type PageResponse<T> = {
-  list: T[];
-  total: number;
-  page: number;
-  pageSize: number;
-};
-
-type PlanStatus = 'DESIGN' | 'SCHEDULED' | 'IN_PROGRESS' | 'COMPLETED' | 'CANCELLED';
-
-type PlanSummary = {
-  id: string;
-  title: string;
-  owner: string;
-  status: PlanStatus;
-  plannedStartTime?: string | null;
-  plannedEndTime?: string | null;
-  participants: string[];
-  progress: number;
-};
-
-type RemoteError =
-  | { type: 'status'; status: number }
-  | { type: 'network' };
 
 const STATUS_LABEL: Record<PlanStatus, UiMessageKey> = {
   DESIGN: 'planStatusDesign',
@@ -90,254 +61,373 @@ const PLAN_STATUS_COLOR: Record<
   CANCELLED: 'error',
 };
 
-function App() {
-  const [locale, setLocale] = useState<Locale>(DEFAULT_LOCALE);
-  const [bundle, setBundle] = useState<LocalizationBundle | null>(null);
-  const [loadingBundle, setLoadingBundle] = useState<boolean>(false);
-  const [ping, setPing] = useState<PingResponse | null>(null);
-  const [pingError, setPingError] = useState<{
-    key: UiMessageKey;
-    values?: Record<string, string | number>;
-  } | null>(null);
-  const [credentials, setCredentials] = useState({ username: '', password: '' });
-  const [authLoading, setAuthLoading] = useState(false);
-  const [session, setSession] = useState<LoginResponse | null>(null);
-  const [authError, setAuthError] = useState<RemoteError | null>(null);
-  const [plans, setPlans] = useState<PlanSummary[]>([]);
-  const [plansLoading, setPlansLoading] = useState(false);
-  const [plansError, setPlansError] = useState<RemoteError | null>(null);
+type CredentialsState = {
+  username: string;
+  password: string;
+};
 
-  useEffect(() => {
-    const cached = getCachedLocalization(locale);
-    if (cached) {
-      setBundle(cached.bundle);
-    } else {
-      setBundle(null);
-    }
+type AppViewProps = {
+  client: ApiClient;
+  localization: LocalizationState;
+  session: SessionController;
+  planList: PlanListController;
+};
 
-    let cancelled = false;
-    if (!cached || cached.stale) {
-      setLoadingBundle(true);
-      fetchLocalization(locale)
-        .then((fresh) => {
-          if (!cancelled) {
-            setBundle(fresh);
-          }
-        })
-        .catch(() => {
-          // keep the cached bundle if fetching fails
-        })
-        .finally(() => {
-          if (!cancelled) {
-            setLoadingBundle(false);
-          }
-        });
-    } else {
-      setLoadingBundle(false);
-    }
-
-    return () => {
-      cancelled = true;
-    };
-  }, [locale]);
-
-  useEffect(() => {
-    setPing(null);
-    setPingError(null);
-    fetch('/api/ping', {
-      headers: {
-        'Accept-Language': locale,
-      },
-    })
-      .then(async (response) => {
-        if (!response.ok) {
-          setPingError({ key: 'backendErrorStatus', values: { status: response.status } });
-          return;
-        }
-        const body = (await response.json()) as PingResponse;
-        setPing(body);
-      })
-      .catch(() => {
-        setPingError({ key: 'backendErrorNetwork' });
-      });
-  }, [locale]);
-
-  const t = useCallback(
-    (key: UiMessageKey, values?: Record<string, string | number>) => {
-      if (!bundle) {
-        return '…';
-      }
-      return formatMessage(bundle, key, values);
-    },
-    [bundle]
-  );
-
-  const availableLocales = useMemo(() => getSupportedLocales(bundle), [bundle]);
+function AppView({ client, localization, session, planList }: AppViewProps) {
+  const { locale, translate, availableLocales, loading, setLocale } = localization;
+  const { state: sessionState, login, logout } = session;
+  const { state: planState, refresh } = planList;
+  const [credentials, setCredentials] = useState<CredentialsState>({
+    username: '',
+    password: '',
+  });
+  const [pingError, setPingError] = useState<ApiError | null>(null);
+  const [ping, setPing] = useState<{ status: string } | null>(null);
 
   const describeRemoteError = useCallback(
-    (error: RemoteError | null) => {
+    (error: ApiError | null) => {
       if (!error) {
         return null;
       }
       if (error.type === 'status') {
-        return t('backendErrorStatus', { status: error.status });
-      }
-      return t('backendErrorNetwork');
-    },
-    [t]
-  );
-
-  const formatDateTime = useCallback(
-    (value?: string | null) => {
-      if (!value) {
-        return '';
-      }
-      const date = new Date(value);
-      if (Number.isNaN(date.getTime())) {
-        return '';
-      }
-      return new Intl.DateTimeFormat(locale, {
-        year: 'numeric',
-        month: '2-digit',
-        day: '2-digit',
-        hour: '2-digit',
-        minute: '2-digit',
-      }).format(date);
-    },
-    [locale]
-  );
-
-  const formatPlanWindow = useCallback(
-    (plan: PlanSummary) => {
-      const start = formatDateTime(plan.plannedStartTime ?? null);
-      const end = formatDateTime(plan.plannedEndTime ?? null);
-      if (start && end) {
-        return t('planWindowRange', { start, end });
-      }
-      if (start) {
-        return start;
-      }
-      if (end) {
-        return end;
-      }
-      return t('planWindowMissing');
-    },
-    [formatDateTime, t]
-  );
-
-  const loadPlans = useCallback(
-    (signal?: AbortSignal) => {
-      if (!session) {
-        setPlans([]);
-        setPlansError(null);
-        setPlansLoading(false);
-        return;
-      }
-      setPlansLoading(true);
-      setPlansError(null);
-      fetch('/api/v1/plans?page=0&size=20', {
-        headers: {
-          'Accept-Language': locale,
-          Authorization: `Bearer ${session.token}`,
-        },
-        signal,
-      })
-        .then(async (response) => {
-          if (signal?.aborted) {
-            return;
-          }
-          if (!response.ok) {
-            setPlansError({ type: 'status', status: response.status });
-            return;
-          }
-          const body = (await response.json()) as ApiResponse<PageResponse<PlanSummary>>;
-          if (!body.data) {
-            setPlansError({ type: 'network' });
-            return;
-          }
-          setPlans(body.data.list ?? []);
-        })
-        .catch((error: unknown) => {
-          if (signal?.aborted) {
-            return;
-          }
-          if (error instanceof DOMException && error.name === 'AbortError') {
-            return;
-          }
-          setPlansError({ type: 'network' });
-        })
-        .finally(() => {
-          if (signal?.aborted) {
-            return;
-          }
-          setPlansLoading(false);
+        return translate('backendErrorStatus', {
+          status: error.status,
         });
+      }
+      return translate('backendErrorNetwork');
     },
-    [locale, session]
+    [translate]
   );
 
   useEffect(() => {
-    if (!session) {
-      setPlans([]);
-      setPlansError(null);
-      setPlansLoading(false);
-      return;
-    }
     const controller = new AbortController();
-    loadPlans(controller.signal);
+    setPing(null);
+    setPingError(null);
+    fetchPing(client, controller.signal)
+      .then((response) => {
+        setPing(response);
+      })
+      .catch((error) => {
+        if (error instanceof DOMException && error.name === 'AbortError') {
+          return;
+        }
+        const apiError: ApiError =
+          (error as ApiError)?.type === 'status' || (error as ApiError)?.type === 'network'
+            ? (error as ApiError)
+            : ({ type: 'network' } as ApiError);
+        setPingError(apiError);
+      });
+
     return () => {
       controller.abort();
     };
-  }, [session, locale, loadPlans]);
+  }, [client]);
 
-  const handleLogin = useCallback(() => {
-    const username = credentials.username.trim();
-    if (authLoading || username.length === 0 || credentials.password.length === 0) {
-      return;
+  useEffect(() => {
+    if (sessionState.session) {
+      setCredentials({ username: '', password: '' });
     }
-    setAuthLoading(true);
-    setAuthError(null);
-    fetch('/api/v1/auth/login', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Accept-Language': locale,
+  }, [sessionState.session]);
+
+  const planColumns = useMemo<TableColumnsType<PlanSummary>>(
+    () => [
+      {
+        title: translate('planTableHeaderId'),
+        dataIndex: 'id',
+        key: 'id',
+        width: 160,
+        render: (value: string): ReactNode => <Text code>{value}</Text>,
       },
-      body: JSON.stringify({
-        username,
-        password: credentials.password,
+      {
+        title: translate('planTableHeaderTitle'),
+        dataIndex: 'title',
+        key: 'title',
+        ellipsis: true,
+        render: (value: string): ReactNode => <Text strong>{value}</Text>,
+      },
+      {
+        title: translate('planTableHeaderOwner'),
+        dataIndex: 'owner',
+        key: 'owner',
+        render: (value: string): ReactNode => <Tag color="geekblue">{value}</Tag>,
+      },
+      {
+        title: translate('planTableHeaderStatus'),
+        dataIndex: 'status',
+        key: 'status',
+        render: (_: PlanStatus, record): ReactNode => (
+          <Tag color={PLAN_STATUS_COLOR[record.status]}>
+            {translate(STATUS_LABEL[record.status])}
+          </Tag>
+        ),
+      },
+      {
+        title: translate('planTableHeaderWindow'),
+        dataIndex: 'plannedStartTime',
+        key: 'window',
+        render: (_: unknown, record): ReactNode => (
+          <Text>{formatPlanWindow(record, locale, translate)}</Text>
+        ),
+      },
+      {
+        title: translate('planTableHeaderProgress'),
+        dataIndex: 'progress',
+        key: 'progress',
+        width: 200,
+        render: (value: number): ReactNode => (
+          <Progress percent={Math.max(0, Math.min(100, Math.round(value ?? 0)))} size="small" />
+        ),
+      },
+      {
+        title: translate('planTableHeaderParticipants'),
+        dataIndex: 'participants',
+        key: 'participants',
+        width: 160,
+        render: (_: string[], record): ReactNode => (
+          <Tag color="purple">{record.participants.length}</Tag>
+        ),
+      },
+    ],
+    [locale, translate]
+  );
+
+  const authErrorDetail = describeRemoteError(sessionState.error);
+  const planErrorDetail = describeRemoteError(planState.error);
+  const pingErrorDetail = describeRemoteError(pingError);
+
+  const authButtonDisabled =
+    sessionState.status === 'loading' ||
+    credentials.username.trim().length === 0 ||
+    credentials.password.length === 0;
+
+  const localeOptions = useMemo(
+    () =>
+      availableLocales.map((option) => ({
+        value: option,
+        label: option,
+      })),
+    [availableLocales]
+  );
+
+  return (
+    <Layout className="app-layout">
+      <Header className="app-header">
+        <div className="header-main">
+          <Title level={3} className="app-title">
+            {translate('appTitle')}
+          </Title>
+          <Paragraph className="app-subtitle">
+            {translate('appDescription')}
+          </Paragraph>
+        </div>
+        <Space align="center" size="middle">
+          <Text strong>{translate('localeLabel')}</Text>
+          <Select
+            className="locale-select"
+            value={locale}
+            onChange={(value: string) => setLocale(value as Locale)}
+            loading={loading}
+            options={localeOptions}
+          />
+        </Space>
+      </Header>
+      <Content className="app-content">
+        <Space direction="vertical" size="large" style={{ width: '100%' }}>
+          <Card title={translate('backendStatus')} bordered={false} className="card-block status-card">
+            <Space direction="vertical" size="middle" style={{ width: '100%' }}>
+              {ping && (
+                <Alert
+                  type="success"
+                  showIcon
+                  message={translate('backendSuccess', { status: ping.status })}
+                />
+              )}
+              {pingErrorDetail && (
+                <Alert
+                  type="error"
+                  showIcon
+                  message={translate('backendError', { error: pingErrorDetail })}
+                />
+              )}
+              {!ping && !pingErrorDetail && (
+                <Alert type="info" showIcon message={translate('backendPending')} />
+              )}
+            </Space>
+          </Card>
+
+          <Card title={translate('authSectionTitle')} bordered={false} className="card-block">
+            {sessionState.session ? (
+              <Space direction="vertical" size="middle" style={{ width: '100%' }}>
+                <Alert
+                  type="success"
+                  showIcon
+                  message={translate('authWelcome', {
+                    name: sessionState.session.displayName,
+                  })}
+                />
+                <Text type="secondary">
+                  {translate('authTokenExpiry', {
+                    time: formatDateTime(sessionState.session.expiresAt, locale),
+                  })}
+                </Text>
+                {sessionState.session.roles.length > 0 && (
+                  <Space size="small" wrap>
+                    {sessionState.session.roles.map((role) => (
+                      <Tag key={role} color="geekblue">
+                        {role}
+                      </Tag>
+                    ))}
+                  </Space>
+                )}
+                <Button type="text" onClick={logout} className="logout-button">
+                  {translate('authLogout')}
+                </Button>
+              </Space>
+            ) : (
+              <Space direction="vertical" size="middle" style={{ width: '100%' }}>
+                <Input
+                  size="large"
+                  placeholder={translate('authUsernameLabel')}
+                  autoComplete="username"
+                  value={credentials.username}
+                  onChange={(event: Event & { target: HTMLInputElement }) =>
+                    setCredentials((current) => ({ ...current, username: event.target.value }))
+                  }
+                  onPressEnter={() => {
+                    if (!authButtonDisabled) {
+                      login(credentials);
+                    }
+                  }}
+                />
+                <Input.Password
+                  size="large"
+                  placeholder={translate('authPasswordLabel')}
+                  autoComplete="current-password"
+                  value={credentials.password}
+                  onChange={(event: Event & { target: HTMLInputElement }) =>
+                    setCredentials((current) => ({ ...current, password: event.target.value }))
+                  }
+                  onPressEnter={() => {
+                    if (!authButtonDisabled) {
+                      login(credentials);
+                    }
+                  }}
+                />
+                <Button
+                  type="primary"
+                  block
+                  size="large"
+                  loading={sessionState.status === 'loading'}
+                  onClick={() => login(credentials)}
+                  disabled={authButtonDisabled}
+                >
+                  {sessionState.status === 'loading'
+                    ? translate('authLoggingIn')
+                    : translate('authSubmit')}
+                </Button>
+                {authErrorDetail && (
+                  <Alert
+                    type="error"
+                    showIcon
+                    message={translate('authError', { error: authErrorDetail })}
+                  />
+                )}
+              </Space>
+            )}
+          </Card>
+
+          <Card
+            title={translate('planSectionTitle')}
+            bordered={false}
+            className="card-block"
+            extra={
+              <Button
+                type="link"
+                onClick={refresh}
+                disabled={!sessionState.session}
+                loading={planState.status === 'loading'}
+              >
+                {translate('planRefresh')}
+              </Button>
+            }
+          >
+            {!sessionState.session && <Empty description={translate('planLoginRequired')} />}
+            {sessionState.session && planErrorDetail && (
+              <Alert
+                type="error"
+                showIcon
+                message={translate('planError', { error: planErrorDetail })}
+                style={{ marginBottom: 16 }}
+              />
+            )}
+            {sessionState.session && !planErrorDetail && (
+              <Table<PlanSummary>
+                rowKey="id"
+                dataSource={planState.records}
+                columns={planColumns}
+                pagination={false}
+                loading={{
+                  spinning: planState.status === 'loading',
+                  tip: translate('planLoading'),
+                }}
+                locale={{ emptyText: translate('planEmpty') }}
+                scroll={{ x: true }}
+              />
+            )}
+          </Card>
+        </Space>
+      </Content>
+    </Layout>
+  );
+}
+
+function formatDateTime(value?: string | null, locale?: Locale) {
+  if (!value) {
+    return '';
+  }
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return '';
+  }
+  return new Intl.DateTimeFormat(locale ?? 'ja-JP', {
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+  }).format(date);
+}
+
+function formatPlanWindow(
+  plan: PlanSummary,
+  locale: Locale,
+  translate: LocalizationState['translate']
+) {
+  const start = formatDateTime(plan.plannedStartTime ?? null, locale);
+  const end = formatDateTime(plan.plannedEndTime ?? null, locale);
+  if (start && end) {
+    return translate('planWindowRange', { start, end });
+  }
+  if (start) {
+    return start;
+  }
+  if (end) {
+    return end;
+  }
+  return translate('planWindowMissing');
+}
+
+function App() {
+  const localization = useLocalizationState();
+  const client = useMemo(
+    () =>
+      createApiClient({
+        getLocale: () => localization.locale,
       }),
-    })
-      .then(async (response) => {
-        if (!response.ok) {
-          setAuthError({ type: 'status', status: response.status });
-          return;
-        }
-        const body = (await response.json()) as ApiResponse<LoginResponse>;
-        if (!body.data) {
-          setAuthError({ type: 'network' });
-          return;
-        }
-        setSession(body.data);
-        setCredentials({ username: '', password: '' });
-        setAuthError(null);
-      })
-      .catch(() => {
-        setAuthError({ type: 'network' });
-      })
-      .finally(() => {
-        setAuthLoading(false);
-      });
-  }, [authLoading, credentials, locale]);
-
-  const handleLogout = useCallback(() => {
-    setSession(null);
-    setPlans([]);
-    setPlansError(null);
-  }, []);
-
-  const authErrorDetail = describeRemoteError(authError);
-  const planErrorDetail = describeRemoteError(plansError);
+    [localization.locale]
+  );
+  const session = useSessionController(client);
+  const planList = usePlanListController(client, session.state.session);
 
   const planColumns = useMemo<TableColumnsType<PlanSummary>>(
     () => [
@@ -408,162 +498,15 @@ function App() {
         },
       }}
     >
-      <Layout className="app-layout">
-        <Header className="app-header">
-          <div className="header-main">
-            <Title level={3} className="app-title">
-              {t('appTitle')}
-            </Title>
-            <Paragraph className="app-subtitle">{t('appDescription')}</Paragraph>
-          </div>
-          <Space align="center" size="middle">
-            <Text strong>{t('localeLabel')}</Text>
-            <Select
-              className="locale-select"
-              value={locale}
-              onChange={(value: string) => setLocale(value as Locale)}
-              loading={loadingBundle}
-              options={availableLocales.map((option) => ({ value: option, label: option }))}
-            />
-          </Space>
-        </Header>
-        <Content className="app-content">
-          <Space direction="vertical" size="large" style={{ width: '100%' }}>
-            <Card title={t('backendStatus')} bordered={false} className="card-block status-card">
-              <Space direction="vertical" size="middle" style={{ width: '100%' }}>
-                {ping && (
-                  <Alert
-                    type="success"
-                    showIcon
-                    message={t('backendSuccess', { status: ping.status })}
-                  />
-                )}
-                {pingError && (
-                  <Alert
-                    type="error"
-                    showIcon
-                    message={t('backendError', { error: t(pingError.key, pingError.values) })}
-                  />
-                )}
-                {!ping && !pingError && <Alert type="info" showIcon message={t('backendPending')} />}
-              </Space>
-            </Card>
-
-            <Card title={t('authSectionTitle')} bordered={false} className="card-block">
-              {session ? (
-                <Space direction="vertical" size="middle" style={{ width: '100%' }}>
-                  <Alert
-                    type="success"
-                    showIcon
-                    message={t('authWelcome', { name: session.displayName })}
-                  />
-                  <Text type="secondary">
-                    {t('authTokenExpiry', { time: formatDateTime(session.expiresAt) })}
-                  </Text>
-                  {session.roles.length > 0 && (
-                    <Space size="small" wrap>
-                      {session.roles.map((role) => (
-                        <Tag key={role} color="geekblue">
-                          {role}
-                        </Tag>
-                      ))}
-                    </Space>
-                  )}
-                  <Button type="text" onClick={handleLogout} className="logout-button">
-                    {t('authLogout')}
-                  </Button>
-                </Space>
-              ) : (
-                <Space direction="vertical" size="middle" style={{ width: '100%' }}>
-                  <Input
-                    size="large"
-                    placeholder={t('authUsernameLabel')}
-                    autoComplete="username"
-                    value={credentials.username}
-                    onChange={(event: Event & { target: HTMLInputElement }) =>
-                      setCredentials((current) => ({ ...current, username: event.target.value }))
-                    }
-                    onPressEnter={() => {
-                      if (!authButtonDisabled) {
-                        handleLogin();
-                      }
-                    }}
-                  />
-                  <Input.Password
-                    size="large"
-                    placeholder={t('authPasswordLabel')}
-                    autoComplete="current-password"
-                    value={credentials.password}
-                    onChange={(event: Event & { target: HTMLInputElement }) =>
-                      setCredentials((current) => ({ ...current, password: event.target.value }))
-                    }
-                    onPressEnter={() => {
-                      if (!authButtonDisabled) {
-                        handleLogin();
-                      }
-                    }}
-                  />
-                  <Button
-                    type="primary"
-                    block
-                    size="large"
-                    loading={authLoading}
-                    onClick={handleLogin}
-                    disabled={authButtonDisabled}
-                  >
-                    {authLoading ? t('authLoggingIn') : t('authSubmit')}
-                  </Button>
-                  {authErrorDetail && (
-                    <Alert
-                      type="error"
-                      showIcon
-                      message={t('authError', { error: authErrorDetail })}
-                    />
-                  )}
-                </Space>
-              )}
-            </Card>
-
-            <Card
-              title={t('planSectionTitle')}
-              bordered={false}
-              className="card-block"
-              extra={
-                <Button type="link" onClick={() => loadPlans()} disabled={!session} loading={plansLoading}>
-                  {t('planRefresh')}
-                </Button>
-              }
-            >
-          <table className="plan-table">
-            <thead>
-              <tr>
-                <th>{t('planTableHeaderId')}</th>
-                <th>{t('planTableHeaderTitle')}</th>
-                <th>{t('planTableHeaderOwner')}</th>
-                <th>{t('planTableHeaderStatus')}</th>
-                <th>{t('planTableHeaderWindow')}</th>
-                <th>{t('planTableHeaderProgress')}</th>
-                <th>{t('planTableHeaderParticipants')}</th>
-              </tr>
-            </thead>
-            <tbody>
-              {plans.map((plan) => (
-                <tr key={plan.id}>
-                  <td>{plan.id}</td>
-                  <td>{plan.title}</td>
-                  <td>{plan.owner}</td>
-                  <td>{t(STATUS_LABEL[plan.status])}</td>
-                  <td>{formatPlanWindow(plan)}</td>
-                  <td>{`${plan.progress}%`}</td>
-                  <td>{plan.participants.length}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
-      </section>
-    </div>
-  }, [authLoading, credentials, locale]);
+      <AppView
+        client={client}
+        localization={localization}
+        session={session}
+        planList={planList}
+      />
+    </ConfigProvider>
+  );
+}
 
   const handleLogout = useCallback(() => {
     setSession(null);

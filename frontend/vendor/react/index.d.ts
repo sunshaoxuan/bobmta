@@ -11,7 +11,7 @@ export interface ReactElement<P = any, T = any> {
 }
 
 export interface FunctionComponent<P = {}> {
-  (props: P & { children?: ReactNode }): ReactNode;
+  (props: P & { children?: ReactNode }): ReactElement | null;
 }
 
 export type FC<P = {}> = FunctionComponent<P>;
@@ -43,7 +43,7 @@ export interface CSSProperties {
   [key: string]: string | number | undefined;
 }
 
-export type ReactEventHandler<T = Element> = (event: Event & { currentTarget: T }) => void;
+export type ReactEventHandler<T = Element> = (event: Event & { target: T; currentTarget: T }) => void;
 
 export interface HTMLAttributes<T> {
   className?: string;
