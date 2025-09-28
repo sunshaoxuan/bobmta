@@ -92,6 +92,7 @@ public final class LocalizationKeys {
         public static final String PLAN_REMINDER_OFFSET_NEGATIVE = "error.plan.reminder.offsetNegative";
         public static final String PLAN_REMINDER_CHANNELS_REQUIRED = "error.plan.reminder.channelsRequired";
         public static final String PLAN_REMINDER_ID_REQUIRED = "error.plan.reminder.idRequired";
+        public static final String LOCALE_UNSUPPORTED = "error.locale.unsupported";
 
         private Errors() {
         }
