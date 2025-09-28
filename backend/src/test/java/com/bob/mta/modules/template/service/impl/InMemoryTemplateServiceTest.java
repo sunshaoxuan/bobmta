@@ -6,6 +6,7 @@ import com.bob.mta.common.i18n.MultilingualTextService;
 import com.bob.mta.modules.template.domain.TemplateType;
 import org.junit.jupiter.api.Test;
 
+import java.util.Locale;
 import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -17,7 +18,7 @@ class InMemoryTemplateServiceTest {
     @Test
     void shouldRenderTemplate() {
         var template = service.create(TemplateType.EMAIL, text("Notice"), text("Hi {{name}}"), text("Body {{name}}"), null, null, null, true, null);
-        var rendered = service.render(template.getId(), Map.of("name", "Bob"));
+        var rendered = service.render(template.getId(), Map.of("name", "Bob"), Locale.JAPAN);
         assertThat(rendered.getSubject()).contains("Bob");
         assertThat(rendered.getContent()).contains("Bob");
         assertThat(rendered.getMetadata()).isEmpty();
@@ -26,7 +27,7 @@ class InMemoryTemplateServiceTest {
     @Test
     void shouldListByType() {
         service.create(TemplateType.IM, text("IM"), text(""), text("{{message}}"), null, null, null, true, null);
-        assertThat(service.list(TemplateType.IM)).isNotEmpty();
+        assertThat(service.list(TemplateType.IM, Locale.JAPAN)).isNotEmpty();
     }
 
     @Test
@@ -34,7 +35,7 @@ class InMemoryTemplateServiceTest {
         var template = service.create(TemplateType.REMOTE, text("Remote Desktop"), null, text("Connect {{host}}"),
                 null, null, "rdp://10.0.0.5?username=svc", true, text("RDP"));
 
-        var rendered = service.render(template.getId(), Map.of("host", "10.0.0.5"));
+        var rendered = service.render(template.getId(), Map.of("host", "10.0.0.5"), Locale.JAPAN);
 
         assertThat(rendered.getAttachmentFileName()).endsWith(".rdp");
         assertThat(rendered.getAttachmentContent()).contains("full address:s:10.0.0.5");

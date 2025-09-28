@@ -15,7 +15,14 @@ function App() {
     formatMessage(locale, key, values);
 
   useEffect(() => {
-    fetch('/api/ping')
+    setPing(null);
+    setError(null);
+    const acceptLanguage = locale === 'ja' ? 'ja-JP' : 'zh-CN';
+    fetch('/api/ping', {
+      headers: {
+        'Accept-Language': acceptLanguage,
+      },
+    })
       .then(async (response) => {
         if (!response.ok) {
           throw new Error(`Request failed with status ${response.status}`);
@@ -26,7 +33,7 @@ function App() {
       .catch((err) => {
         setError(err.message);
       });
-  }, []);
+  }, [locale]);
 
   return (
     <div className="app">

@@ -4,6 +4,8 @@ import com.bob.mta.common.api.ApiResponse;
 import com.bob.mta.common.i18n.InMemoryMultilingualTextRepository;
 import com.bob.mta.common.i18n.MultilingualTextPayload;
 import com.bob.mta.common.i18n.MultilingualTextService;
+import com.bob.mta.i18n.InMemoryLocaleSettingsRepository;
+import com.bob.mta.i18n.LocalePreferenceService;
 import com.bob.mta.modules.audit.service.AuditRecorder;
 import com.bob.mta.modules.audit.service.impl.InMemoryAuditService;
 import com.bob.mta.modules.customer.service.impl.InMemoryCustomerService;
@@ -40,7 +42,9 @@ class TagControllerTest {
         messageResolver = TestMessageResolverFactory.create();
         planService = new InMemoryPlanService(new InMemoryFileService(), new InMemoryPlanRepository(), messageResolver);
         AuditRecorder recorder = new AuditRecorder(new InMemoryAuditService(), new ObjectMapper());
-        controller = new TagController(tagService, customerService, planService, recorder, messageResolver);
+        LocalePreferenceService localePreferenceService =
+                new LocalePreferenceService(new InMemoryLocaleSettingsRepository());
+        controller = new TagController(tagService, customerService, planService, recorder, localePreferenceService);
         SecurityContextHolder.getContext().setAuthentication(new TestingAuthenticationToken("admin", "pass", "ROLE_ADMIN"));
     }
 
@@ -62,13 +66,13 @@ class TagControllerTest {
         request.setScope(com.bob.mta.modules.tag.domain.TagScope.CUSTOMER);
         request.setEnabled(true);
 
-        ApiResponse<TagResponse> response = controller.create(request);
+        ApiResponse<TagResponse> response = controller.create(request, "ja-JP");
         assertThat(response.getData().getName().getTranslations().get("ja-jp")).isEqualTo("urgent");
     }
 
     @Test
     void shouldAssignTagToPlan() {
-        var created = controller.create(buildRequest("plan", com.bob.mta.modules.tag.domain.TagScope.PLAN));
+        var created = controller.create(buildRequest("plan", com.bob.mta.modules.tag.domain.TagScope.PLAN), "ja-JP");
         AssignTagRequest assign = new AssignTagRequest();
         assign.setEntityType(TagEntityType.PLAN);
         assign.setEntityId(planService.listPlans(null, null, null, null, null, null).get(0).getId());

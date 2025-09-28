@@ -11,6 +11,7 @@ import com.bob.mta.modules.tag.domain.TagScope;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -23,7 +24,7 @@ class InMemoryTagServiceTest {
     @Test
     void shouldCreateAndRetrieveTag() {
         var created = tagService.create(text("inspection"), "#52C41A", "CheckCircleOutlined", TagScope.BOTH, null, true);
-        var fetched = tagService.getById(created.getId());
+        var fetched = tagService.getById(created.getId(), Locale.JAPAN);
         assertThat(fetched.getName().getValueOrDefault("ja-JP")).isEqualTo("inspection");
     }
 
@@ -32,7 +33,7 @@ class InMemoryTagServiceTest {
         var created = tagService.create(text("critical"), "#FA8C16", "FireOutlined", TagScope.CUSTOMER, null, true);
         TagAssignment assignment = tagService.assign(created.getId(), TagEntityType.CUSTOMER, "cust-100");
         assertThat(tagService.listAssignments(created.getId())).contains(assignment);
-        List<?> tags = tagService.findByEntity(TagEntityType.CUSTOMER, "cust-100");
+        List<?> tags = tagService.findByEntity(TagEntityType.CUSTOMER, "cust-100", Locale.JAPAN);
         assertThat(tags).hasSize(1);
     }
 

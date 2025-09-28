@@ -7,12 +7,13 @@ import com.bob.mta.modules.tag.domain.TagEntityType;
 import com.bob.mta.modules.tag.domain.TagScope;
 
 import java.util.List;
+import java.util.Locale;
 
 public interface TagService {
 
-    List<TagDefinition> list(TagScope scope);
+    List<TagDefinition> list(TagScope scope, Locale locale);
 
-    TagDefinition getById(long id);
+    TagDefinition getById(long id, Locale locale);
 
     TagDefinition create(MultilingualText name, String color, String icon, TagScope scope, String applyRule, boolean enabled);
 
@@ -26,5 +27,5 @@ public interface TagService {
 
     List<TagAssignment> listAssignments(long tagId);
 
-    List<TagDefinition> findByEntity(TagEntityType entityType, String entityId);
+    List<TagDefinition> findByEntity(TagEntityType entityType, String entityId, Locale locale);
 }

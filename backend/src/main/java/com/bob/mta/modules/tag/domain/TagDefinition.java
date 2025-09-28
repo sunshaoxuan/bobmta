@@ -3,6 +3,7 @@ package com.bob.mta.modules.tag.domain;
 import com.bob.mta.common.i18n.MultilingualText;
 
 import java.time.OffsetDateTime;
+import java.util.Locale;
 
 public class TagDefinition {
 
@@ -36,7 +37,12 @@ public class TagDefinition {
     }
 
     public String getDisplayName() {
-        return name.getValueOrDefault(name.getDefaultLocale());
+        return getDisplayName(null);
+    }
+
+    public String getDisplayName(Locale locale) {
+        String requested = locale == null ? null : locale.toLanguageTag();
+        return name.getValueOrDefault(requested);
     }
 
     public String getColor() {

@@ -5,6 +5,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.Locale;
 import java.util.Map;
 
 public class MultilingualTextPayload {
@@ -32,9 +33,18 @@ public class MultilingualTextPayload {
     }
 
     public static MultilingualTextPayload fromValue(MultilingualText text) {
+        return fromValue(text, null);
+    }
+
+    public static MultilingualTextPayload fromValue(MultilingualText text, Locale locale) {
         if (text == null) {
             return null;
         }
-        return new MultilingualTextPayload(text.getDefaultLocale(), text.getTranslations());
+        String requestedLocale = locale == null
+                ? text.getDefaultLocale()
+                : locale.toLanguageTag().toLowerCase(Locale.ROOT);
+        Map<String, String> normalized = new HashMap<>(text.getTranslations());
+        normalized.putIfAbsent(requestedLocale, text.getValueOrDefault(requestedLocale));
+        return new MultilingualTextPayload(requestedLocale, normalized);
     }
 }

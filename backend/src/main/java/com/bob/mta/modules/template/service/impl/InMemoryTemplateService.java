@@ -62,20 +62,18 @@ public class InMemoryTemplateService implements TemplateService {
     }
 
     @Override
-    public List<TemplateDefinition> list(TemplateType type) {
+    public List<TemplateDefinition> list(TemplateType type, Locale locale) {
+        String localeTag = locale == null ? null : locale.toLanguageTag();
         return definitions.values().stream()
                 .filter(def -> type == null || def.getType() == type)
-                .sorted((a, b) -> a.getName().getValueOrDefault(null).compareToIgnoreCase(b.getName().getValueOrDefault(null)))
+                .sorted((a, b) -> a.getName().getValueOrDefault(localeTag)
+                        .compareToIgnoreCase(b.getName().getValueOrDefault(localeTag)))
                 .toList();
     }
 
     @Override
-    public TemplateDefinition get(long id) {
-        TemplateDefinition definition = definitions.get(id);
-        if (definition == null) {
-            throw new BusinessException(ErrorCode.TEMPLATE_NOT_FOUND);
-        }
-        return definition;
+    public TemplateDefinition get(long id, Locale locale) {
+        return require(id);
     }
 
     @Override
@@ -101,7 +99,7 @@ public class InMemoryTemplateService implements TemplateService {
     @Override
     public TemplateDefinition update(long id, MultilingualText name, MultilingualText subject, MultilingualText content, List<String> to, List<String> cc,
                                      String endpoint, boolean enabled, MultilingualText description) {
-        TemplateDefinition definition = get(id);
+        TemplateDefinition definition = require(id);
         TemplateDefinition updated = new TemplateDefinition(id, definition.getType(), name, subject, content, to, cc,
                 endpoint, enabled, description, definition.getCreatedAt(), OffsetDateTime.now());
         definitions.put(id, updated);
@@ -120,29 +118,39 @@ public class InMemoryTemplateService implements TemplateService {
 
     @Override
     public void delete(long id) {
+        require(id);
         definitions.remove(id);
     }
 
     @Override
-    public RenderedTemplate render(long id, Map<String, String> context) {
-        TemplateDefinition definition = get(id);
+    public RenderedTemplate render(long id, Map<String, String> context, Locale locale) {
+        TemplateDefinition definition = require(id);
         if (!definition.isEnabled()) {
             throw new BusinessException(ErrorCode.VALIDATION_ERROR,
                     Localization.text(LocalizationKeys.Errors.TEMPLATE_DISABLED));
         }
         Map<String, String> safeContext = normalizeContext(context);
-        String subject = replacePlaceholders(definition.getSubject() == null ? null : definition.getSubject().getValueOrDefault(null), safeContext);
-        String content = replacePlaceholders(definition.getContent() == null ? null : definition.getContent().getValueOrDefault(null), safeContext);
+        String localeTag = locale == null ? null : locale.toLanguageTag();
+        String subject = replacePlaceholders(definition.getSubject() == null ? null : definition.getSubject().getValueOrDefault(localeTag), safeContext);
+        String content = replacePlaceholders(definition.getContent() == null ? null : definition.getContent().getValueOrDefault(localeTag), safeContext);
         List<String> to = definition.getTo().stream().map(value -> replacePlaceholders(value, safeContext)).toList();
         List<String> cc = definition.getCc().stream().map(value -> replacePlaceholders(value, safeContext)).toList();
         String endpoint = replacePlaceholders(definition.getEndpoint(), safeContext);
 
         RemoteArtifact artifact = definition.getType() == TemplateType.REMOTE
-                ? buildRemoteArtifact(definition, endpoint)
+                ? buildRemoteArtifact(definition, endpoint, localeTag)
                 : RemoteArtifact.empty();
 
         return new RenderedTemplate(subject, content, to, cc, endpoint,
                 artifact.fileName(), artifact.content(), artifact.contentType(), artifact.metadata());
+    }
+
+    private TemplateDefinition require(long id) {
+        TemplateDefinition definition = definitions.get(id);
+        if (definition == null) {
+            throw new BusinessException(ErrorCode.TEMPLATE_NOT_FOUND);
+        }
+        return definition;
     }
 
     private String replacePlaceholders(String template, Map<String, String> context) {
@@ -166,7 +174,7 @@ public class InMemoryTemplateService implements TemplateService {
         return normalized;
     }
 
-    private RemoteArtifact buildRemoteArtifact(TemplateDefinition definition, String endpoint) {
+    private RemoteArtifact buildRemoteArtifact(TemplateDefinition definition, String endpoint, String localeTag) {
         if (!StringUtils.hasText(endpoint)) {
             return RemoteArtifact.empty();
         }
@@ -192,7 +200,7 @@ public class InMemoryTemplateService implements TemplateService {
             }
 
             if ("rdp".equals(scheme) && host != null) {
-                String fileName = definition.getName().getValueOrDefault(null).replaceAll("\\s+", "-").toLowerCase(Locale.ROOT) + ".rdp";
+                String fileName = definition.getName().getValueOrDefault(localeTag).replaceAll("\\s+", "-").toLowerCase(Locale.ROOT) + ".rdp";
                 int port = uri.getPort() > 0 ? uri.getPort() : 3389;
                 String username = metadata.getOrDefault("username", "");
                 StringBuilder builder = new StringBuilder();

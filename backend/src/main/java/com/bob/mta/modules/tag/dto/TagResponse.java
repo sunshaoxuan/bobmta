@@ -5,6 +5,7 @@ import com.bob.mta.modules.tag.domain.TagDefinition;
 import com.bob.mta.modules.tag.domain.TagScope;
 
 import java.time.OffsetDateTime;
+import java.util.Locale;
 
 public class TagResponse {
 
@@ -30,9 +31,13 @@ public class TagResponse {
     }
 
     public static TagResponse from(TagDefinition definition) {
+        return from(definition, null);
+    }
+
+    public static TagResponse from(TagDefinition definition, Locale locale) {
         return new TagResponse(
                 definition.getId(),
-                MultilingualTextPayload.fromValue(definition.getName()),
+                MultilingualTextPayload.fromValue(definition.getName(), locale),
                 definition.getColor(),
                 definition.getIcon(),
                 definition.getScope(),

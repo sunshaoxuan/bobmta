@@ -6,6 +6,7 @@ import com.bob.mta.modules.template.domain.TemplateType;
 
 import java.time.OffsetDateTime;
 import java.util.List;
+import java.util.Locale;
 
 public class TemplateResponse {
 
@@ -40,17 +41,21 @@ public class TemplateResponse {
     }
 
     public static TemplateResponse from(TemplateDefinition definition) {
+        return from(definition, null);
+    }
+
+    public static TemplateResponse from(TemplateDefinition definition, Locale locale) {
         return new TemplateResponse(
                 definition.getId(),
                 definition.getType(),
-                MultilingualTextPayload.fromValue(definition.getName()),
-                MultilingualTextPayload.fromValue(definition.getSubject()),
-                MultilingualTextPayload.fromValue(definition.getContent()),
+                MultilingualTextPayload.fromValue(definition.getName(), locale),
+                MultilingualTextPayload.fromValue(definition.getSubject(), locale),
+                MultilingualTextPayload.fromValue(definition.getContent(), locale),
                 definition.getTo(),
                 definition.getCc(),
                 definition.getEndpoint(),
                 definition.isEnabled(),
-                MultilingualTextPayload.fromValue(definition.getDescription()),
+                MultilingualTextPayload.fromValue(definition.getDescription(), locale),
                 definition.getCreatedAt(),
                 definition.getUpdatedAt());
     }

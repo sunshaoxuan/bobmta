@@ -17,6 +17,7 @@ import org.springframework.stereotype.Service;
 import java.time.OffsetDateTime;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -51,25 +52,20 @@ public class InMemoryTagService implements TagService {
     }
 
     @Override
-    public List<TagDefinition> list(TagScope scope) {
-        if (scope == null) {
-            return definitions.values().stream()
-                    .sorted((a, b) -> a.getDisplayName().compareToIgnoreCase(b.getDisplayName()))
-                    .toList();
-        }
+    public List<TagDefinition> list(TagScope scope, Locale locale) {
+        String localeTag = locale == null ? null : locale.toLanguageTag();
+        Comparator<TagDefinition> comparator = Comparator.comparing(
+                def -> def.getName().getValueOrDefault(localeTag),
+                String.CASE_INSENSITIVE_ORDER);
         return definitions.values().stream()
-                .filter(def -> def.getScope() == scope || def.getScope() == TagScope.BOTH)
-                .sorted((a, b) -> a.getDisplayName().compareToIgnoreCase(b.getDisplayName()))
+                .filter(def -> scope == null || def.getScope() == scope || def.getScope() == TagScope.BOTH)
+                .sorted(comparator)
                 .toList();
     }
 
     @Override
-    public TagDefinition getById(long id) {
-        TagDefinition definition = definitions.get(id);
-        if (definition == null) {
-            throw new BusinessException(ErrorCode.TAG_NOT_FOUND);
-        }
-        return definition;
+    public TagDefinition getById(long id, Locale locale) {
+        return require(id);
     }
 
     @Override
@@ -84,7 +80,7 @@ public class InMemoryTagService implements TagService {
 
     @Override
     public TagDefinition update(long id, MultilingualText name, String color, String icon, TagScope scope, String applyRule, boolean enabled) {
-        TagDefinition definition = getById(id);
+        TagDefinition definition = require(id);
         TagDefinition updated = definition
                 .withName(name)
                 .withColor(color)
@@ -99,13 +95,14 @@ public class InMemoryTagService implements TagService {
 
     @Override
     public void delete(long id) {
+        require(id);
         definitions.remove(id);
         assignmentIndex.remove(id);
     }
 
     @Override
     public TagAssignment assign(long tagId, TagEntityType entityType, String entityId) {
-        TagDefinition definition = getById(tagId);
+        TagDefinition definition = require(tagId);
         if (!definition.getScope().supports(entityType)) {
             throw new BusinessException(ErrorCode.VALIDATION_ERROR,
                     Localization.text(LocalizationKeys.Errors.TAG_SCOPE_UNSUPPORTED));
@@ -133,13 +130,23 @@ public class InMemoryTagService implements TagService {
     }
 
     @Override
-    public List<TagDefinition> findByEntity(TagEntityType entityType, String entityId) {
+    public List<TagDefinition> findByEntity(TagEntityType entityType, String entityId, Locale locale) {
+        String localeTag = locale == null ? null : locale.toLanguageTag();
         return assignmentIndex.entrySet().stream()
                 .filter(entry -> entry.getValue().stream()
                         .anyMatch(assignment -> assignment.getEntityType() == entityType && assignment.getEntityId().equals(entityId)))
                 .map(entry -> definitions.get(entry.getKey()))
                 .filter(def -> def != null)
-                .sorted((a, b) -> a.getDisplayName().compareToIgnoreCase(b.getDisplayName()))
+                .sorted((a, b) -> a.getName().getValueOrDefault(localeTag)
+                        .compareToIgnoreCase(b.getName().getValueOrDefault(localeTag)))
                 .toList();
+    }
+
+    private TagDefinition require(long id) {
+        TagDefinition definition = definitions.get(id);
+        if (definition == null) {
+            throw new BusinessException(ErrorCode.TAG_NOT_FOUND);
+        }
+        return definition;
     }
 }

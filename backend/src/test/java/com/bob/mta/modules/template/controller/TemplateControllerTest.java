@@ -4,6 +4,8 @@ import com.bob.mta.common.api.ApiResponse;
 import com.bob.mta.common.i18n.InMemoryMultilingualTextRepository;
 import com.bob.mta.common.i18n.MultilingualTextPayload;
 import com.bob.mta.common.i18n.MultilingualTextService;
+import com.bob.mta.i18n.InMemoryLocaleSettingsRepository;
+import com.bob.mta.i18n.LocalePreferenceService;
 import com.bob.mta.modules.audit.service.AuditRecorder;
 import com.bob.mta.modules.audit.service.impl.InMemoryAuditService;
 import com.bob.mta.modules.template.domain.TemplateType;
@@ -34,8 +36,9 @@ class TemplateControllerTest {
     void setUp() {
         templateService = new InMemoryTemplateService(new MultilingualTextService(new InMemoryMultilingualTextRepository()));
         AuditRecorder recorder = new AuditRecorder(new InMemoryAuditService(), new ObjectMapper());
-        messageResolver = TestMessageResolverFactory.create();
-        controller = new TemplateController(templateService, recorder, messageResolver);
+        LocalePreferenceService localePreferenceService =
+                new LocalePreferenceService(new InMemoryLocaleSettingsRepository());
+        controller = new TemplateController(templateService, recorder, localePreferenceService);
         SecurityContextHolder.getContext().setAuthentication(new TestingAuthenticationToken("admin", "pass", "ROLE_ADMIN"));
     }
 
@@ -52,14 +55,14 @@ class TemplateControllerTest {
         request.setName(payload("monitor"));
         request.setContent(payload("https://monitor/{{id}}"));
 
-        ApiResponse<TemplateResponse> response = controller.create(request);
+        ApiResponse<TemplateResponse> response = controller.create(request, "ja-JP");
         assertThat(response.getData().getName().getTranslations().get("ja-jp")).isEqualTo("monitor");
     }
 
     @Test
     void shouldRenderTemplate() {
-        var created = controller.create(buildRequest());
-        ApiResponse<RenderedTemplateResponse> rendered = controller.render(created.getData().getId(), null);
+        var created = controller.create(buildRequest(), "ja-JP");
+        ApiResponse<RenderedTemplateResponse> rendered = controller.render(created.getData().getId(), null, "ja-JP");
         assertThat(rendered.getData().getContent()).contains("{{name}}");
         assertThat(rendered.getData().getMetadata()).isEmpty();
         assertThat(rendered.getData().getAttachmentFileName()).isNull();
@@ -67,11 +70,11 @@ class TemplateControllerTest {
 
     @Test
     void shouldUpdateTemplate() {
-        var created = controller.create(buildRequest());
+        var created = controller.create(buildRequest(), "ja-JP");
         UpdateTemplateRequest update = new UpdateTemplateRequest();
         update.setName(payload("updated"));
         update.setContent(payload("Body"));
-        ApiResponse<TemplateResponse> updated = controller.update(created.getData().getId(), update);
+        ApiResponse<TemplateResponse> updated = controller.update(created.getData().getId(), update, "ja-JP");
         assertThat(updated.getData().getName().getTranslations().get("ja-jp")).isEqualTo("updated");
     }
 
@@ -83,8 +86,8 @@ class TemplateControllerTest {
         request.setContent(payload("Connect {{host}}"));
         request.setEndpoint("rdp://192.168.1.10?username=ops");
 
-        ApiResponse<TemplateResponse> created = controller.create(request);
-        ApiResponse<RenderedTemplateResponse> rendered = controller.render(created.getData().getId(), null);
+        ApiResponse<TemplateResponse> created = controller.create(request, "ja-JP");
+        ApiResponse<RenderedTemplateResponse> rendered = controller.render(created.getData().getId(), null, "ja-JP");
 
         assertThat(rendered.getData().getAttachmentFileName()).endsWith(".rdp");
         assertThat(rendered.getData().getAttachmentContent()).contains("full address");
