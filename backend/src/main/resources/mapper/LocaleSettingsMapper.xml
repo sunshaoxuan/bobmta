@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.bob.mta.i18n.persistence.LocaleSettingsMapper">
+
+    <resultMap id="LocaleSettingMap" type="com.bob.mta.i18n.persistence.LocaleSettingEntity">
+        <id property="key" column="config_key"/>
+        <result property="value" column="config_value"/>
+        <result property="updatedAt" column="updated_at"/>
+    </resultMap>
+
+    <select id="find" resultMap="LocaleSettingMap">
+        SELECT config_key, config_value, updated_at
+        FROM mt_locale_settings
+        WHERE config_key = #{key}
+    </select>
+
+    <update id="update">
+        UPDATE mt_locale_settings
+        SET config_value = #{value},
+            updated_at = #{updatedAt}
+        WHERE config_key = #{key}
+    </update>
+
+    <insert id="insert">
+        INSERT INTO mt_locale_settings (config_key, config_value, updated_at)
+        VALUES (#{key}, #{value}, #{updatedAt})
+    </insert>
+
+</mapper>
+
