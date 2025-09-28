@@ -13,7 +13,7 @@ public interface PlanAggregateMapper {
 
     int countPlans(PlanQueryParameters parameters);
 
-  PlanEntity findPlanById(@Param("planId") String planId);
+    PlanEntity findPlanById(@Param("planId") String planId);
 
     List<PlanParticipantEntity> findParticipantsByPlanIds(@Param("planIds") Collection<String> planIds);
 
@@ -62,4 +62,10 @@ public interface PlanAggregateMapper {
     String nextNodeId();
 
     String nextReminderId();
+
+    List<PlanStatusCountEntity> countPlansByStatus(PlanAnalyticsQueryParameters parameters);
+
+    long countOverduePlans(PlanAnalyticsQueryParameters parameters);
+
+    List<PlanUpcomingPlanEntity> findUpcomingPlans(PlanAnalyticsQueryParameters parameters);
 }

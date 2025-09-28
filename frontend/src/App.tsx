@@ -464,4 +464,71 @@ function App() {
   );
 }
 
+function formatDateTime(value?: string | null, locale?: Locale) {
+  if (!value) {
+    return '';
+  }
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return '';
+  }
+  return new Intl.DateTimeFormat(locale ?? 'ja-JP', {
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+  }).format(date);
+}
+
+function formatPlanWindow(
+  plan: PlanSummary,
+  locale: Locale,
+  translate: LocalizationState['translate']
+) {
+  const start = formatDateTime(plan.plannedStartTime ?? null, locale);
+  const end = formatDateTime(plan.plannedEndTime ?? null, locale);
+  if (start && end) {
+    return translate('planWindowRange', { start, end });
+  }
+  if (start) {
+    return start;
+  }
+  if (end) {
+    return end;
+  }
+  return translate('planWindowMissing');
+}
+
+function App() {
+  const localization = useLocalizationState();
+  const client = useMemo(
+    () =>
+      createApiClient({
+        getLocale: () => localization.locale,
+      }),
+    [localization.locale]
+  );
+  const session = useSessionController(client);
+  const planList = usePlanListController(client, session.state.session);
+
+  return (
+    <ConfigProvider
+      theme={{
+        token: {
+          colorPrimary: '#1677ff',
+          borderRadius: 12,
+          fontSize: 14,
+        },
+      }}
+    >
+      <AppView
+        client={client}
+        localization={localization}
+        session={session}
+        planList={planList}
+      />
+    </ConfigProvider>
+  );
+}
 export default App;
