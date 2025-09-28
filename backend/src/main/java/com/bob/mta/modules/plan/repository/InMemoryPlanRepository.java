@@ -1,6 +1,8 @@
 package com.bob.mta.modules.plan.repository;
 
 import com.bob.mta.modules.plan.domain.Plan;
+import com.bob.mta.modules.plan.persistence.PlanAggregateMapper;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.stereotype.Repository;
 
 import java.util.ArrayList;
@@ -13,6 +15,7 @@ import java.util.Locale;
 import java.util.Objects;
 
 @Repository
+@ConditionalOnMissingBean(PlanAggregateMapper.class)
 public class InMemoryPlanRepository implements PlanRepository {
 
     private final ConcurrentMap<String, Plan> storage = new ConcurrentHashMap<>();

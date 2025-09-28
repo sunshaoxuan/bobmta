@@ -51,53 +51,6 @@ public class InMemoryPlanService implements PlanService {
         this.fileService = fileService;
         this.planRepository = planRepository;
         this.messageResolver = messageResolver;
-        seedPlans();
-    }
-
-    private void seedPlans() {
-        if (!planRepository.findAll().isEmpty()) {
-            return;
-        }
-
-        List<PlanNodeCommand> nodes = List.of(
-                new PlanNodeCommand(null, Localization.text(LocalizationKeys.Seeds.PLAN_NODE_BACKUP_TITLE), "REMOTE",
-                        "admin", 1, 60, "remote-template-1",
-                        Localization.text(LocalizationKeys.Seeds.PLAN_NODE_BACKUP_DESCRIPTION), List.of()),
-                new PlanNodeCommand(null, Localization.text(LocalizationKeys.Seeds.PLAN_NODE_NOTIFY_TITLE), "EMAIL",
-                        "operator", 2, 15, "email-template-1",
-                        Localization.text(LocalizationKeys.Seeds.PLAN_NODE_NOTIFY_DESCRIPTION), List.of())
-        );
-        CreatePlanCommand command = new CreatePlanCommand(
-                "tenant-001",
-                Localization.text(LocalizationKeys.Seeds.PLAN_PRIMARY_TITLE),
-                Localization.text(LocalizationKeys.Seeds.PLAN_PRIMARY_DESCRIPTION),
-                "cust-001",
-                "admin",
-                OffsetDateTime.now().plusDays(3),
-                OffsetDateTime.now().plusDays(3).plusHours(4),
-                "Asia/Tokyo",
-                List.of("admin", "operator"),
-                nodes
-        );
-        Plan plan = buildPlan(planRepository.nextPlanId(), command, OffsetDateTime.now());
-        planRepository.save(plan);
-
-        CreatePlanCommand command2 = new CreatePlanCommand(
-                "tenant-001",
-                Localization.text(LocalizationKeys.Seeds.PLAN_SECONDARY_TITLE),
-                Localization.text(LocalizationKeys.Seeds.PLAN_SECONDARY_DESCRIPTION),
-                "cust-002",
-                "operator",
-                OffsetDateTime.now().plusWeeks(1),
-                OffsetDateTime.now().plusWeeks(1).plusHours(6),
-                "Asia/Tokyo",
-                List.of("operator"),
-                List.of(new PlanNodeCommand(null, Localization.text(LocalizationKeys.Seeds.PLAN_SECONDARY_NODE_TITLE),
-                        "CHECKLIST", "operator", 1, 180, null,
-                        Localization.text(LocalizationKeys.Seeds.PLAN_SECONDARY_NODE_DESCRIPTION), List.of()))
-        );
-        Plan plan2 = buildPlan(planRepository.nextPlanId(), command2, OffsetDateTime.now());
-        planRepository.save(plan2);
     }
 
     @Override
