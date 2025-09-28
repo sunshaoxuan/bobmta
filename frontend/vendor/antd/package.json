@@ -1,0 +1,12 @@
+{
+  "name": "antd",
+  "version": "5.17.0-offline",
+  "main": "index.js",
+  "module": "index.js",
+  "types": "index.d.ts",
+  "type": "module",
+  "peerDependencies": {
+    "react": ">=18",
+    "react-dom": ">=18"
+  }
+}
