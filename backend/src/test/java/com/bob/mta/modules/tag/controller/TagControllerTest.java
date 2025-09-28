@@ -7,6 +7,7 @@ import com.bob.mta.modules.audit.service.AuditRecorder;
 import com.bob.mta.modules.audit.service.impl.InMemoryAuditService;
 import com.bob.mta.modules.customer.service.impl.InMemoryCustomerService;
 import com.bob.mta.modules.file.service.impl.InMemoryFileService;
+import com.bob.mta.modules.plan.repository.InMemoryPlanAnalyticsRepository;
 import com.bob.mta.modules.plan.repository.InMemoryPlanRepository;
 import com.bob.mta.modules.plan.service.impl.InMemoryPlanService;
 import com.bob.mta.modules.tag.domain.TagEntityType;
@@ -38,7 +39,9 @@ class TagControllerTest {
         InMemoryTagService tagService = new InMemoryTagService();
         InMemoryCustomerService customerService = new InMemoryCustomerService();
         messageResolver = TestMessageResolverFactory.create();
-        planService = new InMemoryPlanService(new InMemoryFileService(), new InMemoryPlanRepository(), messageResolver);
+        InMemoryPlanRepository planRepository = new InMemoryPlanRepository();
+        planService = new InMemoryPlanService(new InMemoryFileService(), planRepository,
+                new InMemoryPlanAnalyticsRepository(planRepository), messageResolver);
         AuditRecorder recorder = new AuditRecorder(new InMemoryAuditService(), new ObjectMapper());
         controller = new TagController(tagService, customerService, planService, recorder, messageResolver);
         SecurityContextHolder.getContext().setAuthentication(new TestingAuthenticationToken("admin", "pass", "ROLE_ADMIN"));
@@ -71,7 +74,7 @@ class TagControllerTest {
         var created = controller.create(buildRequest("plan", com.bob.mta.modules.tag.domain.TagScope.PLAN), "ja-JP");
         AssignTagRequest assign = new AssignTagRequest();
         assign.setEntityType(TagEntityType.PLAN);
-        assign.setEntityId(planService.listPlans(null, null, null, null, null, null).get(0).getId());
+        assign.setEntityId(planService.listPlans(null, null, null, null, null, null, null, 0, 10).plans().get(0).getId());
 
         controller.assign(created.getData().getId(), assign);
 
