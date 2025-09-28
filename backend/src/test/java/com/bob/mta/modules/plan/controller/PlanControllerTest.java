@@ -18,6 +18,7 @@ import com.bob.mta.modules.plan.dto.PlanNodeAttachmentResponse;
 import com.bob.mta.modules.plan.dto.PlanReminderPolicyRequest;
 import com.bob.mta.modules.plan.dto.PlanReminderRuleRequest;
 import com.bob.mta.modules.plan.dto.PlanSummaryResponse;
+import com.bob.mta.modules.plan.repository.InMemoryPlanAnalyticsRepository;
 import com.bob.mta.modules.plan.repository.InMemoryPlanRepository;
 import com.bob.mta.modules.plan.service.impl.InMemoryPlanService;
 import com.bob.mta.modules.plan.service.command.CreatePlanCommand;
@@ -52,7 +53,8 @@ class PlanControllerTest {
         fileService = new InMemoryFileService();
         planRepository = new InMemoryPlanRepository();
         messageResolver = TestMessageResolverFactory.create();
-        planService = new InMemoryPlanService(fileService, planRepository, messageResolver);
+        planService = new InMemoryPlanService(fileService, planRepository,
+                new InMemoryPlanAnalyticsRepository(planRepository), messageResolver);
         auditService = new InMemoryAuditService();
         AuditRecorder recorder = new AuditRecorder(auditService, new ObjectMapper());
         controller = new PlanController(planService, recorder, fileService, messageResolver);
@@ -97,7 +99,7 @@ class PlanControllerTest {
 
     @Test
     void analyticsShouldSummarizePlans() {
-        var analytics = controller.analytics(null, null, null).getData();
+        var analytics = controller.analytics(null, null, null, null).getData();
 
         assertThat(analytics.getTotalPlans()).isGreaterThanOrEqualTo(2);
         assertThat(analytics.getUpcomingPlans()).isNotEmpty();
@@ -122,7 +124,7 @@ class PlanControllerTest {
         var created = planService.createPlan(command);
         planService.publishPlan(created.getId(), "admin");
 
-        var analytics = controller.analytics(null, null, null).getData();
+        var analytics = controller.analytics(null, null, null, null).getData();
 
         assertThat(analytics.getOverdueCount()).isGreaterThanOrEqualTo(1);
     }

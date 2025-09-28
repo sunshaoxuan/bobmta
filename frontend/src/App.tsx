@@ -208,6 +208,7 @@ function AppView({ client, localization, session, planList }: AppViewProps) {
       })),
     [availableLocales]
   );
+}
 
   return (
     <Layout className="app-layout">
@@ -448,5 +449,4 @@ function App() {
     </ConfigProvider>
   );
 }
-
 export default App;

@@ -89,9 +89,11 @@ public class PlanController {
     @PreAuthorize("hasAnyRole('ADMIN','OPERATOR')")
     @GetMapping("/analytics")
     public ApiResponse<PlanAnalyticsResponse> analytics(@RequestParam(required = false) String tenantId,
+                                                        @RequestParam(required = false) String customerId,
                                                         @RequestParam(required = false) OffsetDateTime from,
                                                         @RequestParam(required = false) OffsetDateTime to) {
-        return ApiResponse.success(PlanAnalyticsResponse.from(planService.getAnalytics(tenantId, from, to)));
+        return ApiResponse.success(PlanAnalyticsResponse.from(
+                planService.getAnalytics(tenantId, customerId, from, to)));
     }
 
     @PreAuthorize("hasAnyRole('ADMIN','OPERATOR')")

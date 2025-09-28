@@ -15,6 +15,7 @@ import com.bob.mta.modules.plan.domain.PlanReminderTrigger;
 import com.bob.mta.modules.plan.domain.PlanNodeExecution;
 import com.bob.mta.modules.plan.domain.PlanStatus;
 import com.bob.mta.modules.plan.domain.PlanAnalytics;
+import com.bob.mta.modules.plan.repository.InMemoryPlanAnalyticsRepository;
 import com.bob.mta.modules.plan.repository.InMemoryPlanRepository;
 import com.bob.mta.modules.plan.service.command.CreatePlanCommand;
 import com.bob.mta.modules.plan.service.command.PlanNodeCommand;
@@ -31,9 +32,10 @@ import java.util.Locale;
 class InMemoryPlanServiceTest {
 
     private final InMemoryPlanRepository repository = new InMemoryPlanRepository();
+    private final InMemoryPlanAnalyticsRepository analyticsRepository = new InMemoryPlanAnalyticsRepository(repository);
     private final MessageResolver messageResolver = TestMessageResolverFactory.create();
     private final InMemoryPlanService service = new InMemoryPlanService(new InMemoryFileService(), repository,
-            messageResolver);
+            analyticsRepository, messageResolver);
 
     @BeforeEach
     void setUpLocale() {
@@ -277,12 +279,54 @@ class InMemoryPlanServiceTest {
                 .orElseThrow();
         service.cancelPlan(planToCancel.getId(), "admin", "客户取消");
 
-        PlanAnalytics analytics = service.getAnalytics("tenant-001", null, null);
+        PlanAnalytics analytics = service.getAnalytics("tenant-001", null, null, null);
 
         assertThat(analytics.getTotalPlans()).isGreaterThanOrEqualTo(3);
         assertThat(analytics.getInProgressCount()).isGreaterThanOrEqualTo(1);
         assertThat(analytics.getCanceledCount()).isGreaterThanOrEqualTo(1);
         assertThat(analytics.getOverdueCount()).isGreaterThanOrEqualTo(1);
         assertThat(analytics.getUpcomingPlans()).isNotEmpty();
+    }
+
+    @Test
+    void analyticsShouldFilterByCustomer() {
+        OffsetDateTime plannedStart = OffsetDateTime.now().plusDays(3);
+        CreatePlanCommand targetCommand = new CreatePlanCommand(
+                "tenant-analytics",
+                "Network maintenance window",
+                "Customer specific window",
+                "cust-target",
+                "owner-a",
+                plannedStart,
+                plannedStart.plusHours(2),
+                "Asia/Tokyo",
+                List.of("owner-a"),
+                List.of(new PlanNodeCommand(null, "Validate routers", "CHECKLIST", "owner-a", 1, 30, null, "", List.of()))
+        );
+        var targetPlan = service.createPlan(targetCommand);
+        service.publishPlan(targetPlan.getId(), "owner-a");
+
+        CreatePlanCommand otherCommand = new CreatePlanCommand(
+                "tenant-analytics",
+                "Generic follow-up",
+                "Second customer window",
+                "cust-other",
+                "owner-b",
+                plannedStart.plusDays(1),
+                plannedStart.plusDays(1).plusHours(1),
+                "Asia/Tokyo",
+                List.of("owner-b"),
+                List.of(new PlanNodeCommand(null, "Confirm status", "CHECKLIST", "owner-b", 1, 15, null, "", List.of()))
+        );
+        service.createPlan(otherCommand);
+
+        PlanAnalytics analytics = service.getAnalytics("tenant-analytics", "cust-target", null, null);
+
+        assertThat(analytics.getTotalPlans()).isGreaterThanOrEqualTo(1);
+        assertThat(analytics.getUpcomingPlans())
+                .allSatisfy(plan -> assertThat(plan.getCustomerId()).isEqualTo("cust-target"));
+        assertThat(analytics.getDesignCount() + analytics.getScheduledCount() + analytics.getInProgressCount()
+                + analytics.getCompletedCount() + analytics.getCanceledCount())
+                .isEqualTo(analytics.getTotalPlans());
     }
 }
