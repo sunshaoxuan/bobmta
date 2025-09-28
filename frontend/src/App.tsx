@@ -534,32 +534,73 @@ function App() {
                 </Button>
               }
             >
-              {!session && <Empty description={t('planLoginRequired')} />}
-              {session && planErrorDetail && (
-                <Alert
-                  type="error"
-                  showIcon
-                  message={t('planError', { error: planErrorDetail })}
-                  style={{ marginBottom: 16 }}
-                />
-              )}
-              {session && !planErrorDetail && (
-                <Table<PlanSummary>
-                  rowKey="id"
-                  dataSource={plans}
-                  columns={planColumns}
-                  pagination={false}
-                  loading={{ spinning: plansLoading, tip: t('planLoading') }}
-                  locale={{ emptyText: t('planEmpty') }}
-                  scroll={{ x: true }}
-                />
-              )}
-            </Card>
-          </Space>
-        </Content>
-      </Layout>
-    </ConfigProvider>
-  );
-}
+          <table className="plan-table">
+            <thead>
+              <tr>
+                <th>{t('planTableHeaderId')}</th>
+                <th>{t('planTableHeaderTitle')}</th>
+                <th>{t('planTableHeaderOwner')}</th>
+                <th>{t('planTableHeaderStatus')}</th>
+                <th>{t('planTableHeaderWindow')}</th>
+                <th>{t('planTableHeaderProgress')}</th>
+                <th>{t('planTableHeaderParticipants')}</th>
+              </tr>
+            </thead>
+            <tbody>
+              {plans.map((plan) => (
+                <tr key={plan.id}>
+                  <td>{plan.id}</td>
+                  <td>{plan.title}</td>
+                  <td>{plan.owner}</td>
+                  <td>{t(STATUS_LABEL[plan.status])}</td>
+                  <td>{formatPlanWindow(plan)}</td>
+                  <td>{`${plan.progress}%`}</td>
+                  <td>{plan.participants.length}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </section>
+    </div>
+  }, [authLoading, credentials, locale]);
 
+  const handleLogout = useCallback(() => {
+    setSession(null);
+    setPlans([]);
+    setPlansError(null);
+  }, []);
+
+  const authErrorDetail = describeRemoteError(authError);
+  const planErrorDetail = describeRemoteError(plansError);
+  const planColumns = useMemo<TableColumnsType<PlanSummary>>(
+    () => [
+      {
+        title: t('planTableHeaderId'),
+        dataIndex: 'id',
+        key: 'id',
+        width: 160,
+        render: (value: string) => <Text code>{value}</Text>,
+      },
+      {
+        title: t('planTableHeaderTitle'),
+        dataIndex: 'title',
+        key: 'title',
+        ellipsis: true,
+        render: (value: string) => <Text strong>{value}</Text>,
+      },
+      {
+        title: t('planTableHeaderOwner'),
+        dataIndex: 'owner',
+        key: 'owner',
+        render: (value: string) => <Tag color="geekblue">{value}</Tag>,
+      },
+      {
+        title: t('planTableHeaderStatus'),
+        dataIndex: 'status',
+        key: 'status',
+        render: (_: PlanStatus, record) => (
+          <Tag color={PLAN_STATUS_COLOR[record.status]}>{t(STATUS_LABEL[record.status])}</Tag>
+
+}
 export default App;
