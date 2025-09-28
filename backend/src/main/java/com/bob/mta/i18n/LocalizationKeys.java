@@ -23,6 +23,35 @@ public final class LocalizationKeys {
         public static final String BACKEND_ERROR_NETWORK = "frontend.app.backend.error.network";
         public static final String BACKEND_PENDING = "frontend.app.backend.pending";
         public static final String LOCALE_LABEL = "frontend.app.locale.label";
+        public static final String AUTH_SECTION_TITLE = "frontend.auth.section.title";
+        public static final String AUTH_USERNAME_LABEL = "frontend.auth.username.label";
+        public static final String AUTH_PASSWORD_LABEL = "frontend.auth.password.label";
+        public static final String AUTH_SUBMIT = "frontend.auth.submit";
+        public static final String AUTH_LOGGING_IN = "frontend.auth.loggingIn";
+        public static final String AUTH_LOGOUT = "frontend.auth.logout";
+        public static final String AUTH_WELCOME = "frontend.auth.welcome";
+        public static final String AUTH_ERROR = "frontend.auth.error";
+        public static final String AUTH_TOKEN_EXPIRY = "frontend.auth.token.expiry";
+        public static final String PLAN_SECTION_TITLE = "frontend.plan.section.title";
+        public static final String PLAN_REFRESH = "frontend.plan.refresh";
+        public static final String PLAN_TABLE_HEADER_ID = "frontend.plan.table.header.id";
+        public static final String PLAN_TABLE_HEADER_TITLE = "frontend.plan.table.header.title";
+        public static final String PLAN_TABLE_HEADER_OWNER = "frontend.plan.table.header.owner";
+        public static final String PLAN_TABLE_HEADER_STATUS = "frontend.plan.table.header.status";
+        public static final String PLAN_TABLE_HEADER_WINDOW = "frontend.plan.table.header.window";
+        public static final String PLAN_TABLE_HEADER_PROGRESS = "frontend.plan.table.header.progress";
+        public static final String PLAN_TABLE_HEADER_PARTICIPANTS = "frontend.plan.table.header.participants";
+        public static final String PLAN_WINDOW_RANGE = "frontend.plan.table.window.range";
+        public static final String PLAN_WINDOW_MISSING = "frontend.plan.table.window.missing";
+        public static final String PLAN_LOADING = "frontend.plan.table.loading";
+        public static final String PLAN_EMPTY = "frontend.plan.table.empty";
+        public static final String PLAN_LOGIN_REQUIRED = "frontend.plan.loginRequired";
+        public static final String PLAN_ERROR = "frontend.plan.table.error";
+        public static final String PLAN_STATUS_DESIGN = "frontend.plan.status.design";
+        public static final String PLAN_STATUS_SCHEDULED = "frontend.plan.status.scheduled";
+        public static final String PLAN_STATUS_IN_PROGRESS = "frontend.plan.status.inProgress";
+        public static final String PLAN_STATUS_COMPLETED = "frontend.plan.status.completed";
+        public static final String PLAN_STATUS_CANCELLED = "frontend.plan.status.cancelled";
         private Frontend() {
         }
     }

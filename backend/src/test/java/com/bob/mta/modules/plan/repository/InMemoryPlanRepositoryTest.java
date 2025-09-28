@@ -81,7 +81,36 @@ class InMemoryPlanRepositoryTest {
                 .to(baseline.plusDays(2))
                 .build();
 
+        assertThat(repository.countByCriteria(criteria)).isEqualTo(1);
         assertThat(repository.findByCriteria(criteria))
                 .containsExactly(matching);
+    }
+
+    @Test
+    void shouldApplyPagination() {
+        OffsetDateTime baseline = OffsetDateTime.now();
+        for (int i = 0; i < 5; i++) {
+            Plan plan = new Plan(
+                    "PLAN-20" + i, "tenant-page", "计划" + i, "描述", "cust-1", "owner",
+                    List.of("owner"), PlanStatus.DESIGN,
+                    baseline.plusDays(i), baseline.plusDays(i).plusHours(1),
+                    null, null, null, null, null,
+                    "Asia/Shanghai", List.of(), List.of(), OffsetDateTime.now(), OffsetDateTime.now(),
+                    List.of(), PlanReminderPolicy.empty()
+            );
+            repository.save(plan);
+        }
+
+        PlanSearchCriteria criteria = PlanSearchCriteria.builder()
+                .tenantId("tenant-page")
+                .limit(2)
+                .offset(2)
+                .build();
+
+        List<Plan> result = repository.findByCriteria(criteria);
+
+        assertThat(repository.countByCriteria(criteria)).isEqualTo(5);
+        assertThat(result).hasSize(2);
+        assertThat(result.get(0).getId()).isEqualTo("PLAN-202");
     }
 }
