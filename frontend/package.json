@@ -6,7 +6,8 @@
   "scripts": {
     "dev": "tsc -p tsconfig.app.json --watch",
     "build": "tsc -p tsconfig.app.json",
-    "preview": "node scripts/preview.js"
+    "preview": "node scripts/preview.js",
+    "test": "npm run build && node --test tests"
   },
   "dependencies": {},
   "devDependencies": {}

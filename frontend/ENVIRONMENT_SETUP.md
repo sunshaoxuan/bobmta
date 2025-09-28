@@ -6,8 +6,9 @@
    - 执行 `npm install` 仅用于生成或更新 `package-lock.json`，不会连接外网，也无需额外的代理设置。
    - 若 `package-lock.json` 出现异常，请直接删除后重新运行 `npm install`。
 
-2. **编译与预览**
+2. **编译、测试与预览**
    - 运行 `npm run build` 触发 TypeScript 离线编译，产物输出至 `dist/` 目录。
+   - 运行 `npm run test` 会先执行离线编译，再通过 Node 内置测试框架校验 API 客户端与 Mock 数据逻辑，无需额外依赖。
    - 通过 `npm run preview` 启动内置的 Node 静态服务器（默认端口 `4173`），浏览器访问 `http://localhost:4173` 即可加载 `index.html` 与离线依赖。
    - `npm run dev` 会开启 TypeScript watch 编译，适合调试状态下增量构建。
 
