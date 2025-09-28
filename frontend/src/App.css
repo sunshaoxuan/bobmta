@@ -52,6 +52,7 @@
 .status-card {
   background: linear-gradient(135deg, rgba(22, 119, 255, 0.12), rgba(111, 207, 255, 0.08));
 }
+
 .logout-button {
   padding: 0;
 }
@@ -104,6 +105,21 @@
 
 .plan-pagination .antd-pagination-status {
   font-size: 13px;
+}
+
+.plan-card-extra {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.plan-last-updated {
+  font-size: 12px !important;
+}
+
+.cache-indicator {
+  border-radius: 999px !important;
+  font-weight: 600 !important;
 }
 
 .state-error-detail {
