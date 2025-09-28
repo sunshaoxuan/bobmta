@@ -18,6 +18,7 @@ import com.bob.mta.modules.plan.dto.PlanNodeAttachmentResponse;
 import com.bob.mta.modules.plan.dto.PlanReminderPolicyRequest;
 import com.bob.mta.modules.plan.dto.PlanReminderRuleRequest;
 import com.bob.mta.modules.plan.dto.PlanSummaryResponse;
+import com.bob.mta.modules.plan.repository.InMemoryPlanAnalyticsRepository;
 import com.bob.mta.modules.plan.repository.InMemoryPlanRepository;
 import com.bob.mta.modules.plan.service.impl.InMemoryPlanService;
 import com.bob.mta.modules.plan.service.command.CreatePlanCommand;
@@ -52,7 +53,8 @@ class PlanControllerTest {
         fileService = new InMemoryFileService();
         planRepository = new InMemoryPlanRepository();
         messageResolver = TestMessageResolverFactory.create();
-        planService = new InMemoryPlanService(fileService, planRepository, messageResolver);
+        planService = new InMemoryPlanService(fileService, planRepository,
+                new InMemoryPlanAnalyticsRepository(planRepository), messageResolver);
         auditService = new InMemoryAuditService();
         AuditRecorder recorder = new AuditRecorder(auditService, new ObjectMapper());
         controller = new PlanController(planService, recorder, fileService, messageResolver);
@@ -129,7 +131,7 @@ class PlanControllerTest {
 
     @Test
     void detailShouldReturnPlanWithNodesAndReminders() {
-        String planId = planService.listPlans(null, null, null, null, null, null).get(0).getId();
+        String planId = planService.listPlans(null, null, null, null, null, null, 0, 10).plans().get(0).getId();
         PlanDetailResponse response = controller.detail(planId).getData();
         assertThat(response.getNodes()).isNotEmpty();
         assertThat(response.getTimeline()).isNotEmpty();
@@ -138,7 +140,7 @@ class PlanControllerTest {
 
     @Test
     void detailShouldExposeNodeAttachments() {
-        String planId = planService.listPlans(null, null, null, null, null, null).get(0).getId();
+        String planId = planService.listPlans(null, null, null, null, null, null, 0, 10).plans().get(0).getId();
         String nodeId = planService.getPlan(planId).getExecutions().get(0).getNodeId();
         authenticate("admin");
         controller.publish(planId);
@@ -160,7 +162,7 @@ class PlanControllerTest {
 
     @Test
     void reminderPolicyShouldExposeDefaultRules() {
-        String planId = planService.listPlans(null, null, null, null, null, null).get(0).getId();
+        String planId = planService.listPlans(null, null, null, null, null, null, 0, 10).plans().get(0).getId();
 
         var policy = controller.reminderPolicy(planId).getData();
 
@@ -170,7 +172,7 @@ class PlanControllerTest {
 
     @Test
     void updateReminderPolicyShouldRecordAuditAndPersistRules() {
-        String planId = planService.listPlans(null, null, null, null, null, null).get(0).getId();
+        String planId = planService.listPlans(null, null, null, null, null, null, 0, 10).plans().get(0).getId();
         authenticate("admin");
         PlanReminderRuleRequest ruleRequest = new PlanReminderRuleRequest();
         ruleRequest.setTrigger(PlanReminderTrigger.BEFORE_PLAN_START);
@@ -194,7 +196,7 @@ class PlanControllerTest {
 
     @Test
     void previewRemindersShouldReturnUpcomingEntries() {
-        String planId = planService.listPlans(null, null, null, null, null, null).get(0).getId();
+        String planId = planService.listPlans(null, null, null, null, null, null, 0, 10).plans().get(0).getId();
 
         var preview = controller.previewReminders(planId, OffsetDateTime.now().minusMinutes(1)).getData();
 
@@ -204,7 +206,7 @@ class PlanControllerTest {
 
     @Test
     void cancelShouldExposeReasonAndOperator() {
-        String planId = planService.listPlans(null, null, null, null, null, null).get(0).getId();
+        String planId = planService.listPlans(null, null, null, null, null, null, 0, 10).plans().get(0).getId();
         CancelPlanRequest request = new CancelPlanRequest();
         request.setReason("客户延期");
         SecurityContextHolder.getContext().setAuthentication(new TestingAuthenticationToken("admin", null));
@@ -218,7 +220,7 @@ class PlanControllerTest {
 
     @Test
     void handoverShouldUpdateOwnerParticipantsAndAuditTrail() {
-        String planId = planService.listPlans(null, null, null, null, null, null).get(0).getId();
+        String planId = planService.listPlans(null, null, null, null, null, null, 0, 10).plans().get(0).getId();
         authenticate("admin");
         PlanHandoverRequest request = new PlanHandoverRequest();
         request.setNewOwner("operator");
@@ -240,7 +242,7 @@ class PlanControllerTest {
 
     @Test
     void publishShouldRecordBeforeAndAfterInAudit() {
-        String planId = planService.listPlans(null, null, null, null, null, null).get(0).getId();
+        String planId = planService.listPlans(null, null, null, null, null, null, 0, 10).plans().get(0).getId();
         authenticate("admin");
 
         controller.publish(planId);
@@ -253,7 +255,7 @@ class PlanControllerTest {
 
     @Test
     void timelineShouldExposePlanActivities() {
-        String planId = planService.listPlans(null, null, null, null, null, null).get(0).getId();
+        String planId = planService.listPlans(null, null, null, null, null, null, 0, 10).plans().get(0).getId();
         authenticate("admin");
 
         controller.publish(planId);
@@ -266,7 +268,7 @@ class PlanControllerTest {
 
     @Test
     void startNodeShouldRecordStateTransitionInAudit() {
-        String planId = planService.listPlans(null, null, null, null, null, null).get(0).getId();
+        String planId = planService.listPlans(null, null, null, null, null, null, 0, 10).plans().get(0).getId();
         String nodeId = planService.getPlan(planId).getExecutions().get(0).getNodeId();
         authenticate("operator");
         controller.publish(planId);
@@ -281,7 +283,7 @@ class PlanControllerTest {
 
     @Test
     void completeNodeShouldRecordStateTransitionInAudit() {
-        String planId = planService.listPlans(null, null, null, null, null, null).get(0).getId();
+        String planId = planService.listPlans(null, null, null, null, null, null, 0, 10).plans().get(0).getId();
         String nodeId = planService.getPlan(planId).getExecutions().get(0).getNodeId();
         authenticate("operator");
         controller.publish(planId);

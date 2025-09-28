@@ -15,6 +15,7 @@ import com.bob.mta.modules.plan.domain.PlanReminderTrigger;
 import com.bob.mta.modules.plan.domain.PlanNodeExecution;
 import com.bob.mta.modules.plan.domain.PlanStatus;
 import com.bob.mta.modules.plan.domain.PlanAnalytics;
+import com.bob.mta.modules.plan.repository.InMemoryPlanAnalyticsRepository;
 import com.bob.mta.modules.plan.repository.InMemoryPlanRepository;
 import com.bob.mta.modules.plan.service.command.CreatePlanCommand;
 import com.bob.mta.modules.plan.service.command.PlanNodeCommand;
@@ -31,9 +32,10 @@ import java.util.Locale;
 class InMemoryPlanServiceTest {
 
     private final InMemoryPlanRepository repository = new InMemoryPlanRepository();
+    private final InMemoryPlanAnalyticsRepository analyticsRepository = new InMemoryPlanAnalyticsRepository(repository);
     private final MessageResolver messageResolver = TestMessageResolverFactory.create();
     private final InMemoryPlanService service = new InMemoryPlanService(new InMemoryFileService(), repository,
-            messageResolver);
+            analyticsRepository, messageResolver);
 
     @BeforeEach
     void setUpLocale() {
@@ -89,15 +91,16 @@ class InMemoryPlanServiceTest {
         );
         service.createPlan(command);
 
-        List<Plan> filtered = service.listPlans(null, "ops-owner", "苏州", null, null, null);
+        var result = service.listPlans(null, "ops-owner", "苏州", null, null, null, 0, 10);
 
-        assertThat(filtered).hasSize(1);
+        assertThat(result.totalCount()).isEqualTo(1);
+        assertThat(result.plans()).hasSize(1);
     }
 
     @Test
     @DisplayName("updateReminderPolicy replaces rules and appends timeline entry")
     void shouldUpdateReminderPolicy() {
-        var plan = service.listPlans(null, null, null, null, null, null).get(0);
+        var plan = service.listPlans(null, null, null, null, null, null, 0, 10).plans().get(0);
         List<PlanReminderRule> rules = List.of(
                 new PlanReminderRule(null, PlanReminderTrigger.BEFORE_PLAN_START, 90,
                         List.of("EMAIL"), "template-90", List.of("OWNER"), "提前90分钟提醒负责人"));
@@ -115,7 +118,7 @@ class InMemoryPlanServiceTest {
     @Test
     @DisplayName("previewReminderSchedule filters to future events")
     void shouldPreviewReminderSchedule() {
-        var plan = service.listPlans(null, null, null, null, null, null).get(0);
+        var plan = service.listPlans(null, null, null, null, null, null, 0, 10).plans().get(0);
 
         List<PlanReminderSchedule> schedule = service.previewReminderSchedule(plan.getId(), OffsetDateTime.now().minusDays(1));
 
@@ -126,7 +129,7 @@ class InMemoryPlanServiceTest {
 
     @Test
     void shouldStartNode() {
-        var plan = service.listPlans(null, null, null, null, null, null).get(0);
+        var plan = service.listPlans(null, null, null, null, null, null, 0, 10).plans().get(0);
         service.publishPlan(plan.getId(), "admin");
         PlanNodeExecution execution = service.startNode(plan.getId(), plan.getExecutions().get(0).getNodeId(), "admin");
 
@@ -136,7 +139,7 @@ class InMemoryPlanServiceTest {
 
     @Test
     void shouldRenderIcs() {
-        var plan = service.listPlans(null, null, null, null, null, null).get(0);
+        var plan = service.listPlans(null, null, null, null, null, null, 0, 10).plans().get(0);
         service.cancelPlan(plan.getId(), "admin", "客户原因取消");
         String ics = service.renderPlanIcs(plan.getId());
 
@@ -153,7 +156,7 @@ class InMemoryPlanServiceTest {
     @Test
     @DisplayName("cancelPlan stores reason and operator metadata")
     void shouldPersistCancellationMetadata() {
-        var plan = service.listPlans(null, null, null, null, null, null).get(0);
+        var plan = service.listPlans(null, null, null, null, null, null, 0, 10).plans().get(0);
 
         var updated = service.cancelPlan(plan.getId(), "operator", "客户要求顺延");
 
@@ -166,7 +169,7 @@ class InMemoryPlanServiceTest {
     @Test
     @DisplayName("handoverPlan updates owner and participants and appends timeline entry")
     void shouldHandoverPlan() {
-        var plan = service.listPlans(null, null, null, null, null, null).get(0);
+        var plan = service.listPlans(null, null, null, null, null, null, 0, 10).plans().get(0);
 
         var updated = service.handoverPlan(plan.getId(), "operator", List.of("operator", "observer"),
                 "夜间交接", "admin");
@@ -186,7 +189,7 @@ class InMemoryPlanServiceTest {
     @Test
     @DisplayName("timeline captures node execution lifecycle")
     void shouldCaptureTimelineForNodeLifecycle() {
-        var plan = service.listPlans(null, null, null, null, null, null).get(0);
+        var plan = service.listPlans(null, null, null, null, null, null, 0, 10).plans().get(0);
         service.publishPlan(plan.getId(), "admin");
         String nodeId = plan.getExecutions().get(0).getNodeId();
         service.startNode(plan.getId(), nodeId, "operator");
@@ -205,7 +208,7 @@ class InMemoryPlanServiceTest {
     @Test
     @DisplayName("startNode rejects when plan is not published")
     void shouldRejectStartWhenDesign() {
-        var plan = service.listPlans(null, null, null, null, null, null).get(0);
+        var plan = service.listPlans(null, null, null, null, null, null, 0, 10).plans().get(0);
 
         assertThatThrownBy(() -> service.startNode(plan.getId(), plan.getExecutions().get(0).getNodeId(), "admin"))
                 .isInstanceOf(BusinessException.class)
@@ -215,7 +218,7 @@ class InMemoryPlanServiceTest {
     @Test
     @DisplayName("startNode rejects when plan is canceled")
     void shouldRejectStartWhenCanceled() {
-        var plan = service.listPlans(null, null, null, null, null, null).get(0);
+        var plan = service.listPlans(null, null, null, null, null, null, 0, 10).plans().get(0);
         service.publishPlan(plan.getId(), "admin");
         service.cancelPlan(plan.getId(), "admin", "客户取消");
 
@@ -227,7 +230,7 @@ class InMemoryPlanServiceTest {
     @Test
     @DisplayName("completeNode requires the node to be started first")
     void shouldRejectCompleteWhenPending() {
-        var plan = service.listPlans(null, null, null, null, null, null).get(0);
+        var plan = service.listPlans(null, null, null, null, null, null, 0, 10).plans().get(0);
         service.publishPlan(plan.getId(), "admin");
 
         assertThatThrownBy(() -> service.completeNode(plan.getId(), plan.getExecutions().get(0).getNodeId(),
@@ -239,7 +242,7 @@ class InMemoryPlanServiceTest {
     @Test
     @DisplayName("completeNode rejects when plan is canceled mid-execution")
     void shouldRejectCompleteWhenPlanCanceled() {
-        var plan = service.listPlans(null, null, null, null, null, null).get(0);
+        var plan = service.listPlans(null, null, null, null, null, null, 0, 10).plans().get(0);
         service.publishPlan(plan.getId(), "admin");
         String nodeId = plan.getExecutions().get(0).getNodeId();
         service.startNode(plan.getId(), nodeId, "admin");
@@ -270,7 +273,7 @@ class InMemoryPlanServiceTest {
         var overduePlan = service.createPlan(overdueCommand);
         service.publishPlan(overduePlan.getId(), "admin");
 
-        var planToCancel = service.listPlans(null, null, null, null, null, null).stream()
+        var planToCancel = service.listPlans(null, null, null, null, null, null, 0, 20).plans().stream()
                 .filter(plan -> !plan.getId().equals(overduePlan.getId()))
                 .findFirst()
                 .orElseThrow();
