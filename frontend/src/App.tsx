@@ -1,5 +1,12 @@
 import { useEffect, useState } from 'react';
 import './App.css';
+import {
+  availableLocales,
+  defaultLocale,
+  formatMessage,
+  type Locale,
+  type MessageKey,
+} from './i18n/messages';
 
 type PingResponse = {
   status: string;
@@ -7,31 +14,60 @@ type PingResponse = {
 
 function App() {
   const [ping, setPing] = useState<PingResponse | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<{
+    key: MessageKey;
+    values?: Record<string, string | number>;
+  } | null>(null);
+  const [locale, setLocale] = useState<Locale>(defaultLocale);
+
+  const t = (key: MessageKey, values?: Record<string, string | number>) =>
+    formatMessage(locale, key, values);
 
   useEffect(() => {
-    fetch('/api/ping')
+    setPing(null);
+    setError(null);
+    const acceptLanguage = locale === 'ja' ? 'ja-JP' : 'zh-CN';
+    fetch('/api/ping', {
+      headers: {
+        'Accept-Language': acceptLanguage,
+      },
+    })
       .then(async (response) => {
         if (!response.ok) {
-          throw new Error(`Request failed with status ${response.status}`);
+          setError({ key: 'backendErrorStatus', values: { status: response.status } });
+          return;
         }
         const body = (await response.json()) as PingResponse;
         setPing(body);
       })
-      .catch((err) => {
-        setError(err.message);
+      .catch(() => {
+        setError({ key: 'backendErrorNetwork' });
       });
-  }, []);
+  }, [locale]);
 
   return (
     <div className="app">
-      <h1>BOB MTA Maintain Assistants</h1>
-      <p>最简前后端联通性验证页面。</p>
+      <div className="locale-switcher">
+        <label htmlFor="locale-select">{t('localeLabel')}:</label>
+        <select
+          id="locale-select"
+          value={locale}
+          onChange={(event) => setLocale(event.target.value as Locale)}
+        >
+          {availableLocales().map((option) => (
+            <option key={option} value={option}>
+              {option.toUpperCase()}
+            </option>
+          ))}
+        </select>
+      </div>
+      <h1>{t('appTitle')}</h1>
+      <p>{t('appDescription')}</p>
       <section className="status-panel">
-        <h2>后端连通性</h2>
-        {ping && <p className="success">后端响应：{ping.status}</p>}
-        {error && <p className="error">请求失败：{error}</p>}
-        {!ping && !error && <p>检查后端连接中...</p>}
+        <h2>{t('backendStatus')}</h2>
+        {ping && <p className="success">{t('backendSuccess', { status: ping.status })}</p>}
+        {error && <p className="error">{t('backendError', { error: t(error.key, error.values) })}</p>}
+        {!ping && !error && <p>{t('backendPending')}</p>}
       </section>
     </div>
   );

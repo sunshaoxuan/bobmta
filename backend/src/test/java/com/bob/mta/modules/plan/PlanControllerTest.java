@@ -42,8 +42,8 @@ class PlanControllerTest {
 
         Map<String, Object> payload = Map.of(
                 "tenantId", "tenant-test",
-                "title", "演练计划",
-                "description", "验证巡检流程",
+                "title", "Dry run plan",
+                "description", "Validate maintenance workflow",
                 "customerId", "cust-777",
                 "owner", "admin",
                 "startTime", start,
@@ -51,7 +51,7 @@ class PlanControllerTest {
                 "timezone", "Asia/Tokyo",
                 "participants", List.of("admin", "operator"),
                 "nodes", List.of(Map.of(
-                        "name", "准备环境",
+                        "name", "Prepare environment",
                         "type", "CHECKLIST",
                         "assignee", "admin",
                         "order", 1,
@@ -65,7 +65,7 @@ class PlanControllerTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsBytes(payload)))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.title").value("演练计划"))
+                .andExpect(jsonPath("$.data.title").value("Dry run plan"))
                 .andReturn();
 
         JsonNode created = objectMapper.readTree(createResult.getResponse().getContentAsString(StandardCharsets.UTF_8));
