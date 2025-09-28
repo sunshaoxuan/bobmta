@@ -9,6 +9,16 @@
     "isolatedModules": true,
     "esModuleInterop": true,
     "lib": ["ESNext", "DOM"],
-    "skipLibCheck": true
+    "skipLibCheck": true,
+    "baseUrl": "./",
+    "paths": {
+      "react": ["vendor/react"],
+      "react/*": ["vendor/react/*"],
+      "react-dom": ["vendor/react-dom"],
+      "react-dom/*": ["vendor/react-dom/*"],
+      "antd": ["vendor/antd"],
+      "antd/*": ["vendor/antd/*"]
+    },
+    "types": []
   }
 }
