@@ -79,20 +79,21 @@ public class PlanController {
                                                                @RequestParam(required = false) OffsetDateTime to,
                                                                @RequestParam(defaultValue = "0") int page,
                                                                @RequestParam(defaultValue = "10") int size) {
-        List<Plan> plans = planService.listPlans(customerId, owner, keyword, status, from, to);
-        List<PlanSummaryResponse> summaries = plans.stream().map(PlanSummaryResponse::from).toList();
-        int fromIndex = Math.min(page * size, summaries.size());
-        int toIndex = Math.min(fromIndex + size, summaries.size());
-        List<PlanSummaryResponse> pageItems = summaries.subList(fromIndex, toIndex);
-        return ApiResponse.success(PageResponse.of(pageItems, summaries.size(), page, size));
+        var result = planService.listPlans(customerId, owner, keyword, status, from, to, page, size);
+        List<PlanSummaryResponse> pageItems = result.plans().stream()
+                .map(PlanSummaryResponse::from)
+                .toList();
+        return ApiResponse.success(PageResponse.of(pageItems, result.totalCount(), page, size));
     }
 
     @PreAuthorize("hasAnyRole('ADMIN','OPERATOR')")
     @GetMapping("/analytics")
     public ApiResponse<PlanAnalyticsResponse> analytics(@RequestParam(required = false) String tenantId,
+                                                        @RequestParam(required = false) String customerId,
                                                         @RequestParam(required = false) OffsetDateTime from,
                                                         @RequestParam(required = false) OffsetDateTime to) {
-        return ApiResponse.success(PlanAnalyticsResponse.from(planService.getAnalytics(tenantId, from, to)));
+        return ApiResponse.success(PlanAnalyticsResponse.from(
+                planService.getAnalytics(tenantId, customerId, from, to)));
     }
 
     @PreAuthorize("hasAnyRole('ADMIN','OPERATOR')")
