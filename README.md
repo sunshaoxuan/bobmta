@@ -5,14 +5,9 @@
 ## 阶段四迭代进度
 
 ### 🌐 多语言策略
-- 产品默认语言为 **日文（ja-JP）**，可选语言包提供 **中文（zh-CN）**。
-- 所有面向用户的字符串必须通过资源文件维护，严禁在代码中写死具有语种特征的文本。
-- 所有多语言资源统一维护在后端 `backend/src/main/resources/i18n/`，通过 `/api/v1/i18n/messages` 下发；前端页面加载时必须先检查本地缓存（`localStorage` 中的 `bobmta.localization.bundle`），缓存缺失或超期再调用接口刷新并回写缓存，禁止在前端代码中写死词条。
-- 单元测试若需断言文案，应通过资源方法或使用无语种特征的占位字符串。
-- 后端抛出的 `BusinessException`、`IllegalArgumentException` 等涉及用户提示的消息必须调用 `Localization.text` 或同级工具获取资源文案，禁止直接写入自然语言字符串。
-- 新增或调整文案时需先在 `LocalizationKeys` 中登记键名，再同步维护 `messages.properties` / `messages_ja.properties` / `messages_zh.properties` 以及必要的前端映射，保持语言包完整。
-- 数据多语通过实体的 `MultilingualText` 值对象及 `MultilingualTextService` 持久化，创建或更新业务数据时必须携带默认语言文本以及可选扩展语言，服务会在缺省翻译时自动回落到默认语言。业务响应需返回 `MultilingualTextPayload`，保持前后端多语结构一致。
-- 所有读取接口都要检查 `Accept-Language` 请求头，利用 `LocalePreferenceService` 解析当前会话语种（缺省回退日文），并沿仓储、服务到控制层全链路传递以加载对应翻译；前端发起请求时必须同步透传该请求头。
+- 产品默认语言为 **日文（ja-JP）**，并提供 **中文（zh-CN）** 可选语言包。
+- 全链路多语言设计（资源加载、数据存储、前端缓存、接口契约等）详见《[多语言架构规范](./MULTILINGUAL_GUIDE.md)》。
+- 所有研发活动必须遵守上述规范，禁止在代码与测试中写入具有语种特征的字面量。
 
 ### 📦 数据加载约束
 - 仓储在读取数据时应尽量合并查询以减少往返，但面对潜在的大数据量必须提供分页、最大返回量及防止过量读取的保护策略；一旦超出上限，应返回清晰的错误或指引调用方重试并附带翻页参数。
