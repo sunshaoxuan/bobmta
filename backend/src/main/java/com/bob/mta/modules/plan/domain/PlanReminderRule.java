@@ -1,5 +1,7 @@
 package com.bob.mta.modules.plan.domain;
 
+import com.bob.mta.i18n.Localization;
+import com.bob.mta.i18n.LocalizationKeys;
 import java.util.Collections;
 import java.util.List;
 
@@ -17,13 +19,13 @@ public class PlanReminderRule {
                             List<String> channels, String templateId, List<String> recipients,
                             String description) {
         if (trigger == null) {
-            throw new IllegalArgumentException("trigger is required");
+            throw new IllegalArgumentException(Localization.text(LocalizationKeys.Errors.PLAN_REMINDER_TRIGGER_REQUIRED));
         }
         if (offsetMinutes < 0) {
-            throw new IllegalArgumentException("offsetMinutes must be >= 0");
+            throw new IllegalArgumentException(Localization.text(LocalizationKeys.Errors.PLAN_REMINDER_OFFSET_NEGATIVE));
         }
         if (channels == null || channels.isEmpty()) {
-            throw new IllegalArgumentException("channels must not be empty");
+            throw new IllegalArgumentException(Localization.text(LocalizationKeys.Errors.PLAN_REMINDER_CHANNELS_REQUIRED));
         }
         this.id = id;
         this.trigger = trigger;
@@ -36,7 +38,7 @@ public class PlanReminderRule {
 
     public PlanReminderRule withId(String id) {
         if (id == null || id.isBlank()) {
-            throw new IllegalArgumentException("id is required");
+            throw new IllegalArgumentException(Localization.text(LocalizationKeys.Errors.PLAN_REMINDER_ID_REQUIRED));
         }
         return new PlanReminderRule(id, trigger, offsetMinutes, channels, templateId, recipients, description);
     }
