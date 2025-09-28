@@ -1,11 +1,8 @@
 package com.bob.mta.modules.tag.controller;
 
 import com.bob.mta.common.api.ApiResponse;
-import com.bob.mta.common.i18n.InMemoryMultilingualTextRepository;
-import com.bob.mta.common.i18n.MultilingualTextPayload;
-import com.bob.mta.common.i18n.MultilingualTextService;
-import com.bob.mta.i18n.InMemoryLocaleSettingsRepository;
-import com.bob.mta.i18n.LocalePreferenceService;
+import com.bob.mta.common.i18n.MessageResolver;
+import com.bob.mta.common.i18n.TestMessageResolverFactory;
 import com.bob.mta.modules.audit.service.AuditRecorder;
 import com.bob.mta.modules.audit.service.impl.InMemoryAuditService;
 import com.bob.mta.modules.customer.service.impl.InMemoryCustomerService;
@@ -25,7 +22,7 @@ import org.springframework.context.i18n.LocaleContextHolder;
 import org.springframework.security.authentication.TestingAuthenticationToken;
 import org.springframework.security.core.context.SecurityContextHolder;
 
-import java.util.Map;
+import java.util.Locale;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -37,14 +34,13 @@ class TagControllerTest {
 
     @BeforeEach
     void setUp() {
-        InMemoryTagService tagService = new InMemoryTagService(new MultilingualTextService(new InMemoryMultilingualTextRepository()));
+        LocaleContextHolder.setLocale(Locale.SIMPLIFIED_CHINESE);
+        InMemoryTagService tagService = new InMemoryTagService();
         InMemoryCustomerService customerService = new InMemoryCustomerService();
         messageResolver = TestMessageResolverFactory.create();
         planService = new InMemoryPlanService(new InMemoryFileService(), new InMemoryPlanRepository(), messageResolver);
         AuditRecorder recorder = new AuditRecorder(new InMemoryAuditService(), new ObjectMapper());
-        LocalePreferenceService localePreferenceService =
-                new LocalePreferenceService(new InMemoryLocaleSettingsRepository());
-        controller = new TagController(tagService, customerService, planService, recorder, localePreferenceService);
+        controller = new TagController(tagService, customerService, planService, recorder, messageResolver);
         SecurityContextHolder.getContext().setAuthentication(new TestingAuthenticationToken("admin", "pass", "ROLE_ADMIN"));
     }
 

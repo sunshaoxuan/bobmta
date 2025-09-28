@@ -2,8 +2,7 @@ package com.bob.mta.modules.plan.service.impl;
 
 import com.bob.mta.common.exception.BusinessException;
 import com.bob.mta.common.exception.ErrorCode;
-import com.bob.mta.i18n.Localization;
-import com.bob.mta.i18n.LocalizationKeys;
+import com.bob.mta.common.i18n.MessageResolver;
 import com.bob.mta.modules.file.service.FileService;
 import com.bob.mta.modules.plan.domain.Plan;
 import com.bob.mta.modules.plan.domain.PlanActivity;
@@ -18,6 +17,7 @@ import com.bob.mta.modules.plan.domain.PlanReminderSchedule;
 import com.bob.mta.modules.plan.domain.PlanReminderTrigger;
 import com.bob.mta.modules.plan.domain.PlanStatus;
 import com.bob.mta.modules.plan.repository.PlanRepository;
+import com.bob.mta.modules.plan.repository.PlanSearchCriteria;
 import com.bob.mta.modules.plan.service.PlanService;
 import com.bob.mta.modules.plan.service.command.CreatePlanCommand;
 import com.bob.mta.modules.plan.service.command.PlanNodeCommand;
@@ -103,13 +103,15 @@ public class InMemoryPlanService implements PlanService {
     @Override
     public List<Plan> listPlans(String customerId, String owner, String keyword, PlanStatus status,
                                 OffsetDateTime from, OffsetDateTime to) {
-        return planRepository.findAll().stream()
-                .filter(plan -> !StringUtils.hasText(customerId) || Objects.equals(plan.getCustomerId(), customerId))
-                .filter(plan -> !StringUtils.hasText(owner) || Objects.equals(plan.getOwner(), owner))
-                .filter(plan -> matchesKeyword(plan, keyword))
-                .filter(plan -> status == null || plan.getStatus() == status)
-                .filter(plan -> from == null || !plan.getPlannedEndTime().isBefore(from))
-                .filter(plan -> to == null || !plan.getPlannedStartTime().isAfter(to))
+        PlanSearchCriteria criteria = PlanSearchCriteria.builder()
+                .customerId(StringUtils.hasText(customerId) ? customerId : null)
+                .owner(StringUtils.hasText(owner) ? owner : null)
+                .keyword(StringUtils.hasText(keyword) ? keyword : null)
+                .status(status)
+                .from(from)
+                .to(to)
+                .build();
+        return planRepository.findByCriteria(criteria).stream()
                 .sorted(Comparator.comparing(Plan::getPlannedStartTime))
                 .collect(Collectors.toList());
     }
@@ -146,8 +148,7 @@ public class InMemoryPlanService implements PlanService {
     public Plan updatePlan(String id, UpdatePlanCommand command) {
         Plan current = requirePlan(id);
         if (current.getStatus() != PlanStatus.DESIGN) {
-            throw new BusinessException(ErrorCode.BAD_REQUEST,
-                    Localization.text(LocalizationKeys.Errors.PLAN_UPDATE_DESIGN_ONLY));
+            throw new BusinessException(ErrorCode.BAD_REQUEST, message("plan.error.updateDesignOnly"));
         }
         OffsetDateTime now = OffsetDateTime.now();
         List<PlanNode> nodes = toNodes(command.getNodes());
@@ -157,7 +158,7 @@ public class InMemoryPlanService implements PlanService {
                 PlanActivityType.PLAN_UPDATED,
                 now,
                 null,
-                Localization.text(LocalizationKeys.Seeds.PLAN_ACTIVITY_DEFINITION_UPDATED),
+                message("plan.activity.definitionUpdated"),
                 current.getId(),
                 attributes(
                         "title", command.getTitle(),
@@ -175,8 +176,7 @@ public class InMemoryPlanService implements PlanService {
     public void deletePlan(String id) {
         Plan current = requirePlan(id);
         if (current.getStatus() != PlanStatus.DESIGN) {
-            throw new BusinessException(ErrorCode.BAD_REQUEST,
-                    Localization.text(LocalizationKeys.Errors.PLAN_DELETE_DESIGN_ONLY));
+            throw new BusinessException(ErrorCode.BAD_REQUEST, message("plan.error.deleteDesignOnly"));
         }
         planRepository.delete(id);
     }
@@ -185,8 +185,7 @@ public class InMemoryPlanService implements PlanService {
     public Plan publishPlan(String id, String operator) {
         Plan current = requirePlan(id);
         if (current.getStatus() != PlanStatus.DESIGN) {
-            throw new BusinessException(ErrorCode.BAD_REQUEST,
-                    Localization.text(LocalizationKeys.Errors.PLAN_ALREADY_PUBLISHED));
+            throw new BusinessException(ErrorCode.BAD_REQUEST, message("plan.error.planPublished"));
         }
         OffsetDateTime now = OffsetDateTime.now();
         PlanStatus nextStatus = current.getPlannedStartTime().isAfter(now) ? PlanStatus.SCHEDULED : PlanStatus.IN_PROGRESS;
@@ -195,7 +194,7 @@ public class InMemoryPlanService implements PlanService {
                 PlanActivityType.PLAN_PUBLISHED,
                 now,
                 operator,
-                Localization.text(LocalizationKeys.Seeds.PLAN_ACTIVITY_PUBLISHED),
+                message("plan.activity.published"),
                 current.getId(),
                 attributes(
                         "status", nextStatus.name(),
@@ -211,15 +210,14 @@ public class InMemoryPlanService implements PlanService {
     public Plan cancelPlan(String id, String operator, String reason) {
         Plan current = requirePlan(id);
         if (current.getStatus() == PlanStatus.COMPLETED || current.getStatus() == PlanStatus.CANCELED) {
-            throw new BusinessException(ErrorCode.BAD_REQUEST,
-                    Localization.text(LocalizationKeys.Errors.PLAN_INACTIVE));
+            throw new BusinessException(ErrorCode.BAD_REQUEST, message("plan.error.planCompletedOrCanceled"));
         }
         OffsetDateTime now = OffsetDateTime.now();
         List<PlanActivity> activities = appendActivity(current, new PlanActivity(
                 PlanActivityType.PLAN_CANCELLED,
                 now,
                 operator,
-                Localization.text(LocalizationKeys.Seeds.PLAN_ACTIVITY_CANCELLED),
+                message("plan.activity.cancelled"),
                 current.getId(),
                 attributes(
                         "reason", reason,
@@ -254,7 +252,7 @@ public class InMemoryPlanService implements PlanService {
                 PlanActivityType.NODE_STARTED,
                 now,
                 operator,
-                Localization.text(LocalizationKeys.Seeds.PLAN_ACTIVITY_NODE_STARTED),
+                message("plan.activity.nodeStarted"),
                 nodeId,
                 attributes(
                         "nodeName", node.getName(),
@@ -277,8 +275,7 @@ public class InMemoryPlanService implements PlanService {
             return target;
         }
         if (target.getStatus() != PlanNodeStatus.IN_PROGRESS) {
-            throw new BusinessException(ErrorCode.BAD_REQUEST,
-                    Localization.text(LocalizationKeys.Errors.PLAN_NODE_REQUIRES_START));
+            throw new BusinessException(ErrorCode.BAD_REQUEST, message("plan.error.nodeMustBeStarted"));
         }
         if (fileIds != null) {
             fileIds.forEach(fileService::get);
@@ -297,7 +294,7 @@ public class InMemoryPlanService implements PlanService {
                 PlanActivityType.NODE_COMPLETED,
                 now,
                 operator,
-                Localization.text(LocalizationKeys.Seeds.PLAN_ACTIVITY_NODE_COMPLETED),
+                message("plan.activity.nodeCompleted"),
                 nodeId,
                 attributes(
                         "nodeName", node.getName(),
@@ -309,7 +306,7 @@ public class InMemoryPlanService implements PlanService {
                     PlanActivityType.PLAN_COMPLETED,
                     now,
                     operator,
-                    Localization.text(LocalizationKeys.Seeds.PLAN_ACTIVITY_COMPLETED),
+                    message("plan.activity.completed"),
                     current.getId(),
                     attributes(
                             "operator", operator
@@ -325,12 +322,10 @@ public class InMemoryPlanService implements PlanService {
     public Plan handoverPlan(String planId, String newOwner, List<String> participants, String note, String operator) {
         Plan current = requirePlan(planId);
         if (!StringUtils.hasText(newOwner)) {
-            throw new BusinessException(ErrorCode.BAD_REQUEST,
-                    Localization.text(LocalizationKeys.Errors.PLAN_HANDOVER_OWNER_REQUIRED));
+            throw new BusinessException(ErrorCode.BAD_REQUEST, message("plan.error.handoverOwnerRequired"));
         }
         if (current.getStatus() == PlanStatus.CANCELED || current.getStatus() == PlanStatus.COMPLETED) {
-            throw new BusinessException(ErrorCode.BAD_REQUEST,
-                    Localization.text(LocalizationKeys.Errors.PLAN_INACTIVE));
+            throw new BusinessException(ErrorCode.BAD_REQUEST, message("plan.error.planInactive"));
         }
         OffsetDateTime now = OffsetDateTime.now();
         List<String> updatedParticipants = participants == null || participants.isEmpty()
@@ -347,7 +342,7 @@ public class InMemoryPlanService implements PlanService {
                 PlanActivityType.PLAN_HANDOVER,
                 now,
                 operator,
-                Localization.text(LocalizationKeys.Seeds.PLAN_ACTIVITY_HANDOVER),
+                message("plan.activity.handover"),
                 current.getId(),
                 attributes
         ));
@@ -388,7 +383,7 @@ public class InMemoryPlanService implements PlanService {
                 PlanActivityType.REMINDER_POLICY_UPDATED,
                 now,
                 operator,
-                Localization.text(LocalizationKeys.Seeds.PLAN_ACTIVITY_REMINDER_UPDATED),
+                message("plan.activity.reminderUpdated"),
                 current.getId(),
                 attributes(
                         "ruleCount", String.valueOf(normalized.size())
@@ -418,11 +413,14 @@ public class InMemoryPlanService implements PlanService {
     @Override
     public PlanAnalytics getAnalytics(String tenantId, OffsetDateTime from, OffsetDateTime to) {
         OffsetDateTime now = OffsetDateTime.now();
-        List<Plan> filtered = planRepository.findAll().stream()
-                .filter(plan -> tenantId == null || Objects.equals(plan.getTenantId(), tenantId))
-                .filter(plan -> from == null || (plan.getPlannedEndTime() != null && !plan.getPlannedEndTime().isBefore(from)))
-                .filter(plan -> to == null || (plan.getPlannedStartTime() != null && !plan.getPlannedStartTime().isAfter(to)))
-                .sorted(Comparator.comparing(Plan::getPlannedStartTime, Comparator.nullsLast(Comparator.naturalOrder())))
+        PlanSearchCriteria criteria = PlanSearchCriteria.builder()
+                .tenantId(StringUtils.hasText(tenantId) ? tenantId : null)
+                .from(from)
+                .to(to)
+                .build();
+        List<Plan> filtered = planRepository.findByCriteria(criteria).stream()
+                .sorted(Comparator.comparing(Plan::getPlannedStartTime,
+                        Comparator.nullsLast(Comparator.naturalOrder())))
                 .toList();
 
         long design = filtered.stream().filter(plan -> plan.getStatus() == PlanStatus.DESIGN).count();
@@ -473,7 +471,7 @@ public class InMemoryPlanService implements PlanService {
                 PlanActivityType.PLAN_CREATED,
                 now,
                 command.getOwner(),
-                Localization.text(LocalizationKeys.Seeds.PLAN_ACTIVITY_CREATED),
+                message("plan.activity.created"),
                 id,
                 attributes(
                         "title", command.getTitle(),
@@ -538,12 +536,10 @@ public class InMemoryPlanService implements PlanService {
 
     private void ensurePlanExecutable(Plan plan) {
         if (plan.getStatus() == PlanStatus.DESIGN) {
-            throw new BusinessException(ErrorCode.BAD_REQUEST,
-                    Localization.text(LocalizationKeys.Errors.PLAN_EXECUTE_REQUIRES_PUBLISH));
+            throw new BusinessException(ErrorCode.BAD_REQUEST, message("plan.error.planMustBePublished"));
         }
         if (plan.getStatus() == PlanStatus.CANCELED || plan.getStatus() == PlanStatus.COMPLETED) {
-            throw new BusinessException(ErrorCode.BAD_REQUEST,
-                    Localization.text(LocalizationKeys.Errors.PLAN_INACTIVE));
+            throw new BusinessException(ErrorCode.BAD_REQUEST, message("plan.error.planInactive"));
         }
     }
 
@@ -585,31 +581,20 @@ public class InMemoryPlanService implements PlanService {
             case COMPLETED -> "COMPLETED";
             default -> "CONFIRMED";
         };
-        String descriptionValue = plan.getDescription() == null ? "" : escape(plan.getDescription());
-        StringBuilder descriptionBuilder = new StringBuilder(descriptionValue);
-        if (!descriptionValue.isEmpty()) {
-            descriptionBuilder.append("\\n");
-        }
-        descriptionBuilder.append(Localization.text(LocalizationKeys.PlanSummary.RESPONSIBLE_LABEL))
-                .append(": ").append(escape(plan.getOwner()));
-        descriptionBuilder.append("\\n")
-                .append(Localization.text(LocalizationKeys.PlanSummary.STATUS_LABEL))
-                .append(": ").append(plan.getStatus().name());
+        String descriptionHeader = message("plan.ics.description",
+                plan.getDescription() == null ? "" : escape(plan.getDescription()),
+                escape(plan.getOwner()), plan.getStatus().name());
+        StringBuilder descriptionBuilder = new StringBuilder(descriptionHeader);
         if (plan.getStatus() == PlanStatus.CANCELED) {
             if (StringUtils.hasText(plan.getCancelReason())) {
-                descriptionBuilder.append("\\n")
-                        .append(Localization.text(LocalizationKeys.PlanSummary.CANCEL_REASON_LABEL))
-                        .append(": ").append(escape(plan.getCancelReason()));
+                descriptionBuilder.append(message("plan.ics.cancel.reason", escape(plan.getCancelReason())));
             }
             if (StringUtils.hasText(plan.getCanceledBy())) {
-                descriptionBuilder.append("\\n")
-                        .append(Localization.text(LocalizationKeys.PlanSummary.CANCEL_OPERATOR_LABEL))
-                        .append(": ").append(escape(plan.getCanceledBy()));
+                descriptionBuilder.append(message("plan.ics.cancel.operator", escape(plan.getCanceledBy())));
             }
             if (plan.getCanceledAt() != null) {
-                descriptionBuilder.append("\\n")
-                        .append(Localization.text(LocalizationKeys.PlanSummary.CANCEL_TIME_LABEL))
-                        .append(": ").append(escape(plan.getCanceledAt().toString()));
+                descriptionBuilder.append(message("plan.ics.cancel.time",
+                        escape(plan.getCanceledAt().toString())));
             }
         }
         String description = descriptionBuilder.toString();
@@ -647,13 +632,13 @@ public class InMemoryPlanService implements PlanService {
         List<PlanReminderRule> rules = new ArrayList<>();
         rules.add(new PlanReminderRule(nextReminderId(), PlanReminderTrigger.BEFORE_PLAN_START, 120,
                 List.of("EMAIL"), "plan-start-email", List.of("PARTICIPANTS"),
-                Localization.text(LocalizationKeys.Seeds.PLAN_REMINDER_FIRST)));
+                message("plan.reminder.default.start2h")));
         rules.add(new PlanReminderRule(nextReminderId(), PlanReminderTrigger.BEFORE_PLAN_START, 30,
                 List.of("IM", "SMS"), "plan-start-alert", List.of("OWNER"),
-                Localization.text(LocalizationKeys.Seeds.PLAN_REMINDER_SECOND)));
+                message("plan.reminder.default.start30m")));
         rules.add(new PlanReminderRule(nextReminderId(), PlanReminderTrigger.BEFORE_PLAN_END, 15,
                 List.of("EMAIL"), "plan-summary-reminder", List.of("OWNER"),
-                Localization.text(LocalizationKeys.Seeds.PLAN_REMINDER_THIRD)));
+                message("plan.reminder.default.end15m")));
         return rules;
     }
 
@@ -667,8 +652,7 @@ public class InMemoryPlanService implements PlanService {
                 continue;
             }
             if (!StringUtils.hasText(rule.getTemplateId())) {
-                throw new BusinessException(ErrorCode.BAD_REQUEST,
-                        Localization.text(LocalizationKeys.Errors.PLAN_REMINDER_TEMPLATE_REQUIRED));
+                throw new BusinessException(ErrorCode.BAD_REQUEST, message("plan.error.reminderTemplateRequired"));
             }
             PlanReminderRule withId = StringUtils.hasText(rule.getId()) ? rule : rule.withId(nextReminderId());
             normalized.add(withId);

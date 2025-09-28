@@ -30,7 +30,7 @@ class InMemoryPlanRepositoryTest {
     @Test
     void shouldStoreAndRetrievePlan() {
         Plan plan = new Plan(
-                "PLAN-100", "tenant-x", "Test Plan", "desc", "cust-1", "admin",
+                "PLAN-100", "tenant-x", "测试计划", "desc", "cust-1", "admin",
                 List.of("admin"), PlanStatus.DESIGN,
                 OffsetDateTime.now(), OffsetDateTime.now().plusHours(2),
                 null, null, null, null, null,
@@ -46,5 +46,42 @@ class InMemoryPlanRepositoryTest {
         repository.delete("PLAN-100");
 
         assertThat(repository.findById("PLAN-100")).isEmpty();
+    }
+
+    @Test
+    void shouldFilterByCriteria() {
+        OffsetDateTime baseline = OffsetDateTime.now();
+        Plan matching = new Plan(
+                "PLAN-101", "tenant-z", "上海巡检", "巡检前准备", "cust-88", "owner-a",
+                List.of("owner-a"), PlanStatus.SCHEDULED,
+                baseline.plusDays(1), baseline.plusDays(1).plusHours(1),
+                null, null, null, null, null,
+                "Asia/Shanghai", List.of(), List.of(), OffsetDateTime.now(), OffsetDateTime.now(),
+                List.of(), PlanReminderPolicy.empty()
+        );
+        Plan nonMatching = new Plan(
+                "PLAN-102", "tenant-z", "东京升级", "系统升级", "cust-99", "owner-b",
+                List.of("owner-b"), PlanStatus.DESIGN,
+                baseline.plusDays(3), baseline.plusDays(3).plusHours(2),
+                null, null, null, null, null,
+                "Asia/Tokyo", List.of(), List.of(), OffsetDateTime.now(), OffsetDateTime.now(),
+                List.of(), PlanReminderPolicy.empty()
+        );
+
+        repository.save(matching);
+        repository.save(nonMatching);
+
+        PlanSearchCriteria criteria = PlanSearchCriteria.builder()
+                .tenantId("tenant-z")
+                .customerId("cust-88")
+                .owner("owner-a")
+                .keyword("巡检")
+                .status(PlanStatus.SCHEDULED)
+                .from(baseline)
+                .to(baseline.plusDays(2))
+                .build();
+
+        assertThat(repository.findByCriteria(criteria))
+                .containsExactly(matching);
     }
 }

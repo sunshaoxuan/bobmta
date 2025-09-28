@@ -1,11 +1,8 @@
 package com.bob.mta.modules.template.controller;
 
 import com.bob.mta.common.api.ApiResponse;
-import com.bob.mta.common.i18n.InMemoryMultilingualTextRepository;
-import com.bob.mta.common.i18n.MultilingualTextPayload;
-import com.bob.mta.common.i18n.MultilingualTextService;
-import com.bob.mta.i18n.InMemoryLocaleSettingsRepository;
-import com.bob.mta.i18n.LocalePreferenceService;
+import com.bob.mta.common.i18n.MessageResolver;
+import com.bob.mta.common.i18n.TestMessageResolverFactory;
 import com.bob.mta.modules.audit.service.AuditRecorder;
 import com.bob.mta.modules.audit.service.impl.InMemoryAuditService;
 import com.bob.mta.modules.template.domain.TemplateType;
@@ -22,7 +19,7 @@ import org.springframework.context.i18n.LocaleContextHolder;
 import org.springframework.security.authentication.TestingAuthenticationToken;
 import org.springframework.security.core.context.SecurityContextHolder;
 
-import java.util.Map;
+import java.util.Locale;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -34,11 +31,11 @@ class TemplateControllerTest {
 
     @BeforeEach
     void setUp() {
-        templateService = new InMemoryTemplateService(new MultilingualTextService(new InMemoryMultilingualTextRepository()));
+        LocaleContextHolder.setLocale(Locale.SIMPLIFIED_CHINESE);
+        templateService = new InMemoryTemplateService();
         AuditRecorder recorder = new AuditRecorder(new InMemoryAuditService(), new ObjectMapper());
-        LocalePreferenceService localePreferenceService =
-                new LocalePreferenceService(new InMemoryLocaleSettingsRepository());
-        controller = new TemplateController(templateService, recorder, localePreferenceService);
+        messageResolver = TestMessageResolverFactory.create();
+        controller = new TemplateController(templateService, recorder, messageResolver);
         SecurityContextHolder.getContext().setAuthentication(new TestingAuthenticationToken("admin", "pass", "ROLE_ADMIN"));
     }
 

@@ -9,6 +9,8 @@ public interface PlanRepository {
 
     List<Plan> findAll();
 
+    List<Plan> findByCriteria(PlanSearchCriteria criteria);
+
     Optional<Plan> findById(String id);
 
     void save(Plan plan);

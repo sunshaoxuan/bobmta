@@ -38,13 +38,13 @@ public class TemplateController {
 
     private final TemplateService templateService;
     private final AuditRecorder auditRecorder;
-    private final LocalePreferenceService localePreferenceService;
+    private final MessageResolver messageResolver;
 
     public TemplateController(TemplateService templateService, AuditRecorder auditRecorder,
-                              LocalePreferenceService localePreferenceService) {
+                              MessageResolver messageResolver) {
         this.templateService = templateService;
         this.auditRecorder = auditRecorder;
-        this.localePreferenceService = localePreferenceService;
+        this.messageResolver = messageResolver;
     }
 
     @GetMapping
@@ -81,11 +81,11 @@ public class TemplateController {
                 request.getCc(),
                 request.getEndpoint(),
                 request.isEnabled(),
-                request.getDescription() == null ? null : request.getDescription().toValue());
+                request.getDescription());
         auditRecorder.record("Template", String.valueOf(definition.getId()), "CREATE_TEMPLATE",
-                Localization.text(LocalizationKeys.Audit.TEMPLATE_CREATE),
-                null, TemplateResponse.from(definition, locale));
-        return ApiResponse.success(TemplateResponse.from(definition, locale));
+                messageResolver.getMessage("audit.template.create"),
+                null, TemplateResponse.from(definition));
+        return ApiResponse.success(TemplateResponse.from(definition));
     }
 
     @PutMapping("/{id}")
@@ -104,11 +104,11 @@ public class TemplateController {
                 request.getCc(),
                 request.getEndpoint(),
                 request.isEnabled(),
-                request.getDescription() == null ? null : request.getDescription().toValue());
+                request.getDescription());
         auditRecorder.record("Template", String.valueOf(id), "UPDATE_TEMPLATE",
-                Localization.text(LocalizationKeys.Audit.TEMPLATE_UPDATE),
-                TemplateResponse.from(before, locale), TemplateResponse.from(updated, locale));
-        return ApiResponse.success(TemplateResponse.from(updated, locale));
+                messageResolver.getMessage("audit.template.update"),
+                TemplateResponse.from(before), TemplateResponse.from(updated));
+        return ApiResponse.success(TemplateResponse.from(updated));
     }
 
     @DeleteMapping("/{id}")
@@ -120,8 +120,8 @@ public class TemplateController {
         TemplateDefinition before = templateService.get(id, locale);
         templateService.delete(id);
         auditRecorder.record("Template", String.valueOf(id), "DELETE_TEMPLATE",
-                Localization.text(LocalizationKeys.Audit.TEMPLATE_DELETE),
-                TemplateResponse.from(before, locale), null);
+                messageResolver.getMessage("audit.template.delete"),
+                TemplateResponse.from(before), null);
         return ApiResponse.success();
     }
 
@@ -135,7 +135,7 @@ public class TemplateController {
         RenderedTemplate rendered = templateService.render(id, request == null ? null : request.getContext(), locale);
         RenderedTemplateResponse response = RenderedTemplateResponse.from(rendered);
         auditRecorder.record("Template", String.valueOf(id), "RENDER_TEMPLATE",
-                Localization.text(LocalizationKeys.Audit.TEMPLATE_RENDER), null, response);
+                messageResolver.getMessage("audit.template.render"), null, response);
         return ApiResponse.success(response);
     }
 }
