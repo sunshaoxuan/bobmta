@@ -1,6 +1,22 @@
 import { FormEvent, useCallback, useEffect, useMemo, useState } from 'react';
 import './App.css';
 import {
+  Alert,
+  Button,
+  Card,
+  ConfigProvider,
+  Empty,
+  Input,
+  Layout,
+  Progress,
+  Select,
+  Space,
+  Table,
+  Tag,
+  Typography,
+} from 'antd';
+import type { TableColumnsType } from 'antd';
+import {
   DEFAULT_LOCALE,
   fetchLocalization,
   formatMessage,
@@ -10,6 +26,9 @@ import {
   type LocalizationBundle,
   type UiMessageKey,
 } from './i18n/localization';
+
+const { Header, Content } = Layout;
+const { Title, Paragraph, Text } = Typography;
 
 type ApiResponse<T> = {
   code: number;
@@ -58,6 +77,17 @@ const STATUS_LABEL: Record<PlanStatus, UiMessageKey> = {
   IN_PROGRESS: 'planStatusInProgress',
   COMPLETED: 'planStatusCompleted',
   CANCELLED: 'planStatusCancelled',
+};
+
+const PLAN_STATUS_COLOR: Record<
+  PlanStatus,
+  'default' | 'processing' | 'success' | 'error' | 'warning'
+> = {
+  DESIGN: 'default',
+  SCHEDULED: 'warning',
+  IN_PROGRESS: 'processing',
+  COMPLETED: 'success',
+  CANCELLED: 'error',
 };
 
 function App() {
@@ -132,24 +162,30 @@ function App() {
       });
   }, [locale]);
 
-  const t = (key: UiMessageKey, values?: Record<string, string | number>) => {
-    if (!bundle) {
-      return '…';
-    }
-    return formatMessage(bundle, key, values);
-  };
+  const t = useCallback(
+    (key: UiMessageKey, values?: Record<string, string | number>) => {
+      if (!bundle) {
+        return '…';
+      }
+      return formatMessage(bundle, key, values);
+    },
+    [bundle]
+  );
 
   const availableLocales = useMemo(() => getSupportedLocales(bundle), [bundle]);
 
-  const describeRemoteError = (error: RemoteError | null) => {
-    if (!error) {
-      return null;
-    }
-    if (error.type === 'status') {
-      return t('backendErrorStatus', { status: error.status });
-    }
-    return t('backendErrorNetwork');
-  };
+  const describeRemoteError = useCallback(
+    (error: RemoteError | null) => {
+      if (!error) {
+        return null;
+      }
+      if (error.type === 'status') {
+        return t('backendErrorStatus', { status: error.status });
+      }
+      return t('backendErrorNetwork');
+    },
+    [t]
+  );
 
   const formatDateTime = useCallback(
     (value?: string | null) => {
@@ -254,9 +290,9 @@ function App() {
     };
   }, [session, locale, loadPlans]);
 
-  const handleLogin = (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    if (authLoading) {
+  const handleLogin = useCallback(() => {
+    const username = credentials.username.trim();
+    if (authLoading || username.length === 0 || credentials.password.length === 0) {
       return;
     }
     setAuthLoading(true);
@@ -268,7 +304,7 @@ function App() {
         'Accept-Language': locale,
       },
       body: JSON.stringify({
-        username: credentials.username.trim(),
+        username,
         password: credentials.password,
       }),
     })
@@ -292,145 +328,236 @@ function App() {
       .finally(() => {
         setAuthLoading(false);
       });
-  };
+  }, [authLoading, credentials, locale]);
 
-  const handleLogout = () => {
+  const handleLogout = useCallback(() => {
     setSession(null);
     setPlans([]);
     setPlansError(null);
-  };
+  }, []);
 
   const authErrorDetail = describeRemoteError(authError);
   const planErrorDetail = describeRemoteError(plansError);
+  const planColumns = useMemo<TableColumnsType<PlanSummary>>(
+    () => [
+      {
+        title: t('planTableHeaderId'),
+        dataIndex: 'id',
+        key: 'id',
+        width: 160,
+        render: (value: string) => <Text code>{value}</Text>,
+      },
+      {
+        title: t('planTableHeaderTitle'),
+        dataIndex: 'title',
+        key: 'title',
+        ellipsis: true,
+        render: (value: string) => <Text strong>{value}</Text>,
+      },
+      {
+        title: t('planTableHeaderOwner'),
+        dataIndex: 'owner',
+        key: 'owner',
+        render: (value: string) => <Tag color="geekblue">{value}</Tag>,
+      },
+      {
+        title: t('planTableHeaderStatus'),
+        dataIndex: 'status',
+        key: 'status',
+        render: (_: PlanStatus, record) => (
+          <Tag color={PLAN_STATUS_COLOR[record.status]}>{t(STATUS_LABEL[record.status])}</Tag>
+        ),
+      },
+      {
+        title: t('planTableHeaderWindow'),
+        dataIndex: 'plannedStartTime',
+        key: 'window',
+        render: (_: unknown, record) => <Text>{formatPlanWindow(record)}</Text>,
+      },
+      {
+        title: t('planTableHeaderProgress'),
+        dataIndex: 'progress',
+        key: 'progress',
+        width: 200,
+        render: (value: number) => (
+          <Progress percent={Math.max(0, Math.min(100, Math.round(value ?? 0)))} size="small" />
+        ),
+      },
+      {
+        title: t('planTableHeaderParticipants'),
+        dataIndex: 'participants',
+        key: 'participants',
+        width: 160,
+        render: (_: string[], record) => <Tag color="purple">{record.participants.length}</Tag>,
+      },
+    ],
+    [formatPlanWindow, t]
+  );
+
+  const authButtonDisabled =
+    authLoading || credentials.username.trim().length === 0 || credentials.password.length === 0;
 
   return (
-    <div className="app">
-      <div className="locale-switcher">
-        <label htmlFor="locale-select">{t('localeLabel')}:</label>
-        <select
-          id="locale-select"
-          value={locale}
-          onChange={(event) => setLocale(event.target.value as Locale)}
-          disabled={loadingBundle}
-        >
-          {availableLocales.map((option) => (
-            <option key={option} value={option}>
-              {option}
-            </option>
-          ))}
-        </select>
-      </div>
-      <h1>{t('appTitle')}</h1>
-      <p>{t('appDescription')}</p>
-      <section className="status-panel">
-        <h2>{t('backendStatus')}</h2>
-        {ping && <p className="success">{t('backendSuccess', { status: ping.status })}</p>}
-        {pingError && <p className="error">{t('backendError', { error: t(pingError.key, pingError.values) })}</p>}
-        {!ping && !pingError && <p>{t('backendPending')}</p>}
-      </section>
-      <section className="auth-panel">
-        <h2>{t('authSectionTitle')}</h2>
-        {session ? (
-          <div className="auth-summary">
-            <p>{t('authWelcome', { name: session.displayName })}</p>
-            <p>{t('authTokenExpiry', { time: formatDateTime(session.expiresAt) })}</p>
-            <button type="button" onClick={handleLogout} className="link-button">
-              {t('authLogout')}
-            </button>
+    <ConfigProvider
+      theme={{
+        token: {
+          colorPrimary: '#1677ff',
+          borderRadius: 12,
+          fontSize: 14,
+        },
+      }}
+    >
+      <Layout className="app-layout">
+        <Header className="app-header">
+          <div className="header-main">
+            <Title level={3} className="app-title">
+              {t('appTitle')}
+            </Title>
+            <Paragraph className="app-subtitle">{t('appDescription')}</Paragraph>
           </div>
-        ) : (
-          <form className="auth-form" onSubmit={handleLogin}>
-            <label className="field">
-              <span>{t('authUsernameLabel')}</span>
-              <input
-                type="text"
-                name="username"
-                autoComplete="username"
-                value={credentials.username}
-                onChange={(event) =>
-                  setCredentials((current) => ({ ...current, username: event.target.value }))
-                }
-                disabled={authLoading}
-              />
-            </label>
-            <label className="field">
-              <span>{t('authPasswordLabel')}</span>
-              <input
-                type="password"
-                name="password"
-                autoComplete="current-password"
-                value={credentials.password}
-                onChange={(event) =>
-                  setCredentials((current) => ({ ...current, password: event.target.value }))
-                }
-                disabled={authLoading}
-              />
-            </label>
-            <button
-              type="submit"
-              className="primary-button"
-              disabled={
-                authLoading ||
-                credentials.username.trim().length === 0 ||
-                credentials.password.length === 0
+          <Space align="center" size="middle">
+            <Text strong>{t('localeLabel')}</Text>
+            <Select
+              className="locale-select"
+              value={locale}
+              onChange={(value) => setLocale(value as Locale)}
+              loading={loadingBundle}
+              options={availableLocales.map((option) => ({ value: option, label: option }))}
+            />
+          </Space>
+        </Header>
+        <Content className="app-content">
+          <Space direction="vertical" size="large" style={{ width: '100%' }}>
+            <Card title={t('backendStatus')} bordered={false} className="card-block status-card">
+              <Space direction="vertical" size="middle" style={{ width: '100%' }}>
+                {ping && (
+                  <Alert
+                    type="success"
+                    showIcon
+                    message={t('backendSuccess', { status: ping.status })}
+                  />
+                )}
+                {pingError && (
+                  <Alert
+                    type="error"
+                    showIcon
+                    message={t('backendError', { error: t(pingError.key, pingError.values) })}
+                  />
+                )}
+                {!ping && !pingError && <Alert type="info" showIcon message={t('backendPending')} />}
+              </Space>
+            </Card>
+
+            <Card title={t('authSectionTitle')} bordered={false} className="card-block">
+              {session ? (
+                <Space direction="vertical" size="middle" style={{ width: '100%' }}>
+                  <Alert
+                    type="success"
+                    showIcon
+                    message={t('authWelcome', { name: session.displayName })}
+                  />
+                  <Text type="secondary">
+                    {t('authTokenExpiry', { time: formatDateTime(session.expiresAt) })}
+                  </Text>
+                  {session.roles.length > 0 && (
+                    <Space size="small" wrap>
+                      {session.roles.map((role) => (
+                        <Tag key={role} color="geekblue">
+                          {role}
+                        </Tag>
+                      ))}
+                    </Space>
+                  )}
+                  <Button type="text" onClick={handleLogout} className="logout-button">
+                    {t('authLogout')}
+                  </Button>
+                </Space>
+              ) : (
+                <Space direction="vertical" size="middle" style={{ width: '100%' }}>
+                  <Input
+                    size="large"
+                    placeholder={t('authUsernameLabel')}
+                    autoComplete="username"
+                    value={credentials.username}
+                    onChange={(event) =>
+                      setCredentials((current) => ({ ...current, username: event.target.value }))
+                    }
+                    onPressEnter={() => {
+                      if (!authButtonDisabled) {
+                        handleLogin();
+                      }
+                    }}
+                  />
+                  <Input.Password
+                    size="large"
+                    placeholder={t('authPasswordLabel')}
+                    autoComplete="current-password"
+                    value={credentials.password}
+                    onChange={(event) =>
+                      setCredentials((current) => ({ ...current, password: event.target.value }))
+                    }
+                    onPressEnter={() => {
+                      if (!authButtonDisabled) {
+                        handleLogin();
+                      }
+                    }}
+                  />
+                  <Button
+                    type="primary"
+                    block
+                    size="large"
+                    loading={authLoading}
+                    onClick={handleLogin}
+                    disabled={authButtonDisabled}
+                  >
+                    {authLoading ? t('authLoggingIn') : t('authSubmit')}
+                  </Button>
+                  {authErrorDetail && (
+                    <Alert
+                      type="error"
+                      showIcon
+                      message={t('authError', { error: authErrorDetail })}
+                    />
+                  )}
+                </Space>
+              )}
+            </Card>
+
+            <Card
+              title={t('planSectionTitle')}
+              bordered={false}
+              className="card-block"
+              extra={
+                <Button type="link" onClick={() => loadPlans()} disabled={!session} loading={plansLoading}>
+                  {t('planRefresh')}
+                </Button>
               }
             >
-              {authLoading ? t('authLoggingIn') : t('authSubmit')}
-            </button>
-          </form>
-        )}
-        {authErrorDetail && <p className="error">{t('authError', { error: authErrorDetail })}</p>}
-      </section>
-      <section className="plan-panel">
-        <div className="plan-header">
-          <h2>{t('planSectionTitle')}</h2>
-          <button
-            type="button"
-            className="link-button"
-            onClick={() => loadPlans()}
-            disabled={!session || plansLoading}
-          >
-            {t('planRefresh')}
-          </button>
-        </div>
-        {!session && <p>{t('planLoginRequired')}</p>}
-        {session && plansLoading && <p>{t('planLoading')}</p>}
-        {session && planErrorDetail && (
-          <p className="error">{t('planError', { error: planErrorDetail })}</p>
-        )}
-        {session && !plansLoading && !planErrorDetail && plans.length === 0 && (
-          <p>{t('planEmpty')}</p>
-        )}
-        {session && !plansLoading && !planErrorDetail && plans.length > 0 && (
-          <table className="plan-table">
-            <thead>
-              <tr>
-                <th>{t('planTableHeaderId')}</th>
-                <th>{t('planTableHeaderTitle')}</th>
-                <th>{t('planTableHeaderOwner')}</th>
-                <th>{t('planTableHeaderStatus')}</th>
-                <th>{t('planTableHeaderWindow')}</th>
-                <th>{t('planTableHeaderProgress')}</th>
-                <th>{t('planTableHeaderParticipants')}</th>
-              </tr>
-            </thead>
-            <tbody>
-              {plans.map((plan) => (
-                <tr key={plan.id}>
-                  <td>{plan.id}</td>
-                  <td>{plan.title}</td>
-                  <td>{plan.owner}</td>
-                  <td>{t(STATUS_LABEL[plan.status])}</td>
-                  <td>{formatPlanWindow(plan)}</td>
-                  <td>{`${plan.progress}%`}</td>
-                  <td>{plan.participants.length}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
-      </section>
-    </div>
+              {!session && <Empty description={t('planLoginRequired')} />}
+              {session && planErrorDetail && (
+                <Alert
+                  type="error"
+                  showIcon
+                  message={t('planError', { error: planErrorDetail })}
+                  style={{ marginBottom: 16 }}
+                />
+              )}
+              {session && !planErrorDetail && (
+                <Table<PlanSummary>
+                  rowKey="id"
+                  dataSource={plans}
+                  columns={planColumns}
+                  pagination={false}
+                  loading={{ spinning: plansLoading, tip: t('planLoading') }}
+                  locale={{ emptyText: t('planEmpty') }}
+                  scroll={{ x: true }}
+                />
+              )}
+            </Card>
+          </Space>
+        </Content>
+      </Layout>
+    </ConfigProvider>
   );
 }
 
