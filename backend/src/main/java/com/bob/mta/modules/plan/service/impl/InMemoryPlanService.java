@@ -60,15 +60,17 @@ public class InMemoryPlanService implements PlanService {
         }
 
         List<PlanNodeCommand> nodes = List.of(
-                new PlanNodeCommand(null, "数据库备份", "REMOTE", "admin", 1, 60, "remote-template-1",
-                        "连接到客户数据库并执行备份脚本", List.of()),
-                new PlanNodeCommand(null, "通知客户", "EMAIL", "operator", 2, 15, "email-template-1",
-                        "向客户发送巡检通知邮件", List.of())
+                new PlanNodeCommand(null, Localization.text(LocalizationKeys.Seeds.PLAN_NODE_BACKUP_TITLE), "REMOTE",
+                        "admin", 1, 60, "remote-template-1",
+                        Localization.text(LocalizationKeys.Seeds.PLAN_NODE_BACKUP_DESCRIPTION), List.of()),
+                new PlanNodeCommand(null, Localization.text(LocalizationKeys.Seeds.PLAN_NODE_NOTIFY_TITLE), "EMAIL",
+                        "operator", 2, 15, "email-template-1",
+                        Localization.text(LocalizationKeys.Seeds.PLAN_NODE_NOTIFY_DESCRIPTION), List.of())
         );
         CreatePlanCommand command = new CreatePlanCommand(
                 "tenant-001",
-                "东京医疗季度巡检",
-                "季度常规巡检并同步巡检报告",
+                Localization.text(LocalizationKeys.Seeds.PLAN_PRIMARY_TITLE),
+                Localization.text(LocalizationKeys.Seeds.PLAN_PRIMARY_DESCRIPTION),
                 "cust-001",
                 "admin",
                 OffsetDateTime.now().plusDays(3),
@@ -82,16 +84,17 @@ public class InMemoryPlanService implements PlanService {
 
         CreatePlanCommand command2 = new CreatePlanCommand(
                 "tenant-001",
-                "大阪制造系统升级",
-                "准备新版本部署并执行现场验证",
+                Localization.text(LocalizationKeys.Seeds.PLAN_SECONDARY_TITLE),
+                Localization.text(LocalizationKeys.Seeds.PLAN_SECONDARY_DESCRIPTION),
                 "cust-002",
                 "operator",
                 OffsetDateTime.now().plusWeeks(1),
                 OffsetDateTime.now().plusWeeks(1).plusHours(6),
                 "Asia/Tokyo",
                 List.of("operator"),
-                List.of(new PlanNodeCommand(null, "现场巡检", "CHECKLIST", "operator", 1, 180, null,
-                        "按检查单逐项确认", List.of()))
+                List.of(new PlanNodeCommand(null, Localization.text(LocalizationKeys.Seeds.PLAN_SECONDARY_NODE_TITLE),
+                        "CHECKLIST", "operator", 1, 180, null,
+                        Localization.text(LocalizationKeys.Seeds.PLAN_SECONDARY_NODE_DESCRIPTION), List.of()))
         );
         Plan plan2 = buildPlan(planRepository.nextPlanId(), command2, OffsetDateTime.now());
         planRepository.save(plan2);
@@ -111,6 +114,20 @@ public class InMemoryPlanService implements PlanService {
         return planRepository.findByCriteria(criteria).stream()
                 .sorted(Comparator.comparing(Plan::getPlannedStartTime))
                 .collect(Collectors.toList());
+    }
+
+    private boolean matchesKeyword(Plan plan, String keyword) {
+        if (!StringUtils.hasText(keyword)) {
+            return true;
+        }
+        return containsIgnoreCase(plan.getTitle(), keyword) || containsIgnoreCase(plan.getDescription(), keyword);
+    }
+
+    private boolean containsIgnoreCase(String value, String needle) {
+        if (!StringUtils.hasText(value)) {
+            return false;
+        }
+        return value.toLowerCase(Locale.ROOT).contains(needle.toLowerCase(Locale.ROOT));
     }
 
     @Override

@@ -53,19 +53,22 @@ class TagControllerTest {
     @Test
     void shouldCreateTag() {
         CreateTagRequest request = new CreateTagRequest();
-        request.setName("紧急");
+        request.setName(new MultilingualTextPayload("ja-JP", Map.of(
+                "ja-JP", "urgent",
+                "zh-CN", "紧急"
+        )));
         request.setColor("#F5222D");
         request.setIcon("AlertOutlined");
         request.setScope(com.bob.mta.modules.tag.domain.TagScope.CUSTOMER);
         request.setEnabled(true);
 
-        ApiResponse<TagResponse> response = controller.create(request);
-        assertThat(response.getData().getName()).isEqualTo("紧急");
+        ApiResponse<TagResponse> response = controller.create(request, "ja-JP");
+        assertThat(response.getData().getName().getTranslations().get("ja-jp")).isEqualTo("urgent");
     }
 
     @Test
     void shouldAssignTagToPlan() {
-        var created = controller.create(buildRequest("计划", com.bob.mta.modules.tag.domain.TagScope.PLAN));
+        var created = controller.create(buildRequest("plan", com.bob.mta.modules.tag.domain.TagScope.PLAN), "ja-JP");
         AssignTagRequest assign = new AssignTagRequest();
         assign.setEntityType(TagEntityType.PLAN);
         assign.setEntityId(planService.listPlans(null, null, null, null, null, null).get(0).getId());
@@ -77,7 +80,10 @@ class TagControllerTest {
 
     private CreateTagRequest buildRequest(String name, com.bob.mta.modules.tag.domain.TagScope scope) {
         CreateTagRequest request = new CreateTagRequest();
-        request.setName(name);
+        request.setName(new MultilingualTextPayload("ja-JP", Map.of(
+                "ja-JP", name,
+                "zh-CN", name
+        )));
         request.setColor("#000000");
         request.setIcon("TagOutlined");
         request.setScope(scope);

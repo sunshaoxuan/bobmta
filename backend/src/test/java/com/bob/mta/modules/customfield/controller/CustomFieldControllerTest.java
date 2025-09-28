@@ -51,7 +51,7 @@ class CustomFieldControllerTest {
     void shouldCreateCustomField() {
         CreateCustomFieldRequest request = new CreateCustomFieldRequest();
         request.setCode("ticket_url");
-        request.setLabel("工单地址");
+        request.setLabel("Ticket URL");
         request.setType(CustomFieldType.TEXT);
 
         ApiResponse<CustomFieldDefinitionResponse> response = controller.createDefinition(request);
@@ -60,7 +60,7 @@ class CustomFieldControllerTest {
 
     @Test
     void shouldUpdateCustomerValues() {
-        var definition = customFieldService.createDefinition("priority", "优先级", CustomFieldType.TEXT, false, null, null);
+        var definition = customFieldService.createDefinition("priority", "Priority", CustomFieldType.TEXT, false, null, null);
         CustomFieldValueRequest valueRequest = new CustomFieldValueRequest();
         valueRequest.setFieldId(definition.getId());
         valueRequest.setValue("A");

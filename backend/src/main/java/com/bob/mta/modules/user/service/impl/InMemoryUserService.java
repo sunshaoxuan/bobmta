@@ -5,6 +5,8 @@ import com.bob.mta.common.exception.ErrorCode;
 import com.bob.mta.modules.user.domain.ActivationToken;
 import com.bob.mta.modules.user.domain.User;
 import com.bob.mta.modules.user.domain.UserStatus;
+import com.bob.mta.i18n.Localization;
+import com.bob.mta.i18n.LocalizationKeys;
 import com.bob.mta.modules.user.service.UserService;
 import com.bob.mta.modules.user.service.command.CreateUserCommand;
 import com.bob.mta.modules.user.service.model.ActivationLink;

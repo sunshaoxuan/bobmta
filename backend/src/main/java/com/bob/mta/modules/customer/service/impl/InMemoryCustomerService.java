@@ -3,6 +3,8 @@ package com.bob.mta.modules.customer.service.impl;
 import com.bob.mta.common.api.PageResponse;
 import com.bob.mta.common.exception.BusinessException;
 import com.bob.mta.common.exception.ErrorCode;
+import com.bob.mta.i18n.Localization;
+import com.bob.mta.i18n.LocalizationKeys;
 import com.bob.mta.modules.customer.domain.Customer;
 import com.bob.mta.modules.customer.dto.CustomerDetailResponse;
 import com.bob.mta.modules.customer.dto.CustomerSummaryResponse;
@@ -29,43 +31,53 @@ public class InMemoryCustomerService implements CustomerService {
                 new Customer(
                         "101",
                         "CUST-101",
-                        "北海道大学",
-                        "北大",
-                        "大学",
-                        "北海道",
-                        List.of("重点客户", "需巡检"),
+                        Localization.text(LocalizationKeys.Seeds.CUSTOMER_HOKKAIDO_NAME),
+                        Localization.text(LocalizationKeys.Seeds.CUSTOMER_HOKKAIDO_ABBREVIATION),
+                        Localization.text(LocalizationKeys.Seeds.CUSTOMER_HOKKAIDO_INDUSTRY),
+                        Localization.text(LocalizationKeys.Seeds.CUSTOMER_HOKKAIDO_REGION),
+                        List.of(
+                                Localization.text(LocalizationKeys.Seeds.CUSTOMER_HOKKAIDO_TAG_PRIMARY),
+                                Localization.text(LocalizationKeys.Seeds.CUSTOMER_HOKKAIDO_TAG_SECONDARY)
+                        ),
                         Map.of(
-                                "接続形態", "VPN",
-                                "接続先IPアドレス", "203.0.113.10",
-                                "接続ツール", List.of("GlobalProtect", "RemoteView"),
-                                "特記事項", "年末年始は保守ウィンドウ停止"),
+                                Localization.text(LocalizationKeys.Seeds.CUSTOMER_FIELD_CONNECTIVITY_TYPE_LABEL),
+                                Localization.text(LocalizationKeys.Seeds.CUSTOMER_HOKKAIDO_CONNECTIVITY_VALUE),
+                                Localization.text(LocalizationKeys.Seeds.CUSTOMER_FIELD_IP_ADDRESS_LABEL), "203.0.113.10",
+                                Localization.text(LocalizationKeys.Seeds.CUSTOMER_FIELD_TOOL_LABEL),
+                                List.of("GlobalProtect", "RemoteView"),
+                                Localization.text(LocalizationKeys.Seeds.CUSTOMER_FIELD_NOTE_LABEL),
+                                Localization.text(LocalizationKeys.Seeds.CUSTOMER_HOKKAIDO_NOTE)),
                         Instant.parse("2024-05-01T02:30:00Z")),
                 new Customer(
                         "102",
                         "CUST-102",
-                        "北見工業大学",
-                        "北見工大",
-                        "大学",
-                        "北海道",
-                        List.of("需更新"),
+                        Localization.text(LocalizationKeys.Seeds.CUSTOMER_KITAMI_NAME),
+                        Localization.text(LocalizationKeys.Seeds.CUSTOMER_KITAMI_ABBREVIATION),
+                        Localization.text(LocalizationKeys.Seeds.CUSTOMER_KITAMI_INDUSTRY),
+                        Localization.text(LocalizationKeys.Seeds.CUSTOMER_KITAMI_REGION),
+                        List.of(Localization.text(LocalizationKeys.Seeds.CUSTOMER_KITAMI_TAG_PRIMARY)),
                         Map.of(
-                                "接続形態", "専用線",
-                                "接続先IPアドレス", "198.51.100.77",
-                                "接続ツール", List.of("LAPLINK"),
-                                "特記事項", "接続端末は認証デバイス限定"),
+                                Localization.text(LocalizationKeys.Seeds.CUSTOMER_FIELD_CONNECTIVITY_TYPE_LABEL),
+                                Localization.text(LocalizationKeys.Seeds.CUSTOMER_KITAMI_CONNECTIVITY_VALUE),
+                                Localization.text(LocalizationKeys.Seeds.CUSTOMER_FIELD_IP_ADDRESS_LABEL), "198.51.100.77",
+                                Localization.text(LocalizationKeys.Seeds.CUSTOMER_FIELD_TOOL_LABEL), List.of("LAPLINK"),
+                                Localization.text(LocalizationKeys.Seeds.CUSTOMER_FIELD_NOTE_LABEL),
+                                Localization.text(LocalizationKeys.Seeds.CUSTOMER_KITAMI_NOTE)),
                         Instant.parse("2024-04-11T09:20:00Z")),
                 new Customer(
                         "201",
                         "CUST-201",
-                        "东京メトロ",
-                        "东京メトロ",
-                        "交通",
-                        "関東",
-                        List.of("需巡检"),
+                        Localization.text(LocalizationKeys.Seeds.CUSTOMER_TOKYO_METRO_NAME),
+                        Localization.text(LocalizationKeys.Seeds.CUSTOMER_TOKYO_METRO_ABBREVIATION),
+                        Localization.text(LocalizationKeys.Seeds.CUSTOMER_TOKYO_METRO_INDUSTRY),
+                        Localization.text(LocalizationKeys.Seeds.CUSTOMER_TOKYO_METRO_REGION),
+                        List.of(Localization.text(LocalizationKeys.Seeds.CUSTOMER_TOKYO_METRO_TAG_PRIMARY)),
                         Map.of(
-                                "接続形態", "VPN",
-                                "接続ツール", List.of("Cisco AnyConnect"),
-                                "特記事項", "夜間帯のみ接続可"),
+                                Localization.text(LocalizationKeys.Seeds.CUSTOMER_FIELD_CONNECTIVITY_TYPE_LABEL),
+                                Localization.text(LocalizationKeys.Seeds.CUSTOMER_TOKYO_METRO_CONNECTIVITY_VALUE),
+                                Localization.text(LocalizationKeys.Seeds.CUSTOMER_FIELD_TOOL_LABEL), List.of("Cisco AnyConnect"),
+                                Localization.text(LocalizationKeys.Seeds.CUSTOMER_FIELD_NOTE_LABEL),
+                                Localization.text(LocalizationKeys.Seeds.CUSTOMER_TOKYO_METRO_NOTE)),
                         Instant.parse("2024-04-25T12:00:00Z")));
     }
 

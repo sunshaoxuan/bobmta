@@ -46,19 +46,21 @@ class InMemoryPlanServiceTest {
     }
 
     @Test
-    @DisplayName("createPlan initializes nodes and executions")
     void shouldCreatePlanWithExecutions() {
         CreatePlanCommand command = new CreatePlanCommand(
                 "tenant-x",
-                "测试计划",
-                "巡检准备",
+                Localization.text(LocalizationKeys.Seeds.PLAN_PRIMARY_TITLE),
+                Localization.text(LocalizationKeys.Seeds.PLAN_PRIMARY_DESCRIPTION),
                 "cust-001",
                 "admin",
                 OffsetDateTime.now().plusDays(1),
                 OffsetDateTime.now().plusDays(1).plusHours(2),
                 "Asia/Tokyo",
                 List.of("admin"),
-                List.of(new PlanNodeCommand(null, "检查清单", "CHECKLIST", "admin", 1, 30, null, "", List.of()))
+                List.of(new PlanNodeCommand(null,
+                        Localization.text(LocalizationKeys.Seeds.PLAN_NODE_NOTIFY_TITLE),
+                        "CHECKLIST", "admin", 1, 30, null,
+                        Localization.text(LocalizationKeys.Seeds.PLAN_NODE_NOTIFY_DESCRIPTION), List.of()))
         );
 
         var plan = service.createPlan(command);
@@ -123,7 +125,6 @@ class InMemoryPlanServiceTest {
     }
 
     @Test
-    @DisplayName("startNode transitions plan to in-progress")
     void shouldStartNode() {
         var plan = service.listPlans(null, null, null, null, null, null).get(0);
         service.publishPlan(plan.getId(), "admin");
@@ -134,7 +135,6 @@ class InMemoryPlanServiceTest {
     }
 
     @Test
-    @DisplayName("renderPlanIcs produces calendar payload")
     void shouldRenderIcs() {
         var plan = service.listPlans(null, null, null, null, null, null).get(0);
         service.cancelPlan(plan.getId(), "admin", "客户原因取消");
@@ -145,7 +145,6 @@ class InMemoryPlanServiceTest {
     }
 
     @Test
-    @DisplayName("getPlan throws for unknown id")
     void shouldThrowWhenMissing() {
         assertThatThrownBy(() -> service.getPlan("missing"))
                 .isInstanceOf(BusinessException.class);

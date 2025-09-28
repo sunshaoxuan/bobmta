@@ -11,8 +11,12 @@ import com.bob.mta.modules.template.dto.RenderTemplateRequest;
 import com.bob.mta.modules.template.dto.RenderedTemplateResponse;
 import com.bob.mta.modules.template.dto.TemplateResponse;
 import com.bob.mta.modules.template.dto.UpdateTemplateRequest;
+import com.bob.mta.i18n.LocalePreferenceService;
+import com.bob.mta.i18n.Localization;
+import com.bob.mta.i18n.LocalizationKeys;
 import com.bob.mta.modules.template.service.TemplateService;
 import jakarta.validation.Valid;
+import org.springframework.http.HttpHeaders;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -22,9 +26,11 @@ import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
+import java.util.Locale;
 
 @RestController
 @RequestMapping("/api/v1/templates")
@@ -42,26 +48,35 @@ public class TemplateController {
     }
 
     @GetMapping
-    public ApiResponse<List<TemplateResponse>> list(@RequestParam(required = false) TemplateType type) {
-        List<TemplateResponse> responses = templateService.list(type).stream()
-                .map(TemplateResponse::from)
+    public ApiResponse<List<TemplateResponse>> list(@RequestParam(required = false) TemplateType type,
+                                                    @RequestHeader(value = HttpHeaders.ACCEPT_LANGUAGE, required = false)
+                                                    String acceptLanguage) {
+        Locale locale = localePreferenceService.resolveLocale(acceptLanguage);
+        List<TemplateResponse> responses = templateService.list(type, locale).stream()
+                .map(definition -> TemplateResponse.from(definition, locale))
                 .toList();
         return ApiResponse.success(responses);
     }
 
     @GetMapping("/{id}")
-    public ApiResponse<TemplateResponse> get(@PathVariable long id) {
-        return ApiResponse.success(TemplateResponse.from(templateService.get(id)));
+    public ApiResponse<TemplateResponse> get(@PathVariable long id,
+                                             @RequestHeader(value = HttpHeaders.ACCEPT_LANGUAGE, required = false)
+                                             String acceptLanguage) {
+        Locale locale = localePreferenceService.resolveLocale(acceptLanguage);
+        return ApiResponse.success(TemplateResponse.from(templateService.get(id, locale), locale));
     }
 
     @PostMapping
     @PreAuthorize("hasRole('ADMIN')")
-    public ApiResponse<TemplateResponse> create(@Valid @RequestBody CreateTemplateRequest request) {
+    public ApiResponse<TemplateResponse> create(@Valid @RequestBody CreateTemplateRequest request,
+                                                @RequestHeader(value = HttpHeaders.ACCEPT_LANGUAGE, required = false)
+                                                String acceptLanguage) {
+        Locale locale = localePreferenceService.resolveLocale(acceptLanguage);
         TemplateDefinition definition = templateService.create(
                 request.getType(),
-                request.getName(),
-                request.getSubject(),
-                request.getContent(),
+                request.getName().toValue(),
+                request.getSubject() == null ? null : request.getSubject().toValue(),
+                request.getContent().toValue(),
                 request.getTo(),
                 request.getCc(),
                 request.getEndpoint(),
@@ -75,13 +90,16 @@ public class TemplateController {
 
     @PutMapping("/{id}")
     @PreAuthorize("hasRole('ADMIN')")
-    public ApiResponse<TemplateResponse> update(@PathVariable long id, @Valid @RequestBody UpdateTemplateRequest request) {
-        TemplateDefinition before = templateService.get(id);
+    public ApiResponse<TemplateResponse> update(@PathVariable long id, @Valid @RequestBody UpdateTemplateRequest request,
+                                                @RequestHeader(value = HttpHeaders.ACCEPT_LANGUAGE, required = false)
+                                                String acceptLanguage) {
+        Locale locale = localePreferenceService.resolveLocale(acceptLanguage);
+        TemplateDefinition before = templateService.get(id, locale);
         TemplateDefinition updated = templateService.update(
                 id,
-                request.getName(),
-                request.getSubject(),
-                request.getContent(),
+                request.getName().toValue(),
+                request.getSubject() == null ? null : request.getSubject().toValue(),
+                request.getContent().toValue(),
                 request.getTo(),
                 request.getCc(),
                 request.getEndpoint(),
@@ -95,8 +113,11 @@ public class TemplateController {
 
     @DeleteMapping("/{id}")
     @PreAuthorize("hasRole('ADMIN')")
-    public ApiResponse<Void> delete(@PathVariable long id) {
-        TemplateDefinition before = templateService.get(id);
+    public ApiResponse<Void> delete(@PathVariable long id,
+                                    @RequestHeader(value = HttpHeaders.ACCEPT_LANGUAGE, required = false)
+                                    String acceptLanguage) {
+        Locale locale = localePreferenceService.resolveLocale(acceptLanguage);
+        TemplateDefinition before = templateService.get(id, locale);
         templateService.delete(id);
         auditRecorder.record("Template", String.valueOf(id), "DELETE_TEMPLATE",
                 messageResolver.getMessage("audit.template.delete"),
@@ -107,8 +128,11 @@ public class TemplateController {
     @PostMapping("/{id}/render")
     @PreAuthorize("hasAnyRole('ADMIN', 'OPERATOR')")
     public ApiResponse<RenderedTemplateResponse> render(@PathVariable long id,
-                                                         @RequestBody(required = false) RenderTemplateRequest request) {
-        RenderedTemplate rendered = templateService.render(id, request == null ? null : request.getContext());
+                                                         @RequestBody(required = false) RenderTemplateRequest request,
+                                                         @RequestHeader(value = HttpHeaders.ACCEPT_LANGUAGE, required = false)
+                                                         String acceptLanguage) {
+        Locale locale = localePreferenceService.resolveLocale(acceptLanguage);
+        RenderedTemplate rendered = templateService.render(id, request == null ? null : request.getContext(), locale);
         RenderedTemplateResponse response = RenderedTemplateResponse.from(rendered);
         auditRecorder.record("Template", String.valueOf(id), "RENDER_TEMPLATE",
                 messageResolver.getMessage("audit.template.render"), null, response);

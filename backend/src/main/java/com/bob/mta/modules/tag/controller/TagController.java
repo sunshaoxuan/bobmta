@@ -16,6 +16,7 @@ import com.bob.mta.modules.tag.dto.TagResponse;
 import com.bob.mta.modules.tag.dto.UpdateTagRequest;
 import com.bob.mta.modules.tag.service.TagService;
 import jakarta.validation.Valid;
+import org.springframework.http.HttpHeaders;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -23,11 +24,13 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
+import java.util.Locale;
 
 @RestController
 @RequestMapping("/api/v1/tags")
@@ -49,23 +52,32 @@ public class TagController {
     }
 
     @GetMapping
-    public ApiResponse<List<TagResponse>> list(@RequestParam(required = false) TagScope scope) {
-        List<TagResponse> responses = tagService.list(scope).stream()
-                .map(TagResponse::from)
+    public ApiResponse<List<TagResponse>> list(@RequestParam(required = false) TagScope scope,
+                                               @RequestHeader(value = HttpHeaders.ACCEPT_LANGUAGE, required = false)
+                                               String acceptLanguage) {
+        Locale locale = localePreferenceService.resolveLocale(acceptLanguage);
+        List<TagResponse> responses = tagService.list(scope, locale).stream()
+                .map(definition -> TagResponse.from(definition, locale))
                 .toList();
         return ApiResponse.success(responses);
     }
 
     @GetMapping("/{id}")
-    public ApiResponse<TagResponse> get(@PathVariable long id) {
-        return ApiResponse.success(TagResponse.from(tagService.getById(id)));
+    public ApiResponse<TagResponse> get(@PathVariable long id,
+                                        @RequestHeader(value = HttpHeaders.ACCEPT_LANGUAGE, required = false)
+                                        String acceptLanguage) {
+        Locale locale = localePreferenceService.resolveLocale(acceptLanguage);
+        return ApiResponse.success(TagResponse.from(tagService.getById(id, locale), locale));
     }
 
     @PostMapping
     @PreAuthorize("hasRole('ADMIN')")
-    public ApiResponse<TagResponse> create(@Valid @RequestBody CreateTagRequest request) {
+    public ApiResponse<TagResponse> create(@Valid @RequestBody CreateTagRequest request,
+                                           @RequestHeader(value = HttpHeaders.ACCEPT_LANGUAGE, required = false)
+                                           String acceptLanguage) {
+        Locale locale = localePreferenceService.resolveLocale(acceptLanguage);
         TagDefinition definition = tagService.create(
-                request.getName(),
+                request.getName().toValue(),
                 request.getColor(),
                 request.getIcon(),
                 request.getScope(),
@@ -79,11 +91,14 @@ public class TagController {
 
     @PutMapping("/{id}")
     @PreAuthorize("hasRole('ADMIN')")
-    public ApiResponse<TagResponse> update(@PathVariable long id, @Valid @RequestBody UpdateTagRequest request) {
-        TagDefinition before = tagService.getById(id);
+    public ApiResponse<TagResponse> update(@PathVariable long id, @Valid @RequestBody UpdateTagRequest request,
+                                           @RequestHeader(value = HttpHeaders.ACCEPT_LANGUAGE, required = false)
+                                           String acceptLanguage) {
+        Locale locale = localePreferenceService.resolveLocale(acceptLanguage);
+        TagDefinition before = tagService.getById(id, locale);
         TagDefinition updated = tagService.update(
                 id,
-                request.getName(),
+                request.getName().toValue(),
                 request.getColor(),
                 request.getIcon(),
                 request.getScope(),
@@ -97,8 +112,11 @@ public class TagController {
 
     @DeleteMapping("/{id}")
     @PreAuthorize("hasRole('ADMIN')")
-    public ApiResponse<Void> delete(@PathVariable long id) {
-        TagDefinition before = tagService.getById(id);
+    public ApiResponse<Void> delete(@PathVariable long id,
+                                    @RequestHeader(value = HttpHeaders.ACCEPT_LANGUAGE, required = false)
+                                    String acceptLanguage) {
+        Locale locale = localePreferenceService.resolveLocale(acceptLanguage);
+        TagDefinition before = tagService.getById(id, locale);
         tagService.delete(id);
         auditRecorder.record("Tag", String.valueOf(id), "DELETE_TAG",
                 messageResolver.getMessage("audit.tag.delete"),
@@ -138,9 +156,12 @@ public class TagController {
 
     @GetMapping("/entities/{entityType}/{entityId}")
     public ApiResponse<List<TagResponse>> listByEntity(@PathVariable TagEntityType entityType,
-                                                       @PathVariable String entityId) {
-        List<TagResponse> responses = tagService.findByEntity(entityType, entityId).stream()
-                .map(TagResponse::from)
+                                                       @PathVariable String entityId,
+                                                       @RequestHeader(value = HttpHeaders.ACCEPT_LANGUAGE, required = false)
+                                                       String acceptLanguage) {
+        Locale locale = localePreferenceService.resolveLocale(acceptLanguage);
+        List<TagResponse> responses = tagService.findByEntity(entityType, entityId, locale).stream()
+                .map(definition -> TagResponse.from(definition, locale))
                 .toList();
         return ApiResponse.success(responses);
     }
