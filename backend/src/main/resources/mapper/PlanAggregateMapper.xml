@@ -86,6 +86,23 @@
         <result column="description" property="description"/>
     </resultMap>
 
+    <resultMap id="PlanStatusCountResult" type="com.bob.mta.modules.plan.persistence.PlanStatusCountEntity">
+        <result column="status" property="status" javaType="com.bob.mta.modules.plan.domain.PlanStatus"/>
+        <result column="total" property="total"/>
+    </resultMap>
+
+    <resultMap id="PlanUpcomingResult" type="com.bob.mta.modules.plan.persistence.PlanUpcomingPlanEntity">
+        <id column="plan_id" property="planId"/>
+        <result column="title" property="title"/>
+        <result column="status" property="status" javaType="com.bob.mta.modules.plan.domain.PlanStatus"/>
+        <result column="planned_start_time" property="plannedStartTime"/>
+        <result column="planned_end_time" property="plannedEndTime"/>
+        <result column="owner_id" property="ownerId"/>
+        <result column="customer_id" property="customerId"/>
+        <result column="completed_nodes" property="completedNodes"/>
+        <result column="total_nodes" property="totalNodes"/>
+    </resultMap>
+
     <select id="findPlans" parameterType="com.bob.mta.modules.plan.persistence.PlanQueryParameters"
             resultMap="PlanEntityResult">
         SELECT plan_id,
@@ -172,6 +189,84 @@
                 AND planned_start_time &lt;= #{plannedEndTo}
             </if>
         </where>
+    </select>
+
+    <select id="countPlansByStatus" parameterType="com.bob.mta.modules.plan.persistence.PlanAnalyticsQueryParameters"
+            resultMap="PlanStatusCountResult">
+        SELECT status,
+               COUNT(1) AS total
+        FROM mt_plan
+        <where>
+            <if test="tenantId != null">
+                tenant_id = #{tenantId}
+            </if>
+            <if test="plannedStartFrom != null">
+                AND planned_end_time &gt;= #{plannedStartFrom}
+            </if>
+            <if test="plannedEndTo != null">
+                AND planned_start_time &lt;= #{plannedEndTo}
+            </if>
+        </where>
+        GROUP BY status
+    </select>
+
+    <select id="countOverduePlans" parameterType="com.bob.mta.modules.plan.persistence.PlanAnalyticsQueryParameters"
+            resultType="long">
+        SELECT COUNT(1)
+        FROM mt_plan
+        <where>
+            <if test="tenantId != null">
+                tenant_id = #{tenantId}
+            </if>
+            <if test="plannedStartFrom != null">
+                AND planned_end_time &gt;= #{plannedStartFrom}
+            </if>
+            <if test="plannedEndTo != null">
+                AND planned_start_time &lt;= #{plannedEndTo}
+            </if>
+            AND status IN ('SCHEDULED', 'IN_PROGRESS')
+            AND planned_end_time IS NOT NULL
+            AND planned_end_time &lt; #{referenceTime}
+        </where>
+    </select>
+
+    <select id="findUpcomingPlans" parameterType="com.bob.mta.modules.plan.persistence.PlanAnalyticsQueryParameters"
+            resultMap="PlanUpcomingResult">
+        SELECT p.plan_id,
+               p.title,
+               p.status,
+               p.planned_start_time,
+               p.planned_end_time,
+               p.owner_id,
+               p.customer_id,
+               COALESCE(progress.completed_nodes, 0) AS completed_nodes,
+               COALESCE(progress.total_nodes, 0)     AS total_nodes
+        FROM mt_plan p
+                 LEFT JOIN (
+            SELECT plan_id,
+                   SUM(CASE WHEN status = 'DONE' THEN 1 ELSE 0 END) AS completed_nodes,
+                   COUNT(*)                                         AS total_nodes
+            FROM mt_plan_node_execution
+            GROUP BY plan_id
+        ) progress ON progress.plan_id = p.plan_id
+        <where>
+            <if test="tenantId != null">
+                p.tenant_id = #{tenantId}
+            </if>
+            <if test="plannedStartFrom != null">
+                AND p.planned_end_time &gt;= #{plannedStartFrom}
+            </if>
+            <if test="plannedEndTo != null">
+                AND p.planned_start_time &lt;= #{plannedEndTo}
+            </if>
+            AND p.status NOT IN ('CANCELED', 'COMPLETED')
+            AND p.planned_start_time IS NOT NULL
+            AND p.planned_start_time &gt;= #{referenceTime}
+        </where>
+        ORDER BY p.planned_start_time
+        <if test="upcomingLimit != null">
+            LIMIT #{upcomingLimit}
+        </if>
     </select>
 
     <select id="findPlanById" parameterType="string" resultMap="PlanEntityResult">

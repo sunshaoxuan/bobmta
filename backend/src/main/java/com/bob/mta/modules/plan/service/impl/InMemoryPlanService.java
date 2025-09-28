@@ -16,6 +16,8 @@ import com.bob.mta.modules.plan.domain.PlanReminderRule;
 import com.bob.mta.modules.plan.domain.PlanReminderSchedule;
 import com.bob.mta.modules.plan.domain.PlanReminderTrigger;
 import com.bob.mta.modules.plan.domain.PlanStatus;
+import com.bob.mta.modules.plan.repository.PlanAnalyticsQuery;
+import com.bob.mta.modules.plan.repository.PlanAnalyticsRepository;
 import com.bob.mta.modules.plan.repository.PlanRepository;
 import com.bob.mta.modules.plan.repository.PlanSearchCriteria;
 import com.bob.mta.modules.plan.service.PlanService;
@@ -48,11 +50,16 @@ public class InMemoryPlanService implements PlanService {
 
     private final FileService fileService;
     private final PlanRepository planRepository;
+    private final PlanAnalyticsRepository planAnalyticsRepository;
     private final MessageResolver messageResolver;
 
-    public InMemoryPlanService(FileService fileService, PlanRepository planRepository, MessageResolver messageResolver) {
+    public InMemoryPlanService(FileService fileService,
+                               PlanRepository planRepository,
+                               PlanAnalyticsRepository planAnalyticsRepository,
+                               MessageResolver messageResolver) {
         this.fileService = fileService;
         this.planRepository = planRepository;
+        this.planAnalyticsRepository = planAnalyticsRepository;
         this.messageResolver = messageResolver;
     }
 
@@ -91,20 +98,6 @@ public class InMemoryPlanService implements PlanService {
                 .collect(Collectors.toList());
 
         return new PlanSearchResult(plans, total);
-    }
-
-    private boolean matchesKeyword(Plan plan, String keyword) {
-        if (!StringUtils.hasText(keyword)) {
-            return true;
-        }
-        return containsIgnoreCase(plan.getTitle(), keyword) || containsIgnoreCase(plan.getDescription(), keyword);
-    }
-
-    private boolean containsIgnoreCase(String value, String needle) {
-        if (!StringUtils.hasText(value)) {
-            return false;
-        }
-        return value.toLowerCase(Locale.ROOT).contains(needle.toLowerCase(Locale.ROOT));
     }
 
     @Override
@@ -398,56 +391,15 @@ public class InMemoryPlanService implements PlanService {
 
     @Override
     public PlanAnalytics getAnalytics(String tenantId, OffsetDateTime from, OffsetDateTime to) {
-        OffsetDateTime now = OffsetDateTime.now();
-        PlanSearchCriteria criteria = PlanSearchCriteria.builder()
+        OffsetDateTime reference = OffsetDateTime.now();
+        PlanAnalyticsQuery query = PlanAnalyticsQuery.builder()
                 .tenantId(StringUtils.hasText(tenantId) ? tenantId : null)
                 .from(from)
                 .to(to)
+                .referenceTime(reference)
+                .upcomingLimit(5)
                 .build();
-        List<Plan> filtered = planRepository.findByCriteria(criteria).stream()
-                .sorted(Comparator.comparing(Plan::getPlannedStartTime,
-                        Comparator.nullsLast(Comparator.naturalOrder())))
-                .toList();
-
-        long design = filtered.stream().filter(plan -> plan.getStatus() == PlanStatus.DESIGN).count();
-        long scheduled = filtered.stream().filter(plan -> plan.getStatus() == PlanStatus.SCHEDULED).count();
-        long inProgress = filtered.stream().filter(plan -> plan.getStatus() == PlanStatus.IN_PROGRESS).count();
-        long completed = filtered.stream().filter(plan -> plan.getStatus() == PlanStatus.COMPLETED).count();
-        long canceled = filtered.stream().filter(plan -> plan.getStatus() == PlanStatus.CANCELED).count();
-        long overdue = filtered.stream().filter(plan -> isOverdue(plan, now)).count();
-
-        List<PlanAnalytics.UpcomingPlan> upcoming = filtered.stream()
-                .filter(plan -> plan.getPlannedStartTime() != null)
-                .filter(plan -> plan.getStatus() != PlanStatus.CANCELED && plan.getStatus() != PlanStatus.COMPLETED)
-                .filter(plan -> !plan.getPlannedStartTime().isBefore(now))
-                .sorted(Comparator.comparing(Plan::getPlannedStartTime))
-                .limit(5)
-                .map(plan -> new PlanAnalytics.UpcomingPlan(
-                        plan.getId(),
-                        plan.getTitle(),
-                        plan.getStatus(),
-                        plan.getPlannedStartTime(),
-                        plan.getPlannedEndTime(),
-                        plan.getOwner(),
-                        plan.getCustomerId(),
-                        plan.getProgress()
-                ))
-                .toList();
-
-        return new PlanAnalytics(filtered.size(), design, scheduled, inProgress, completed, canceled, overdue, upcoming);
-    }
-
-    private boolean isOverdue(Plan plan, OffsetDateTime reference) {
-        if (plan.getStatus() == PlanStatus.CANCELED || plan.getStatus() == PlanStatus.COMPLETED) {
-            return false;
-        }
-        if (plan.getStatus() == PlanStatus.DESIGN) {
-            return false;
-        }
-        if (plan.getPlannedEndTime() == null) {
-            return false;
-        }
-        return plan.getPlannedEndTime().isBefore(reference);
+        return planAnalyticsRepository.summarize(query);
     }
 
     private Plan buildPlan(String id, CreatePlanCommand command, OffsetDateTime now) {

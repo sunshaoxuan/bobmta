@@ -62,4 +62,10 @@ public interface PlanAggregateMapper {
     String nextNodeId();
 
     String nextReminderId();
+
+    List<PlanStatusCountEntity> countPlansByStatus(PlanAnalyticsQueryParameters parameters);
+
+    long countOverduePlans(PlanAnalyticsQueryParameters parameters);
+
+    List<PlanUpcomingPlanEntity> findUpcomingPlans(PlanAnalyticsQueryParameters parameters);
 }

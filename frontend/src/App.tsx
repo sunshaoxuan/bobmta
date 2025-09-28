@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { FormEvent, useCallback, useEffect, useMemo, useState } from 'react';
 import './App.css';
 import {
   Alert,
@@ -338,7 +338,6 @@ function App() {
 
   const authErrorDetail = describeRemoteError(authError);
   const planErrorDetail = describeRemoteError(plansError);
-
   const planColumns = useMemo<TableColumnsType<PlanSummary>>(
     () => [
       {

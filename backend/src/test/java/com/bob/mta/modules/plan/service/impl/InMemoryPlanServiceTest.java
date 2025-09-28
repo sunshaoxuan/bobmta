@@ -15,6 +15,7 @@ import com.bob.mta.modules.plan.domain.PlanReminderTrigger;
 import com.bob.mta.modules.plan.domain.PlanNodeExecution;
 import com.bob.mta.modules.plan.domain.PlanStatus;
 import com.bob.mta.modules.plan.domain.PlanAnalytics;
+import com.bob.mta.modules.plan.repository.InMemoryPlanAnalyticsRepository;
 import com.bob.mta.modules.plan.repository.InMemoryPlanRepository;
 import com.bob.mta.modules.plan.service.command.CreatePlanCommand;
 import com.bob.mta.modules.plan.service.command.PlanNodeCommand;
@@ -31,9 +32,10 @@ import java.util.Locale;
 class InMemoryPlanServiceTest {
 
     private final InMemoryPlanRepository repository = new InMemoryPlanRepository();
+    private final InMemoryPlanAnalyticsRepository analyticsRepository = new InMemoryPlanAnalyticsRepository(repository);
     private final MessageResolver messageResolver = TestMessageResolverFactory.create();
     private final InMemoryPlanService service = new InMemoryPlanService(new InMemoryFileService(), repository,
-            messageResolver);
+            analyticsRepository, messageResolver);
 
     @BeforeEach
     void setUpLocale() {
