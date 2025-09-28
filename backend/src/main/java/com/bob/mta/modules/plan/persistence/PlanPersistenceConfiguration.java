@@ -15,7 +15,10 @@ import javax.sql.DataSource;
 @Configuration
 @ConditionalOnClass(org.apache.ibatis.session.SqlSessionFactory.class)
 @ConditionalOnBean(DataSource.class)
-@MapperScan(basePackageClasses = PlanAggregateMapper.class)
+@MapperScan(basePackageClasses = {
+        PlanAggregateMapper.class,
+        com.bob.mta.common.i18n.persistence.MultilingualTextMapper.class
+})
 public class PlanPersistenceConfiguration {
 
     @Bean

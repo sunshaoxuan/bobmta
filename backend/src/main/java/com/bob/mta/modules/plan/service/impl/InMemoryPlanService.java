@@ -16,6 +16,8 @@ import com.bob.mta.modules.plan.domain.PlanReminderRule;
 import com.bob.mta.modules.plan.domain.PlanReminderSchedule;
 import com.bob.mta.modules.plan.domain.PlanReminderTrigger;
 import com.bob.mta.modules.plan.domain.PlanStatus;
+import com.bob.mta.modules.plan.repository.PlanAnalyticsQuery;
+import com.bob.mta.modules.plan.repository.PlanAnalyticsRepository;
 import com.bob.mta.modules.plan.repository.PlanRepository;
 import com.bob.mta.modules.plan.repository.PlanSearchCriteria;
 import com.bob.mta.modules.plan.service.PlanService;
@@ -24,6 +26,7 @@ import com.bob.mta.modules.plan.service.command.CreatePlanCommand;
 import com.bob.mta.modules.plan.service.command.PlanNodeCommand;
 import com.bob.mta.modules.plan.service.command.UpdatePlanCommand;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
 import java.time.OffsetDateTime;
@@ -39,6 +42,7 @@ import java.util.Objects;
 import java.util.stream.Collectors;
 
 @Service
+@Transactional(readOnly = true)
 public class InMemoryPlanService implements PlanService {
 
     private static final DateTimeFormatter ICS_FORMATTER = DateTimeFormatter.ofPattern("yyyyMMdd'T'HHmmss'Z'", Locale.US)
@@ -46,22 +50,28 @@ public class InMemoryPlanService implements PlanService {
 
     private final FileService fileService;
     private final PlanRepository planRepository;
+    private final PlanAnalyticsRepository planAnalyticsRepository;
     private final MessageResolver messageResolver;
 
-    public InMemoryPlanService(FileService fileService, PlanRepository planRepository, MessageResolver messageResolver) {
+    public InMemoryPlanService(FileService fileService,
+                               PlanRepository planRepository,
+                               PlanAnalyticsRepository planAnalyticsRepository,
+                               MessageResolver messageResolver) {
         this.fileService = fileService;
         this.planRepository = planRepository;
+        this.planAnalyticsRepository = planAnalyticsRepository;
         this.messageResolver = messageResolver;
     }
 
     @Override
-    public PlanSearchResult listPlans(String customerId, String owner, String keyword, PlanStatus status,
+    public PlanSearchResult listPlans(String tenantId, String customerId, String owner, String keyword, PlanStatus status,
                                       OffsetDateTime from, OffsetDateTime to, int page, int size) {
         int sanitizedSize = size <= 0 ? 10 : size;
         int sanitizedPage = Math.max(page, 0);
         int offset = sanitizedPage * sanitizedSize;
 
         PlanSearchCriteria baseCriteria = PlanSearchCriteria.builder()
+                .tenantId(StringUtils.hasText(tenantId) ? tenantId : null)
                 .customerId(StringUtils.hasText(customerId) ? customerId : null)
                 .owner(StringUtils.hasText(owner) ? owner : null)
                 .keyword(StringUtils.hasText(keyword) ? keyword : null)
@@ -73,6 +83,7 @@ public class InMemoryPlanService implements PlanService {
         int total = planRepository.countByCriteria(baseCriteria);
 
         PlanSearchCriteria pageCriteria = PlanSearchCriteria.builder()
+                .tenantId(baseCriteria.getTenantId())
                 .customerId(baseCriteria.getCustomerId())
                 .owner(baseCriteria.getOwner())
                 .keyword(baseCriteria.getKeyword())
@@ -91,26 +102,13 @@ public class InMemoryPlanService implements PlanService {
         return new PlanSearchResult(plans, total);
     }
 
-    private boolean matchesKeyword(Plan plan, String keyword) {
-        if (!StringUtils.hasText(keyword)) {
-            return true;
-        }
-        return containsIgnoreCase(plan.getTitle(), keyword) || containsIgnoreCase(plan.getDescription(), keyword);
-    }
-
-    private boolean containsIgnoreCase(String value, String needle) {
-        if (!StringUtils.hasText(value)) {
-            return false;
-        }
-        return value.toLowerCase(Locale.ROOT).contains(needle.toLowerCase(Locale.ROOT));
-    }
-
     @Override
     public Plan getPlan(String id) {
         return requirePlan(id);
     }
 
     @Override
+    @Transactional
     public Plan createPlan(CreatePlanCommand command) {
         String id = planRepository.nextPlanId();
         OffsetDateTime now = OffsetDateTime.now();
@@ -120,6 +118,7 @@ public class InMemoryPlanService implements PlanService {
     }
 
     @Override
+    @Transactional
     public Plan updatePlan(String id, UpdatePlanCommand command) {
         Plan current = requirePlan(id);
         if (current.getStatus() != PlanStatus.DESIGN) {
@@ -148,6 +147,7 @@ public class InMemoryPlanService implements PlanService {
     }
 
     @Override
+    @Transactional
     public void deletePlan(String id) {
         Plan current = requirePlan(id);
         if (current.getStatus() != PlanStatus.DESIGN) {
@@ -157,6 +157,7 @@ public class InMemoryPlanService implements PlanService {
     }
 
     @Override
+    @Transactional
     public Plan publishPlan(String id, String operator) {
         Plan current = requirePlan(id);
         if (current.getStatus() != PlanStatus.DESIGN) {
@@ -182,6 +183,7 @@ public class InMemoryPlanService implements PlanService {
     }
 
     @Override
+    @Transactional
     public Plan cancelPlan(String id, String operator, String reason) {
         Plan current = requirePlan(id);
         if (current.getStatus() == PlanStatus.COMPLETED || current.getStatus() == PlanStatus.CANCELED) {
@@ -205,6 +207,7 @@ public class InMemoryPlanService implements PlanService {
     }
 
     @Override
+    @Transactional
     public PlanNodeExecution startNode(String planId, String nodeId, String operator) {
         Plan current = requirePlan(planId);
         ensurePlanExecutable(current);
@@ -241,8 +244,9 @@ public class InMemoryPlanService implements PlanService {
     }
 
     @Override
+    @Transactional
     public PlanNodeExecution completeNode(String planId, String nodeId, String operator, String result,
-                                          String log, List<String> fileIds) {
+                                   String log, List<String> fileIds) {
         Plan current = requirePlan(planId);
         ensurePlanExecutable(current);
         PlanNodeExecution target = findExecution(current, nodeId);
@@ -294,6 +298,7 @@ public class InMemoryPlanService implements PlanService {
     }
 
     @Override
+    @Transactional
     public Plan handoverPlan(String planId, String newOwner, List<String> participants, String note, String operator) {
         Plan current = requirePlan(planId);
         if (!StringUtils.hasText(newOwner)) {
@@ -349,6 +354,7 @@ public class InMemoryPlanService implements PlanService {
     }
 
     @Override
+    @Transactional
     public Plan updateReminderPolicy(String planId, List<PlanReminderRule> rules, String operator) {
         Plan current = requirePlan(planId);
         OffsetDateTime now = OffsetDateTime.now();
@@ -386,57 +392,17 @@ public class InMemoryPlanService implements PlanService {
     }
 
     @Override
-    public PlanAnalytics getAnalytics(String tenantId, OffsetDateTime from, OffsetDateTime to) {
-        OffsetDateTime now = OffsetDateTime.now();
-        PlanSearchCriteria criteria = PlanSearchCriteria.builder()
+    public PlanAnalytics getAnalytics(String tenantId, String customerId, OffsetDateTime from, OffsetDateTime to) {
+        OffsetDateTime reference = OffsetDateTime.now();
+        PlanAnalyticsQuery query = PlanAnalyticsQuery.builder()
                 .tenantId(StringUtils.hasText(tenantId) ? tenantId : null)
+                .customerId(StringUtils.hasText(customerId) ? customerId : null)
                 .from(from)
                 .to(to)
+                .referenceTime(reference)
+                .upcomingLimit(5)
                 .build();
-        List<Plan> filtered = planRepository.findByCriteria(criteria).stream()
-                .sorted(Comparator.comparing(Plan::getPlannedStartTime,
-                        Comparator.nullsLast(Comparator.naturalOrder())))
-                .toList();
-
-        long design = filtered.stream().filter(plan -> plan.getStatus() == PlanStatus.DESIGN).count();
-        long scheduled = filtered.stream().filter(plan -> plan.getStatus() == PlanStatus.SCHEDULED).count();
-        long inProgress = filtered.stream().filter(plan -> plan.getStatus() == PlanStatus.IN_PROGRESS).count();
-        long completed = filtered.stream().filter(plan -> plan.getStatus() == PlanStatus.COMPLETED).count();
-        long canceled = filtered.stream().filter(plan -> plan.getStatus() == PlanStatus.CANCELED).count();
-        long overdue = filtered.stream().filter(plan -> isOverdue(plan, now)).count();
-
-        List<PlanAnalytics.UpcomingPlan> upcoming = filtered.stream()
-                .filter(plan -> plan.getPlannedStartTime() != null)
-                .filter(plan -> plan.getStatus() != PlanStatus.CANCELED && plan.getStatus() != PlanStatus.COMPLETED)
-                .filter(plan -> !plan.getPlannedStartTime().isBefore(now))
-                .sorted(Comparator.comparing(Plan::getPlannedStartTime))
-                .limit(5)
-                .map(plan -> new PlanAnalytics.UpcomingPlan(
-                        plan.getId(),
-                        plan.getTitle(),
-                        plan.getStatus(),
-                        plan.getPlannedStartTime(),
-                        plan.getPlannedEndTime(),
-                        plan.getOwner(),
-                        plan.getCustomerId(),
-                        plan.getProgress()
-                ))
-                .toList();
-
-        return new PlanAnalytics(filtered.size(), design, scheduled, inProgress, completed, canceled, overdue, upcoming);
-    }
-
-    private boolean isOverdue(Plan plan, OffsetDateTime reference) {
-        if (plan.getStatus() == PlanStatus.CANCELED || plan.getStatus() == PlanStatus.COMPLETED) {
-            return false;
-        }
-        if (plan.getStatus() == PlanStatus.DESIGN) {
-            return false;
-        }
-        if (plan.getPlannedEndTime() == null) {
-            return false;
-        }
-        return plan.getPlannedEndTime().isBefore(reference);
+        return planAnalyticsRepository.summarize(query);
     }
 
     private Plan buildPlan(String id, CreatePlanCommand command, OffsetDateTime now) {

@@ -18,6 +18,7 @@ import com.bob.mta.modules.plan.dto.PlanNodeAttachmentResponse;
 import com.bob.mta.modules.plan.dto.PlanReminderPolicyRequest;
 import com.bob.mta.modules.plan.dto.PlanReminderRuleRequest;
 import com.bob.mta.modules.plan.dto.PlanSummaryResponse;
+import com.bob.mta.modules.plan.repository.InMemoryPlanAnalyticsRepository;
 import com.bob.mta.modules.plan.repository.InMemoryPlanRepository;
 import com.bob.mta.modules.plan.service.impl.InMemoryPlanService;
 import com.bob.mta.modules.plan.service.command.CreatePlanCommand;
@@ -25,7 +26,6 @@ import com.bob.mta.modules.plan.service.command.PlanNodeCommand;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.security.authentication.TestingAuthenticationToken;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -52,7 +52,8 @@ class PlanControllerTest {
         fileService = new InMemoryFileService();
         planRepository = new InMemoryPlanRepository();
         messageResolver = TestMessageResolverFactory.create();
-        planService = new InMemoryPlanService(fileService, planRepository, messageResolver);
+        planService = new InMemoryPlanService(fileService, planRepository,
+                new InMemoryPlanAnalyticsRepository(planRepository), messageResolver);
         auditService = new InMemoryAuditService();
         AuditRecorder recorder = new AuditRecorder(auditService, new ObjectMapper());
         controller = new PlanController(planService, recorder, fileService, messageResolver);
@@ -66,7 +67,8 @@ class PlanControllerTest {
 
     @Test
     void listShouldReturnPlans() {
-        PageResponse<PlanSummaryResponse> page = controller.list(null, null, null, null, null, null, 0, 1).getData();
+        PageResponse<PlanSummaryResponse> page = controller.list(null, null, null, null, null, null, null, 0, 1)
+                .getData();
         assertThat(page.getItems()).hasSize(1);
         assertThat(page.getTotal()).isGreaterThanOrEqualTo(2);
     }
@@ -88,7 +90,7 @@ class PlanControllerTest {
         planService.createPlan(command);
 
         PageResponse<PlanSummaryResponse> filtered = controller
-                .list(null, "ops-lead", "数据中心", null, null, null, 0, 10)
+                .list(null, null, "ops-lead", "数据中心", null, null, null, 0, 10)
                 .getData();
 
         assertThat(filtered.getItems()).hasSize(1);
@@ -96,8 +98,39 @@ class PlanControllerTest {
     }
 
     @Test
+    void listShouldRespectTenantBoundary() {
+        CreatePlanCommand tenantSpecific = new CreatePlanCommand(
+                "tenant-isolated",
+                "海外机房季度体检",
+                "tenant-isolated-only",
+                "cust-777",
+                "tenant-owner",
+                OffsetDateTime.now().plusDays(3),
+                OffsetDateTime.now().plusDays(3).plusHours(6),
+                "Asia/Tokyo",
+                List.of("tenant-owner"),
+                List.of(new PlanNodeCommand(null, "准备", "CHECKLIST", "tenant-owner", 1, 60, null, "", List.of()))
+        );
+        planService.createPlan(tenantSpecific);
+
+        PageResponse<PlanSummaryResponse> isolated = controller
+                .list("tenant-isolated", null, null, null, null, null, null, 0, 10)
+                .getData();
+
+        assertThat(isolated.getItems()).extracting(PlanSummaryResponse::getTenantId)
+                .containsOnly("tenant-isolated");
+
+        PageResponse<PlanSummaryResponse> defaultTenant = controller
+                .list("tenant-001", null, null, null, null, null, null, 0, 10)
+                .getData();
+
+        assertThat(defaultTenant.getItems())
+                .allMatch(summary -> "tenant-001".equals(summary.getTenantId()));
+    }
+
+    @Test
     void analyticsShouldSummarizePlans() {
-        var analytics = controller.analytics(null, null, null).getData();
+        var analytics = controller.analytics(null, null, null, null).getData();
 
         assertThat(analytics.getTotalPlans()).isGreaterThanOrEqualTo(2);
         assertThat(analytics.getUpcomingPlans()).isNotEmpty();
@@ -122,14 +155,14 @@ class PlanControllerTest {
         var created = planService.createPlan(command);
         planService.publishPlan(created.getId(), "admin");
 
-        var analytics = controller.analytics(null, null, null).getData();
+        var analytics = controller.analytics(null, null, null, null).getData();
 
         assertThat(analytics.getOverdueCount()).isGreaterThanOrEqualTo(1);
     }
 
     @Test
     void detailShouldReturnPlanWithNodesAndReminders() {
-        String planId = planService.listPlans(null, null, null, null, null, null, 0, 10).plans().get(0).getId();
+        String planId = planService.listPlans(null, null, null, null, null, null, null, 0, 10).plans().get(0).getId();
         PlanDetailResponse response = controller.detail(planId).getData();
         assertThat(response.getNodes()).isNotEmpty();
         assertThat(response.getTimeline()).isNotEmpty();
@@ -138,7 +171,7 @@ class PlanControllerTest {
 
     @Test
     void detailShouldExposeNodeAttachments() {
-        String planId = planService.listPlans(null, null, null, null, null, null, 0, 10).plans().get(0).getId();
+        String planId = planService.listPlans(null, null, null, null, null, null, null, 0, 10).plans().get(0).getId();
         String nodeId = planService.getPlan(planId).getExecutions().get(0).getNodeId();
         authenticate("admin");
         controller.publish(planId);
@@ -160,7 +193,7 @@ class PlanControllerTest {
 
     @Test
     void reminderPolicyShouldExposeDefaultRules() {
-        String planId = planService.listPlans(null, null, null, null, null, null, 0, 10).plans().get(0).getId();
+        String planId = planService.listPlans(null, null, null, null, null, null, null, 0, 10).plans().get(0).getId();
 
         var policy = controller.reminderPolicy(planId).getData();
 
@@ -170,7 +203,7 @@ class PlanControllerTest {
 
     @Test
     void updateReminderPolicyShouldRecordAuditAndPersistRules() {
-        String planId = planService.listPlans(null, null, null, null, null, null, 0, 10).plans().get(0).getId();
+        String planId = planService.listPlans(null, null, null, null, null, null, null, 0, 10).plans().get(0).getId();
         authenticate("admin");
         PlanReminderRuleRequest ruleRequest = new PlanReminderRuleRequest();
         ruleRequest.setTrigger(PlanReminderTrigger.BEFORE_PLAN_START);
@@ -194,7 +227,7 @@ class PlanControllerTest {
 
     @Test
     void previewRemindersShouldReturnUpcomingEntries() {
-        String planId = planService.listPlans(null, null, null, null, null, null, 0, 10).plans().get(0).getId();
+        String planId = planService.listPlans(null, null, null, null, null, null, null, 0, 10).plans().get(0).getId();
 
         var preview = controller.previewReminders(planId, OffsetDateTime.now().minusMinutes(1)).getData();
 
@@ -204,7 +237,7 @@ class PlanControllerTest {
 
     @Test
     void cancelShouldExposeReasonAndOperator() {
-        String planId = planService.listPlans(null, null, null, null, null, null, 0, 10).plans().get(0).getId();
+        String planId = planService.listPlans(null, null, null, null, null, null, null, 0, 10).plans().get(0).getId();
         CancelPlanRequest request = new CancelPlanRequest();
         request.setReason("客户延期");
         SecurityContextHolder.getContext().setAuthentication(new TestingAuthenticationToken("admin", null));
@@ -218,7 +251,7 @@ class PlanControllerTest {
 
     @Test
     void handoverShouldUpdateOwnerParticipantsAndAuditTrail() {
-        String planId = planService.listPlans(null, null, null, null, null, null, 0, 10).plans().get(0).getId();
+        String planId = planService.listPlans(null, null, null, null, null, null, null, 0, 10).plans().get(0).getId();
         authenticate("admin");
         PlanHandoverRequest request = new PlanHandoverRequest();
         request.setNewOwner("operator");
@@ -240,7 +273,7 @@ class PlanControllerTest {
 
     @Test
     void publishShouldRecordBeforeAndAfterInAudit() {
-        String planId = planService.listPlans(null, null, null, null, null, null, 0, 10).plans().get(0).getId();
+        String planId = planService.listPlans(null, null, null, null, null, null, null, 0, 10).plans().get(0).getId();
         authenticate("admin");
 
         controller.publish(planId);
@@ -253,7 +286,7 @@ class PlanControllerTest {
 
     @Test
     void timelineShouldExposePlanActivities() {
-        String planId = planService.listPlans(null, null, null, null, null, null, 0, 10).plans().get(0).getId();
+        String planId = planService.listPlans(null, null, null, null, null, null, null, 0, 10).plans().get(0).getId();
         authenticate("admin");
 
         controller.publish(planId);
@@ -266,7 +299,7 @@ class PlanControllerTest {
 
     @Test
     void startNodeShouldRecordStateTransitionInAudit() {
-        String planId = planService.listPlans(null, null, null, null, null, null, 0, 10).plans().get(0).getId();
+        String planId = planService.listPlans(null, null, null, null, null, null, null, 0, 10).plans().get(0).getId();
         String nodeId = planService.getPlan(planId).getExecutions().get(0).getNodeId();
         authenticate("operator");
         controller.publish(planId);
