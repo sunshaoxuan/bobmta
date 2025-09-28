@@ -1,7 +1,9 @@
 package com.bob.mta.i18n;
 
 import java.text.MessageFormat;
+import java.util.HashMap;
 import java.util.Locale;
+import java.util.Map;
 import java.util.ResourceBundle;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
@@ -31,5 +33,14 @@ public final class Localization {
         }
         MessageFormat format = new MessageFormat(pattern, locale);
         return format.format(args);
+    }
+
+    public static Map<String, String> bundle(Locale locale) {
+        ResourceBundle bundle = CACHE.computeIfAbsent(locale, key -> ResourceBundle.getBundle(BASE_NAME, key));
+        Map<String, String> messages = new HashMap<>();
+        for (String key : bundle.keySet()) {
+            messages.put(key, bundle.getString(key));
+        }
+        return Map.copyOf(messages);
     }
 }

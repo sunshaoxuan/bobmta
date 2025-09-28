@@ -1,0 +1,203 @@
+export type Locale = 'ja-JP' | 'zh-CN';
+
+export const DEFAULT_LOCALE: Locale = 'ja-JP';
+export const DEFAULT_SUPPORTED_LOCALES: Locale[] = ['ja-JP', 'zh-CN'];
+
+const STORAGE_PREFIX = 'bobmta.localization.bundle';
+const CACHE_TTL_MS = 6 * 60 * 60 * 1000; // 6 hours
+
+export const UI_MESSAGE_KEYS = {
+  appTitle: 'frontend.app.title',
+  appDescription: 'frontend.app.description',
+  backendStatus: 'frontend.app.backend.status',
+  backendSuccess: 'frontend.app.backend.success',
+  backendError: 'frontend.app.backend.error',
+  backendErrorStatus: 'frontend.app.backend.error.status',
+  backendErrorNetwork: 'frontend.app.backend.error.network',
+  backendPending: 'frontend.app.backend.pending',
+  localeLabel: 'frontend.app.locale.label',
+} as const;
+
+export type UiMessageKey = keyof typeof UI_MESSAGE_KEYS;
+
+export interface LocalizationBundle {
+  locale: Locale;
+  defaultLocale: Locale;
+  version: string;
+  supportedLocales: Locale[];
+  messages: Record<string, string>;
+  defaultMessages: Record<string, string>;
+}
+
+type CacheRecord = LocalizationBundle & { fetchedAt: number };
+
+type ApiResponse<T> = {
+  code: number;
+  message: string;
+  data: T;
+};
+
+type LocalizationBundlePayload = {
+  locale: string;
+  defaultLocale: string;
+  version?: string;
+  supportedLocales?: string[];
+  messages?: Record<string, string>;
+  defaultMessages?: Record<string, string>;
+};
+
+export function getCachedLocalization(
+  locale: Locale
+): { bundle: LocalizationBundle; stale: boolean } | null {
+  const record = readCache(locale);
+  if (!record) {
+    return null;
+  }
+  return { bundle: toBundle(record), stale: isStale(record) };
+}
+
+export async function fetchLocalization(locale: Locale): Promise<LocalizationBundle> {
+  const record = await requestBundle(locale);
+  persistCache(locale, record);
+  return toBundle(record);
+}
+
+export function getSupportedLocales(bundle?: LocalizationBundle | null): Locale[] {
+  if (bundle && bundle.supportedLocales.length > 0) {
+    return bundle.supportedLocales;
+  }
+  return DEFAULT_SUPPORTED_LOCALES;
+}
+
+export function formatMessage(
+  bundle: LocalizationBundle | null,
+  key: UiMessageKey,
+  values?: Record<string, string | number>
+): string {
+  const resourceKey = UI_MESSAGE_KEYS[key];
+  const template =
+    bundle?.messages[resourceKey] ??
+    bundle?.defaultMessages[resourceKey] ??
+    resourceKey;
+  return applyTemplate(template, values);
+}
+
+function applyTemplate(template: string, values?: Record<string, string | number>): string {
+  if (!values) {
+    return template;
+  }
+  return Object.entries(values).reduce((acc, [token, value]) => {
+    const pattern = new RegExp(`\\{${token}\\}`, 'g');
+    return acc.replace(pattern, String(value));
+  }, template);
+}
+
+function requestCacheKey(locale: Locale): string {
+  return `${STORAGE_PREFIX}:${locale}`;
+}
+
+function readCache(locale: Locale): CacheRecord | null {
+  if (typeof window === 'undefined') {
+    return null;
+  }
+  try {
+    const raw = window.localStorage.getItem(requestCacheKey(locale));
+    if (!raw) {
+      return null;
+    }
+    const parsed = JSON.parse(raw) as CacheRecord;
+    parsed.supportedLocales = normalizeLocales(parsed.supportedLocales);
+    parsed.locale = normalizeLocale(parsed.locale);
+    parsed.defaultLocale = normalizeLocale(parsed.defaultLocale);
+    if (typeof parsed.fetchedAt !== 'number') {
+      parsed.fetchedAt = 0;
+    }
+    return parsed;
+  } catch {
+    return null;
+  }
+}
+
+function persistCache(locale: Locale, record: CacheRecord): void {
+  if (typeof window === 'undefined') {
+    return;
+  }
+  try {
+    const serialized = JSON.stringify(record);
+    window.localStorage.setItem(requestCacheKey(locale), serialized);
+  } catch {
+    // ignore persistence errors to keep the app resilient when storage is unavailable
+  }
+}
+
+function isStale(record: CacheRecord): boolean {
+  return Date.now() - record.fetchedAt > CACHE_TTL_MS;
+}
+
+async function requestBundle(locale: Locale): Promise<CacheRecord> {
+  const response = await fetch('/api/v1/i18n/messages', {
+    headers: {
+      'Accept-Language': locale,
+    },
+  });
+  if (!response.ok) {
+    throw new Error(`Failed to load localization bundle: ${response.status}`);
+  }
+  const body = (await response.json()) as ApiResponse<LocalizationBundlePayload>;
+  if (!body.data) {
+    throw new Error('Localization bundle response is empty');
+  }
+  const payload = body.data;
+  return {
+    locale: normalizeLocale(payload.locale),
+    defaultLocale: normalizeLocale(payload.defaultLocale),
+    version: payload.version ?? '1',
+    supportedLocales: normalizeLocales(payload.supportedLocales),
+    messages: payload.messages ?? {},
+    defaultMessages: payload.defaultMessages ?? {},
+    fetchedAt: Date.now(),
+  };
+}
+
+function toBundle(record: CacheRecord): LocalizationBundle {
+  return {
+    locale: normalizeLocale(record.locale),
+    defaultLocale: normalizeLocale(record.defaultLocale),
+    version: record.version,
+    supportedLocales: normalizeLocales(record.supportedLocales),
+    messages: record.messages,
+    defaultMessages: record.defaultMessages,
+  };
+}
+
+function normalizeLocales(locales?: Iterable<string>): Locale[] {
+  if (!locales) {
+    return DEFAULT_SUPPORTED_LOCALES;
+  }
+  const normalized: Locale[] = [];
+  for (const locale of locales) {
+    const value = normalizeLocale(locale);
+    if (!normalized.includes(value)) {
+      normalized.push(value);
+    }
+  }
+  return normalized.length > 0 ? normalized : DEFAULT_SUPPORTED_LOCALES;
+}
+
+function normalizeLocale(value?: string): Locale {
+  if (!value) {
+    return DEFAULT_LOCALE;
+  }
+  const normalized = value.replace('_', '-');
+  const match = DEFAULT_SUPPORTED_LOCALES.find(
+    (candidate) => candidate.toLowerCase() === normalized.toLowerCase()
+  );
+  if (match) {
+    return match;
+  }
+  const language = normalized.split('-')[0]?.toLowerCase();
+  const byLanguage = DEFAULT_SUPPORTED_LOCALES.find(
+    (candidate) => candidate.split('-')[0].toLowerCase() === language
+  );
+  return byLanguage ?? DEFAULT_LOCALE;
+}

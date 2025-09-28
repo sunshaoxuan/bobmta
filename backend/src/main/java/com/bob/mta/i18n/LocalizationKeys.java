@@ -13,6 +13,7 @@ public final class LocalizationKeys {
     }
 
     public static final class Frontend {
+        public static final String BUNDLE_VERSION = "frontend.bundle.version";
         public static final String APP_TITLE = "frontend.app.title";
         public static final String APP_DESCRIPTION = "frontend.app.description";
         public static final String BACKEND_STATUS = "frontend.app.backend.status";

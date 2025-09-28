@@ -7,7 +7,7 @@
 ### 🌐 多语言策略
 - 产品默认语言为 **日文（ja-JP）**，可选语言包提供 **中文（zh-CN）**。
 - 所有面向用户的字符串必须通过资源文件维护，严禁在代码中写死具有语种特征的文本。
-- 前端位于 `frontend/src/i18n/messages.ts`，后端位于 `backend/src/main/resources/i18n/`，提交新功能时请同步更新多语言资源。
+- 所有多语言资源统一维护在后端 `backend/src/main/resources/i18n/`，通过 `/api/v1/i18n/messages` 下发；前端页面加载时必须先检查本地缓存（`localStorage` 中的 `bobmta.localization.bundle`），缓存缺失或超期再调用接口刷新并回写缓存，禁止在前端代码中写死词条。
 - 单元测试若需断言文案，应通过资源方法或使用无语种特征的占位字符串。
 - 后端抛出的 `BusinessException`、`IllegalArgumentException` 等涉及用户提示的消息必须调用 `Localization.text` 或同级工具获取资源文案，禁止直接写入自然语言字符串。
 - 新增或调整文案时需先在 `LocalizationKeys` 中登记键名，再同步维护 `messages.properties` / `messages_ja.properties` / `messages_zh.properties` 以及必要的前端映射，保持语言包完整。

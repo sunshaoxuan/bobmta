@@ -1,35 +1,70 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import './App.css';
 import {
-  availableLocales,
-  defaultLocale,
+  DEFAULT_LOCALE,
+  fetchLocalization,
   formatMessage,
+  getCachedLocalization,
+  getSupportedLocales,
   type Locale,
-  type MessageKey,
-} from './i18n/messages';
+  type LocalizationBundle,
+  type UiMessageKey,
+} from './i18n/localization';
 
 type PingResponse = {
   status: string;
 };
 
 function App() {
+  const [locale, setLocale] = useState<Locale>(DEFAULT_LOCALE);
+  const [bundle, setBundle] = useState<LocalizationBundle | null>(null);
+  const [loadingBundle, setLoadingBundle] = useState<boolean>(false);
   const [ping, setPing] = useState<PingResponse | null>(null);
   const [error, setError] = useState<{
-    key: MessageKey;
+    key: UiMessageKey;
     values?: Record<string, string | number>;
   } | null>(null);
-  const [locale, setLocale] = useState<Locale>(defaultLocale);
 
-  const t = (key: MessageKey, values?: Record<string, string | number>) =>
-    formatMessage(locale, key, values);
+  useEffect(() => {
+    const cached = getCachedLocalization(locale);
+    if (cached) {
+      setBundle(cached.bundle);
+    } else {
+      setBundle(null);
+    }
+
+    let cancelled = false;
+    if (!cached || cached.stale) {
+      setLoadingBundle(true);
+      fetchLocalization(locale)
+        .then((fresh) => {
+          if (!cancelled) {
+            setBundle(fresh);
+          }
+        })
+        .catch(() => {
+          // keep the cached bundle if fetching fails
+        })
+        .finally(() => {
+          if (!cancelled) {
+            setLoadingBundle(false);
+          }
+        });
+    } else {
+      setLoadingBundle(false);
+    }
+
+    return () => {
+      cancelled = true;
+    };
+  }, [locale]);
 
   useEffect(() => {
     setPing(null);
     setError(null);
-    const acceptLanguage = locale === 'ja' ? 'ja-JP' : 'zh-CN';
     fetch('/api/ping', {
       headers: {
-        'Accept-Language': acceptLanguage,
+        'Accept-Language': locale,
       },
     })
       .then(async (response) => {
@@ -45,6 +80,15 @@ function App() {
       });
   }, [locale]);
 
+  const t = (key: UiMessageKey, values?: Record<string, string | number>) => {
+    if (!bundle) {
+      return '…';
+    }
+    return formatMessage(bundle, key, values);
+  };
+
+  const availableLocales = useMemo(() => getSupportedLocales(bundle), [bundle]);
+
   return (
     <div className="app">
       <div className="locale-switcher">
@@ -53,10 +97,11 @@ function App() {
           id="locale-select"
           value={locale}
           onChange={(event) => setLocale(event.target.value as Locale)}
+          disabled={loadingBundle}
         >
-          {availableLocales().map((option) => (
+          {availableLocales.map((option) => (
             <option key={option} value={option}>
-              {option.toUpperCase()}
+              {option}
             </option>
           ))}
         </select>

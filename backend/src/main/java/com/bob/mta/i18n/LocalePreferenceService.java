@@ -25,6 +25,10 @@ public class LocalePreferenceService {
         return Locale.forLanguageTag(stored);
     }
 
+    public List<Locale> getSupportedLocales() {
+        return List.copyOf(supportedLocales);
+    }
+
     public Locale resolveLocale(String acceptLanguageHeader) {
         Locale defaultLocale = getSystemDefaultLocale();
         if (!StringUtils.hasText(acceptLanguageHeader)) {
