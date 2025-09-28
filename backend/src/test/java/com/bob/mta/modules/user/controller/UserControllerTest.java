@@ -3,6 +3,8 @@ package com.bob.mta.modules.user.controller;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.bob.mta.common.api.ApiResponse;
+import com.bob.mta.common.i18n.MessageResolver;
+import com.bob.mta.common.i18n.TestMessageResolverFactory;
 import com.bob.mta.modules.audit.domain.AuditLog;
 import com.bob.mta.modules.audit.service.AuditQuery;
 import com.bob.mta.modules.audit.service.AuditRecorder;
@@ -18,9 +20,12 @@ import com.bob.mta.modules.user.service.impl.InMemoryUserService;
 import java.time.Instant;
 import java.time.ZoneOffset;
 import java.util.List;
+import java.util.Locale;
 import java.util.stream.Collectors;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.springframework.context.i18n.LocaleContextHolder;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
 class UserControllerTest {
@@ -28,14 +33,22 @@ class UserControllerTest {
     private UserController controller;
     private InMemoryUserService userService;
     private InMemoryAuditService auditService;
+    private MessageResolver messageResolver;
 
     @BeforeEach
     void setUp() {
+        LocaleContextHolder.setLocale(Locale.SIMPLIFIED_CHINESE);
         userService = new InMemoryUserService(new MutableClock(Instant.parse("2024-01-01T00:00:00Z")));
         userService.seedDefaultUsers();
         auditService = new InMemoryAuditService();
         AuditRecorder recorder = new AuditRecorder(auditService, new ObjectMapper());
-        controller = new UserController(userService, recorder);
+        messageResolver = TestMessageResolverFactory.create();
+        controller = new UserController(userService, recorder, messageResolver);
+    }
+
+    @AfterEach
+    void tearDown() {
+        LocaleContextHolder.resetLocaleContext();
     }
 
     @Test
@@ -124,3 +137,4 @@ class UserControllerTest {
         }
     }
 }
+import java.util.Locale;

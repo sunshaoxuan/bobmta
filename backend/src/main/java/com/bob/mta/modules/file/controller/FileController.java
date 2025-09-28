@@ -1,6 +1,7 @@
 package com.bob.mta.modules.file.controller;
 
 import com.bob.mta.common.api.ApiResponse;
+import com.bob.mta.common.i18n.MessageResolver;
 import com.bob.mta.modules.audit.service.AuditRecorder;
 import com.bob.mta.modules.file.domain.FileMetadata;
 import com.bob.mta.modules.file.dto.FileResponse;
@@ -29,10 +30,12 @@ public class FileController {
 
     private final FileService fileService;
     private final AuditRecorder auditRecorder;
+    private final MessageResolver messageResolver;
 
-    public FileController(FileService fileService, AuditRecorder auditRecorder) {
+    public FileController(FileService fileService, AuditRecorder auditRecorder, MessageResolver messageResolver) {
         this.fileService = fileService;
         this.auditRecorder = auditRecorder;
+        this.messageResolver = messageResolver;
     }
 
     @PostMapping
