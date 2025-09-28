@@ -1,4 +1,4 @@
-import { FormEvent, useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from '../vendor/react/index.js';
 import './App.css';
 import {
   Alert,
@@ -14,8 +14,8 @@ import {
   Table,
   Tag,
   Typography,
-} from 'antd';
-import type { TableColumnsType } from 'antd';
+} from '../vendor/antd/index.js';
+import type { TableColumnsType } from '../vendor/antd/index.js';
 import {
   DEFAULT_LOCALE,
   fetchLocalization,
@@ -328,107 +328,6 @@ function App() {
       .finally(() => {
         setAuthLoading(false);
       });
-        {session ? (
-          <div className="auth-summary">
-            <p>{t('authWelcome', { name: session.displayName })}</p>
-            <p>{t('authTokenExpiry', { time: formatDateTime(session.expiresAt) })}</p>
-            <button type="button" onClick={handleLogout} className="link-button">
-              {t('authLogout')}
-            </button>
-          </div>
-        ) : (
-          <form className="auth-form" onSubmit={handleLogin}>
-            <label className="field">
-              <span>{t('authUsernameLabel')}</span>
-              <input
-                type="text"
-                name="username"
-                autoComplete="username"
-                value={credentials.username}
-                onChange={(event) =>
-                  setCredentials((current) => ({ ...current, username: event.target.value }))
-                }
-                disabled={authLoading}
-              />
-            </label>
-            <label className="field">
-              <span>{t('authPasswordLabel')}</span>
-              <input
-                type="password"
-                name="password"
-                autoComplete="current-password"
-                value={credentials.password}
-                onChange={(event) =>
-                  setCredentials((current) => ({ ...current, password: event.target.value }))
-                }
-                disabled={authLoading}
-              />
-            </label>
-            <button
-              type="submit"
-              className="primary-button"
-              disabled={
-                authLoading ||
-                credentials.username.trim().length === 0 ||
-                credentials.password.length === 0
-              }
-            >
-              {authLoading ? t('authLoggingIn') : t('authSubmit')}
-            </button>
-          </form>
-        )}
-        {authErrorDetail && <p className="error">{t('authError', { error: authErrorDetail })}</p>}
-      </section>
-      <section className="plan-panel">
-        <div className="plan-header">
-          <h2>{t('planSectionTitle')}</h2>
-          <button
-            type="button"
-            className="link-button"
-            onClick={() => loadPlans()}
-            disabled={!session || plansLoading}
-          >
-            {t('planRefresh')}
-          </button>
-        </div>
-        {!session && <p>{t('planLoginRequired')}</p>}
-        {session && plansLoading && <p>{t('planLoading')}</p>}
-        {session && planErrorDetail && (
-          <p className="error">{t('planError', { error: planErrorDetail })}</p>
-        )}
-        {session && !plansLoading && !planErrorDetail && plans.length === 0 && (
-          <p>{t('planEmpty')}</p>
-        )}
-        {session && !plansLoading && !planErrorDetail && plans.length > 0 && (
-          <table className="plan-table">
-            <thead>
-              <tr>
-                <th>{t('planTableHeaderId')}</th>
-                <th>{t('planTableHeaderTitle')}</th>
-                <th>{t('planTableHeaderOwner')}</th>
-                <th>{t('planTableHeaderStatus')}</th>
-                <th>{t('planTableHeaderWindow')}</th>
-                <th>{t('planTableHeaderProgress')}</th>
-                <th>{t('planTableHeaderParticipants')}</th>
-              </tr>
-            </thead>
-            <tbody>
-              {plans.map((plan) => (
-                <tr key={plan.id}>
-                  <td>{plan.id}</td>
-                  <td>{plan.title}</td>
-                  <td>{plan.owner}</td>
-                  <td>{t(STATUS_LABEL[plan.status])}</td>
-                  <td>{formatPlanWindow(plan)}</td>
-                  <td>{`${plan.progress}%`}</td>
-                  <td>{plan.participants.length}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
-      </section>
-    </div>
   }, [authLoading, credentials, locale]);
 
   const handleLogout = useCallback(() => {
@@ -439,6 +338,7 @@ function App() {
 
   const authErrorDetail = describeRemoteError(authError);
   const planErrorDetail = describeRemoteError(plansError);
+
   const planColumns = useMemo<TableColumnsType<PlanSummary>>(
     () => [
       {
@@ -521,7 +421,7 @@ function App() {
             <Select
               className="locale-select"
               value={locale}
-              onChange={(value) => setLocale(value as Locale)}
+              onChange={(value: string) => setLocale(value as Locale)}
               loading={loadingBundle}
               options={availableLocales.map((option) => ({ value: option, label: option }))}
             />
@@ -580,7 +480,7 @@ function App() {
                     placeholder={t('authUsernameLabel')}
                     autoComplete="username"
                     value={credentials.username}
-                    onChange={(event) =>
+                    onChange={(event: Event & { target: HTMLInputElement }) =>
                       setCredentials((current) => ({ ...current, username: event.target.value }))
                     }
                     onPressEnter={() => {
@@ -594,7 +494,7 @@ function App() {
                     placeholder={t('authPasswordLabel')}
                     autoComplete="current-password"
                     value={credentials.password}
-                    onChange={(event) =>
+                    onChange={(event: Event & { target: HTMLInputElement }) =>
                       setCredentials((current) => ({ ...current, password: event.target.value }))
                     }
                     onPressEnter={() => {
@@ -634,32 +534,73 @@ function App() {
                 </Button>
               }
             >
-              {!session && <Empty description={t('planLoginRequired')} />}
-              {session && planErrorDetail && (
-                <Alert
-                  type="error"
-                  showIcon
-                  message={t('planError', { error: planErrorDetail })}
-                  style={{ marginBottom: 16 }}
-                />
-              )}
-              {session && !planErrorDetail && (
-                <Table<PlanSummary>
-                  rowKey="id"
-                  dataSource={plans}
-                  columns={planColumns}
-                  pagination={false}
-                  loading={{ spinning: plansLoading, tip: t('planLoading') }}
-                  locale={{ emptyText: t('planEmpty') }}
-                  scroll={{ x: true }}
-                />
-              )}
-            </Card>
-          </Space>
-        </Content>
-      </Layout>
-    </ConfigProvider>
-  );
-}
+          <table className="plan-table">
+            <thead>
+              <tr>
+                <th>{t('planTableHeaderId')}</th>
+                <th>{t('planTableHeaderTitle')}</th>
+                <th>{t('planTableHeaderOwner')}</th>
+                <th>{t('planTableHeaderStatus')}</th>
+                <th>{t('planTableHeaderWindow')}</th>
+                <th>{t('planTableHeaderProgress')}</th>
+                <th>{t('planTableHeaderParticipants')}</th>
+              </tr>
+            </thead>
+            <tbody>
+              {plans.map((plan) => (
+                <tr key={plan.id}>
+                  <td>{plan.id}</td>
+                  <td>{plan.title}</td>
+                  <td>{plan.owner}</td>
+                  <td>{t(STATUS_LABEL[plan.status])}</td>
+                  <td>{formatPlanWindow(plan)}</td>
+                  <td>{`${plan.progress}%`}</td>
+                  <td>{plan.participants.length}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </section>
+    </div>
+  }, [authLoading, credentials, locale]);
 
+  const handleLogout = useCallback(() => {
+    setSession(null);
+    setPlans([]);
+    setPlansError(null);
+  }, []);
+
+  const authErrorDetail = describeRemoteError(authError);
+  const planErrorDetail = describeRemoteError(plansError);
+  const planColumns = useMemo<TableColumnsType<PlanSummary>>(
+    () => [
+      {
+        title: t('planTableHeaderId'),
+        dataIndex: 'id',
+        key: 'id',
+        width: 160,
+        render: (value: string) => <Text code>{value}</Text>,
+      },
+      {
+        title: t('planTableHeaderTitle'),
+        dataIndex: 'title',
+        key: 'title',
+        ellipsis: true,
+        render: (value: string) => <Text strong>{value}</Text>,
+      },
+      {
+        title: t('planTableHeaderOwner'),
+        dataIndex: 'owner',
+        key: 'owner',
+        render: (value: string) => <Tag color="geekblue">{value}</Tag>,
+      },
+      {
+        title: t('planTableHeaderStatus'),
+        dataIndex: 'status',
+        key: 'status',
+        render: (_: PlanStatus, record) => (
+          <Tag color={PLAN_STATUS_COLOR[record.status]}>{t(STATUS_LABEL[record.status])}</Tag>
+
+}
 export default App;

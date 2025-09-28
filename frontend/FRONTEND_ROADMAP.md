@@ -13,6 +13,11 @@
 3. **测试保障**：通过单元测试与（可选的）组件故事/端到端测试覆盖关键流程；后端未交付的能力需以 Mock 数据覆盖。
 4. **协同机制**：所有接口需求、Mock 约定及联调结果记录在 `frontend/FRONTEND_REQUIREMENTS.md`，确保前后端信息对称。
 
+## 环境基线
+- 离线依赖：受限于内网无法访问公共 NPM 仓库，所有第三方依赖已预置在 `vendor/` 目录并通过相对路径引入，执行 `npm install` 不会触发下载。
+- 编译流程：使用内置 TypeScript 编译（`npm run build`）生成 `dist/` 产物，`npm run preview` 可启动静态服务器加载 `index.html`、`dist/` 与 `vendor/`。
+- 变更约束：升级或新增依赖需先在《`frontend/FRONTEND_REQUIREMENTS.md`》登记并评估离线镜像方案，避免破坏现有离线链路。
+
 ## 迭代规划
 
 ### 迭代 #1 — 协同规范与需求盘点（进行中）
