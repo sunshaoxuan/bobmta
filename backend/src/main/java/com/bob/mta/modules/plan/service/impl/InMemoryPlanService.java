@@ -42,12 +42,15 @@ public class InMemoryPlanService implements PlanService {
 
     private static final DateTimeFormatter ICS_FORMATTER = DateTimeFormatter.ofPattern("yyyyMMdd'T'HHmmss'Z'", Locale.US)
             .withZone(ZoneOffset.UTC);
+
     private final FileService fileService;
     private final PlanRepository planRepository;
+    private final MessageResolver messageResolver;
 
-    public InMemoryPlanService(FileService fileService, PlanRepository planRepository) {
+    public InMemoryPlanService(FileService fileService, PlanRepository planRepository, MessageResolver messageResolver) {
         this.fileService = fileService;
         this.planRepository = planRepository;
+        this.messageResolver = messageResolver;
         seedPlans();
     }
 
@@ -98,14 +101,31 @@ public class InMemoryPlanService implements PlanService {
     }
 
     @Override
-    public List<Plan> listPlans(String customerId, PlanStatus status, OffsetDateTime from, OffsetDateTime to) {
+    public List<Plan> listPlans(String customerId, String owner, String keyword, PlanStatus status,
+                                OffsetDateTime from, OffsetDateTime to) {
         return planRepository.findAll().stream()
                 .filter(plan -> !StringUtils.hasText(customerId) || Objects.equals(plan.getCustomerId(), customerId))
+                .filter(plan -> !StringUtils.hasText(owner) || Objects.equals(plan.getOwner(), owner))
+                .filter(plan -> matchesKeyword(plan, keyword))
                 .filter(plan -> status == null || plan.getStatus() == status)
                 .filter(plan -> from == null || !plan.getPlannedEndTime().isBefore(from))
                 .filter(plan -> to == null || !plan.getPlannedStartTime().isAfter(to))
                 .sorted(Comparator.comparing(Plan::getPlannedStartTime))
                 .collect(Collectors.toList());
+    }
+
+    private boolean matchesKeyword(Plan plan, String keyword) {
+        if (!StringUtils.hasText(keyword)) {
+            return true;
+        }
+        return containsIgnoreCase(plan.getTitle(), keyword) || containsIgnoreCase(plan.getDescription(), keyword);
+    }
+
+    private boolean containsIgnoreCase(String value, String needle) {
+        if (!StringUtils.hasText(value)) {
+            return false;
+        }
+        return value.toLowerCase(Locale.ROOT).contains(needle.toLowerCase(Locale.ROOT));
     }
 
     @Override
@@ -671,5 +691,9 @@ public class InMemoryPlanService implements PlanService {
 
     private String nextReminderId() {
         return planRepository.nextReminderId();
+    }
+
+    private String message(String code, Object... args) {
+        return messageResolver.getMessage(code, args);
     }
 }

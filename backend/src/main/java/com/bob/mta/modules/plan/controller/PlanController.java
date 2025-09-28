@@ -2,6 +2,7 @@ package com.bob.mta.modules.plan.controller;
 
 import com.bob.mta.common.api.ApiResponse;
 import com.bob.mta.common.api.PageResponse;
+import com.bob.mta.common.i18n.MessageResolver;
 import com.bob.mta.modules.audit.service.AuditRecorder;
 import com.bob.mta.modules.file.domain.FileMetadata;
 import com.bob.mta.modules.file.service.FileService;
@@ -58,22 +59,27 @@ public class PlanController {
     private final PlanService planService;
     private final AuditRecorder auditRecorder;
     private final FileService fileService;
+    private final MessageResolver messageResolver;
 
-    public PlanController(PlanService planService, AuditRecorder auditRecorder, FileService fileService) {
+    public PlanController(PlanService planService, AuditRecorder auditRecorder, FileService fileService,
+                          MessageResolver messageResolver) {
         this.planService = planService;
         this.auditRecorder = auditRecorder;
         this.fileService = fileService;
+        this.messageResolver = messageResolver;
     }
 
     @PreAuthorize("hasAnyRole('ADMIN','OPERATOR')")
     @GetMapping
     public ApiResponse<PageResponse<PlanSummaryResponse>> list(@RequestParam(required = false) String customerId,
+                                                               @RequestParam(required = false) String owner,
+                                                               @RequestParam(required = false) String keyword,
                                                                @RequestParam(required = false) PlanStatus status,
                                                                @RequestParam(required = false) OffsetDateTime from,
                                                                @RequestParam(required = false) OffsetDateTime to,
                                                                @RequestParam(defaultValue = "0") int page,
                                                                @RequestParam(defaultValue = "10") int size) {
-        List<Plan> plans = planService.listPlans(customerId, status, from, to);
+        List<Plan> plans = planService.listPlans(customerId, owner, keyword, status, from, to);
         List<PlanSummaryResponse> summaries = plans.stream().map(PlanSummaryResponse::from).toList();
         int fromIndex = Math.min(page * size, summaries.size());
         int toIndex = Math.min(fromIndex + size, summaries.size());
