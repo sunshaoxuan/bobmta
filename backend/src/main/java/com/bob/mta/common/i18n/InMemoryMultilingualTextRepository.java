@@ -6,7 +6,11 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
 
+import com.bob.mta.common.i18n.persistence.MultilingualTextMapper;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
+
 @Repository
+@ConditionalOnMissingBean(MultilingualTextMapper.class)
 public class InMemoryMultilingualTextRepository implements MultilingualTextRepository {
 
     private final Map<String, MultilingualTextRecord> storage = new ConcurrentHashMap<>();

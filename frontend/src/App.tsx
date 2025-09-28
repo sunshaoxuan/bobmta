@@ -444,6 +444,168 @@ function App() {
   const session = useSessionController(client);
   const planList = usePlanListController(client, session.state.session);
 
+  const describeRemoteError = (error: RemoteError | null) => {
+    if (!error) {
+      return null;
+    }
+    if (error.type === 'status') {
+      return t('backendErrorStatus', { status: error.status });
+    }
+    return t('backendErrorNetwork');
+  };
+
+  const formatDateTime = useCallback(
+    (value?: string | null) => {
+      if (!value) {
+        return '';
+      }
+      const date = new Date(value);
+      if (Number.isNaN(date.getTime())) {
+        return '';
+      }
+      return new Intl.DateTimeFormat(locale, {
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit',
+      }).format(date);
+    },
+    [locale]
+  );
+
+  const formatPlanWindow = useCallback(
+    (plan: PlanSummary) => {
+      const start = formatDateTime(plan.plannedStartTime ?? null);
+      const end = formatDateTime(plan.plannedEndTime ?? null);
+      if (start && end) {
+        return t('planWindowRange', { start, end });
+      }
+      if (start) {
+        return start;
+      }
+      if (end) {
+        return end;
+      }
+      return t('planWindowMissing');
+    },
+    [formatDateTime, t]
+  );
+
+  const loadPlans = useCallback(
+    (signal?: AbortSignal) => {
+      if (!session) {
+        setPlans([]);
+        setPlansError(null);
+        setPlansLoading(false);
+        return;
+      }
+      setPlansLoading(true);
+      setPlansError(null);
+      fetch('/api/v1/plans?page=0&size=20', {
+        headers: {
+          'Accept-Language': locale,
+          Authorization: `Bearer ${session.token}`,
+        },
+        signal,
+      })
+        .then(async (response) => {
+          if (signal?.aborted) {
+            return;
+          }
+          if (!response.ok) {
+            setPlansError({ type: 'status', status: response.status });
+            return;
+          }
+          const body = (await response.json()) as ApiResponse<PageResponse<PlanSummary>>;
+          if (!body.data) {
+            setPlansError({ type: 'network' });
+            return;
+          }
+          setPlans(body.data.list ?? []);
+        })
+        .catch((error: unknown) => {
+          if (signal?.aborted) {
+            return;
+          }
+          if (error instanceof DOMException && error.name === 'AbortError') {
+            return;
+          }
+          setPlansError({ type: 'network' });
+        })
+        .finally(() => {
+          if (signal?.aborted) {
+            return;
+          }
+          setPlansLoading(false);
+        });
+    },
+    [locale, session]
+  );
+
+  useEffect(() => {
+    if (!session) {
+      setPlans([]);
+      setPlansError(null);
+      setPlansLoading(false);
+      return;
+    }
+    const controller = new AbortController();
+    loadPlans(controller.signal);
+    return () => {
+      controller.abort();
+    };
+  }, [session, locale, loadPlans]);
+
+  const handleLogin = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (authLoading) {
+      return;
+    }
+    setAuthLoading(true);
+    setAuthError(null);
+    fetch('/api/v1/auth/login', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Accept-Language': locale,
+      },
+      body: JSON.stringify({
+        username: credentials.username.trim(),
+        password: credentials.password,
+      }),
+    })
+      .then(async (response) => {
+        if (!response.ok) {
+          setAuthError({ type: 'status', status: response.status });
+          return;
+        }
+        const body = (await response.json()) as ApiResponse<LoginResponse>;
+        if (!body.data) {
+          setAuthError({ type: 'network' });
+          return;
+        }
+        setSession(body.data);
+        setCredentials({ username: '', password: '' });
+        setAuthError(null);
+      })
+      .catch(() => {
+        setAuthError({ type: 'network' });
+      })
+      .finally(() => {
+        setAuthLoading(false);
+      });
+  };
+
+  const handleLogout = () => {
+    setSession(null);
+    setPlans([]);
+    setPlansError(null);
+  };
+
+  const authErrorDetail = describeRemoteError(authError);
+  const planErrorDetail = describeRemoteError(plansError);
+
   return (
     <ConfigProvider
       theme={{

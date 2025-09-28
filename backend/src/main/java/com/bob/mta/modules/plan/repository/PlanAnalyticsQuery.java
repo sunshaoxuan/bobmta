@@ -69,6 +69,7 @@ public final class PlanAnalyticsQuery {
             this.customerId = customerId;
             return this;
         }
+
         public Builder from(OffsetDateTime from) {
             this.from = from;
             return this;
