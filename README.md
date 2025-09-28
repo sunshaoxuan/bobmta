@@ -83,6 +83,9 @@
   - 定义 `LocaleSettingsMapper` 及 `mt_locale_settings` 映射，存在数据源时自动装配持久化仓储实现。
   - `LocalePreferenceService` 通过统一仓储接口读取/更新默认语言，内存仓储仅在缺失 MyBatis 映射时启用。
   - 为持久化仓储补充单元测试，覆盖空值、更新与插入分支并验证语言标签的标准化写入。
+- 迭代 #14：交付系统默认语言维护接口，支持管理员在符合规范的前提下更新多语言偏好。
+  - 新增 `/api/v1/i18n/default-locale` 接口，返回当前默认语言与受支持语种列表，并强制管理员权限执行更新。
+  - `LocalePreferenceService` 校验语种是否受支持、提供持久化写入，并在控制层与服务层单测中验证成功与失败分支。
 
 ### 🔄 正在进行
 - 基于 `PlanSearchCriteria` 细化数据库层的字段映射与索引规划，评估多维组合筛选的 SQL 与分页策略。

@@ -1,5 +1,7 @@
 package com.bob.mta.i18n;
 
+import com.bob.mta.common.exception.BusinessException;
+import com.bob.mta.common.exception.ErrorCode;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
@@ -49,6 +51,21 @@ public class LocalePreferenceService {
             }
         }
         return defaultLocale;
+    }
+
+    public Locale updateDefaultLocale(String localeTag) {
+        if (!StringUtils.hasText(localeTag)) {
+            throw new BusinessException(ErrorCode.BAD_REQUEST,
+                    Localization.text(LocalizationKeys.Validation.MULTILINGUAL_LOCALE_REQUIRED));
+        }
+        Locale requested = Locale.forLanguageTag(localeTag);
+        Locale matched = supportedLocales.stream()
+                .filter(locale -> locale.toLanguageTag().equalsIgnoreCase(requested.toLanguageTag()))
+                .findFirst()
+                .orElseThrow(() -> new BusinessException(ErrorCode.BAD_REQUEST,
+                        Localization.text(LocalizationKeys.Errors.LOCALE_UNSUPPORTED, localeTag)));
+        repository.updateDefaultLocale(matched.toLanguageTag());
+        return matched;
     }
 
     private Locale matchSupportedLocale(String languageRange) {
