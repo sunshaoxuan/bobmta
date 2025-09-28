@@ -29,11 +29,14 @@ import {
   useLocalizationState,
   type LocalizationState,
 } from './i18n/useLocalization';
-import { type Locale, type UiMessageKey } from './i18n/localization';
+import { type Locale } from './i18n/localization';
 import {
   usePlanListController,
   type PlanListController,
 } from './state/planList';
+import { PLAN_STATUS_COLOR, PLAN_STATUS_LABEL } from './constants/planStatus';
+import { RemoteState } from './components/RemoteState';
+import { PlanFilters } from './components/PlanFilters';
 import {
   useSessionController,
   type SessionController,
@@ -41,25 +44,6 @@ import {
 
 const { Header, Content } = Layout;
 const { Title, Paragraph, Text } = Typography;
-
-const STATUS_LABEL: Record<PlanStatus, UiMessageKey> = {
-  DESIGN: 'planStatusDesign',
-  SCHEDULED: 'planStatusScheduled',
-  IN_PROGRESS: 'planStatusInProgress',
-  COMPLETED: 'planStatusCompleted',
-  CANCELLED: 'planStatusCancelled',
-};
-
-const PLAN_STATUS_COLOR: Record<
-  PlanStatus,
-  'default' | 'processing' | 'success' | 'error' | 'warning'
-> = {
-  DESIGN: 'default',
-  SCHEDULED: 'warning',
-  IN_PROGRESS: 'processing',
-  COMPLETED: 'success',
-  CANCELLED: 'error',
-};
 
 type CredentialsState = {
   username: string;
@@ -157,7 +141,7 @@ function AppView({ client, localization, session, planList }: AppViewProps) {
         key: 'status',
         render: (_: PlanStatus, record): ReactNode => (
           <Tag color={PLAN_STATUS_COLOR[record.status]}>
-            {translate(STATUS_LABEL[record.status])}
+            {translate(PLAN_STATUS_LABEL[record.status])}
           </Tag>
         ),
       },
@@ -195,6 +179,18 @@ function AppView({ client, localization, session, planList }: AppViewProps) {
   const planErrorDetail = describeRemoteError(planState.error);
   const pingErrorDetail = describeRemoteError(pingError);
 
+  const availableOwners = useMemo(() => {
+    const ownerSet = new Set<string>();
+    planState.records.forEach((plan) => {
+      if (plan.owner) {
+        ownerSet.add(plan.owner);
+      }
+    });
+    return Array.from(ownerSet).sort((a, b) =>
+      a.localeCompare(b, locale ?? 'ja-JP', { sensitivity: 'base' })
+    );
+  }, [planState.records, locale]);
+
   const authButtonDisabled =
     sessionState.status === 'loading' ||
     credentials.username.trim().length === 0 ||
@@ -208,169 +204,6 @@ function AppView({ client, localization, session, planList }: AppViewProps) {
       })),
     [availableLocales]
   );
-}
-
-  const describeRemoteError = (error: RemoteError | null) => {
-    if (!error) {
-      return null;
-    }
-    if (error.type === 'status') {
-      return t('backendErrorStatus', { status: error.status });
-    }
-    return t('backendErrorNetwork');
-  };
-
-  const formatDateTime = useCallback(
-    (value?: string | null) => {
-      if (!value) {
-        return '';
-      }
-      const date = new Date(value);
-      if (Number.isNaN(date.getTime())) {
-        return '';
-      }
-      return new Intl.DateTimeFormat(locale, {
-        year: 'numeric',
-        month: '2-digit',
-        day: '2-digit',
-        hour: '2-digit',
-        minute: '2-digit',
-      }).format(date);
-    },
-    [locale]
-  );
-
-  const formatPlanWindow = useCallback(
-    (plan: PlanSummary) => {
-      const start = formatDateTime(plan.plannedStartTime ?? null);
-      const end = formatDateTime(plan.plannedEndTime ?? null);
-      if (start && end) {
-        return t('planWindowRange', { start, end });
-      }
-      if (start) {
-        return start;
-      }
-      if (end) {
-        return end;
-      }
-      return t('planWindowMissing');
-    },
-    [formatDateTime, t]
-  );
-
-  const loadPlans = useCallback(
-    (signal?: AbortSignal) => {
-      if (!session) {
-        setPlans([]);
-        setPlansError(null);
-        setPlansLoading(false);
-        return;
-      }
-      setPlansLoading(true);
-      setPlansError(null);
-      fetch('/api/v1/plans?page=0&size=20', {
-        headers: {
-          'Accept-Language': locale,
-          Authorization: `Bearer ${session.token}`,
-        },
-        signal,
-      })
-        .then(async (response) => {
-          if (signal?.aborted) {
-            return;
-          }
-          if (!response.ok) {
-            setPlansError({ type: 'status', status: response.status });
-            return;
-          }
-          const body = (await response.json()) as ApiResponse<PageResponse<PlanSummary>>;
-          if (!body.data) {
-            setPlansError({ type: 'network' });
-            return;
-          }
-          setPlans(body.data.list ?? []);
-        })
-        .catch((error: unknown) => {
-          if (signal?.aborted) {
-            return;
-          }
-          if (error instanceof DOMException && error.name === 'AbortError') {
-            return;
-          }
-          setPlansError({ type: 'network' });
-        })
-        .finally(() => {
-          if (signal?.aborted) {
-            return;
-          }
-          setPlansLoading(false);
-        });
-    },
-    [locale, session]
-  );
-
-  useEffect(() => {
-    if (!session) {
-      setPlans([]);
-      setPlansError(null);
-      setPlansLoading(false);
-      return;
-    }
-    const controller = new AbortController();
-    loadPlans(controller.signal);
-    return () => {
-      controller.abort();
-    };
-  }, [session, locale, loadPlans]);
-
-  const handleLogin = (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    if (authLoading) {
-      return;
-    }
-    setAuthLoading(true);
-    setAuthError(null);
-    fetch('/api/v1/auth/login', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Accept-Language': locale,
-      },
-      body: JSON.stringify({
-        username: credentials.username.trim(),
-        password: credentials.password,
-      }),
-    })
-      .then(async (response) => {
-        if (!response.ok) {
-          setAuthError({ type: 'status', status: response.status });
-          return;
-        }
-        const body = (await response.json()) as ApiResponse<LoginResponse>;
-        if (!body.data) {
-          setAuthError({ type: 'network' });
-          return;
-        }
-        setSession(body.data);
-        setCredentials({ username: '', password: '' });
-        setAuthError(null);
-      })
-      .catch(() => {
-        setAuthError({ type: 'network' });
-      })
-      .finally(() => {
-        setAuthLoading(false);
-      });
-  };
-
-  const handleLogout = () => {
-    setSession(null);
-    setPlans([]);
-    setPlansError(null);
-  };
-
-  const authErrorDetail = describeRemoteError(authError);
-  const planErrorDetail = describeRemoteError(plansError);
 
   return (
     <Layout className="app-layout">
@@ -515,32 +348,119 @@ function AppView({ client, localization, session, planList }: AppViewProps) {
             }
           >
             {!sessionState.session && <Empty description={translate('planLoginRequired')} />}
-            {sessionState.session && planErrorDetail && (
-              <Alert
-                type="error"
-                showIcon
-                message={translate('planError', { error: planErrorDetail })}
-                style={{ marginBottom: 16 }}
-              />
-            )}
-            {sessionState.session && !planErrorDetail && (
-              <Table<PlanSummary>
-                rowKey="id"
-                dataSource={planState.records}
-                columns={planColumns}
-                pagination={false}
-                loading={{
-                  spinning: planState.status === 'loading',
-                  tip: translate('planLoading'),
-                }}
-                locale={{ emptyText: translate('planEmpty') }}
-                scroll={{ x: true }}
-              />
+            {sessionState.session && (
+              <Space direction="vertical" size="large" style={{ width: '100%' }}>
+                <PlanFilters
+                  filters={planState.filters}
+                  translate={translate}
+                  owners={availableOwners}
+                  onApply={(filters) => {
+                    void planList.applyFilters(filters);
+                  }}
+                  onReset={() => {
+                    void planList.resetFilters();
+                  }}
+                />
+                <RemoteState
+                  status={planState.status}
+                  error={planState.error}
+                  translate={translate}
+                  empty={planState.records.length === 0}
+                  onRetry={planList.refresh}
+                  errorDetail={
+                    planErrorDetail
+                      ? translate('planError', { error: planErrorDetail })
+                      : null
+                  }
+                  emptyHint={<Text type="secondary">{translate('planEmptyFiltered')}</Text>}
+                >
+                  <Table<PlanSummary>
+                    rowKey="id"
+                    dataSource={planState.records}
+                    columns={planColumns}
+                    pagination={false}
+                    loading={{
+                      spinning: planState.status === 'loading',
+                      tip: translate('planLoading'),
+                    }}
+                    locale={{ emptyText: translate('planEmpty') }}
+                    scroll={{ x: true }}
+                  />
+                </RemoteState>
+              </Space>
             )}
           </Card>
         </Space>
       </Content>
     </Layout>
+  );
+}
+
+function formatDateTime(value?: string | null, locale?: Locale) {
+  if (!value) {
+    return '';
+  }
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return '';
+  }
+  return new Intl.DateTimeFormat(locale ?? 'ja-JP', {
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+  }).format(date);
+}
+
+function formatPlanWindow(
+  plan: PlanSummary,
+  locale: Locale,
+  translate: LocalizationState['translate']
+) {
+  const start = formatDateTime(plan.plannedStartTime ?? null, locale);
+  const end = formatDateTime(plan.plannedEndTime ?? null, locale);
+  if (start && end) {
+    return translate('planWindowRange', { start, end });
+  }
+  if (start) {
+    return start;
+  }
+  if (end) {
+    return end;
+  }
+  return translate('planWindowMissing');
+}
+
+function App() {
+  const localization = useLocalizationState();
+  const client = useMemo(
+    () =>
+      createApiClient({
+        getLocale: () => localization.locale,
+      }),
+    [localization.locale]
+  );
+  const session = useSessionController(client);
+  const planList = usePlanListController(client, session.state.session);
+
+  return (
+    <ConfigProvider
+      theme={{
+        token: {
+          colorPrimary: '#1677ff',
+          borderRadius: 12,
+          fontSize: 14,
+        },
+      }}
+    >
+      <AppView
+        client={client}
+        localization={localization}
+        session={session}
+        planList={planList}
+      />
+    </ConfigProvider>
   );
 }
 

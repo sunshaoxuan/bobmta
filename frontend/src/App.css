@@ -57,6 +57,44 @@
   padding: 0;
 }
 
+.plan-filters {
+  padding: 8px 12px;
+  background: rgba(255, 255, 255, 0.6);
+  border-radius: 12px;
+  border: 1px solid rgba(22, 119, 255, 0.12);
+}
+
+.plan-filters .filter-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 180px;
+}
+
+.plan-filters .filter-label {
+  font-size: 13px;
+  font-weight: 600;
+  color: #1d1d1f;
+}
+
+.plan-filters .keyword-field {
+  min-width: 240px;
+  flex: 1;
+}
+
+.plan-filters .filter-select {
+  min-width: 180px;
+}
+
+.plan-filters .antd-select-wrapper {
+  width: 100%;
+}
+
+.state-error-detail {
+  color: #d4380d;
+  font-size: 13px;
+}
+
 @media (max-width: 768px) {
   .app-header {
     flex-direction: column;
@@ -70,5 +108,9 @@
 
   .app-content {
     padding: 24px 16px;
+  }
+
+  .plan-filters {
+    padding: 12px;
   }
 }

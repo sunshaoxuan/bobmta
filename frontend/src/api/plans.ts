@@ -4,6 +4,9 @@ import type { ApiEnvelope, PageResponse, PlanSummary } from './types';
 export type PlanListQuery = {
   page: number;
   size: number;
+  owner?: string | null;
+  keyword?: string | null;
+  status?: string | null;
   signal?: AbortSignal;
 };
 
@@ -15,6 +18,15 @@ export async function fetchPlans(
   const search = new URLSearchParams();
   search.set('page', String(query.page));
   search.set('size', String(query.size));
+  if (query.owner) {
+    search.set('owner', query.owner);
+  }
+  if (query.keyword) {
+    search.set('keyword', query.keyword);
+  }
+  if (query.status) {
+    search.set('status', query.status);
+  }
 
   try {
     const response = await client.get<ApiEnvelope<PageResponse<PlanSummary>>>(

@@ -19,6 +19,12 @@ test('mock plan query filters by owner and keyword', () => {
   assert.ok(keywordPage.list.every((plan) => plan.title.includes('リリース')));
 });
 
+test('mock plan query filters by status', () => {
+  const inProgressPage = queryMockPlanSummaries({ status: 'IN_PROGRESS' });
+  assert.ok(inProgressPage.total >= 1);
+  assert.ok(inProgressPage.list.every((plan) => plan.status === 'IN_PROGRESS'));
+});
+
 test('mock plan query paginates results', () => {
   const firstPage = queryMockPlanSummaries({ size: 2 });
   const secondPage = queryMockPlanSummaries({ size: 2, page: 1 });

@@ -3,6 +3,7 @@ import type { PageResponse, PlanStatus, PlanSummary } from '../api/types';
 export type MockPlanQuery = {
   owner?: string;
   keyword?: string;
+  status?: PlanStatus | string;
   page?: number;
   size?: number;
 };
@@ -79,9 +80,13 @@ export function queryMockPlanSummaries(query: MockPlanQuery = {}): PageResponse<
   const size = Math.max(1, query.size ?? 20);
   const owner = normalize(query.owner);
   const keyword = normalize(query.keyword);
+  const status = normalize(query.status);
 
   const filtered = MOCK_PLANS.filter((plan) => {
     if (owner && normalize(plan.owner) !== owner) {
+      return false;
+    }
+    if (status && normalize(plan.status) !== status) {
       return false;
     }
     if (keyword) {
