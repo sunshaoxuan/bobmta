@@ -200,6 +200,9 @@
             <if test="tenantId != null">
                 tenant_id = #{tenantId}
             </if>
+            <if test="customerId != null">
+                AND customer_id = #{customerId}
+            </if>
             <if test="plannedStartFrom != null">
                 AND planned_end_time &gt;= #{plannedStartFrom}
             </if>
@@ -217,6 +220,9 @@
         <where>
             <if test="tenantId != null">
                 tenant_id = #{tenantId}
+            </if>
+            <if test="customerId != null">
+                AND customer_id = #{customerId}
             </if>
             <if test="plannedStartFrom != null">
                 AND planned_end_time &gt;= #{plannedStartFrom}
@@ -252,6 +258,9 @@
         <where>
             <if test="tenantId != null">
                 p.tenant_id = #{tenantId}
+            </if>
+            <if test="customerId != null">
+                AND p.customer_id = #{customerId}
             </if>
             <if test="plannedStartFrom != null">
                 AND p.planned_end_time &gt;= #{plannedStartFrom}

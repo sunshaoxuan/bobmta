@@ -390,10 +390,11 @@ public class InMemoryPlanService implements PlanService {
     }
 
     @Override
-    public PlanAnalytics getAnalytics(String tenantId, OffsetDateTime from, OffsetDateTime to) {
+    public PlanAnalytics getAnalytics(String tenantId, String customerId, OffsetDateTime from, OffsetDateTime to) {
         OffsetDateTime reference = OffsetDateTime.now();
         PlanAnalyticsQuery query = PlanAnalyticsQuery.builder()
                 .tenantId(StringUtils.hasText(tenantId) ? tenantId : null)
+                .customerId(StringUtils.hasText(customerId) ? customerId : null)
                 .from(from)
                 .to(to)
                 .referenceTime(reference)

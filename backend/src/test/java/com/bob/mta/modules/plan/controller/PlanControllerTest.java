@@ -99,7 +99,7 @@ class PlanControllerTest {
 
     @Test
     void analyticsShouldSummarizePlans() {
-        var analytics = controller.analytics(null, null, null).getData();
+        var analytics = controller.analytics(null, null, null, null).getData();
 
         assertThat(analytics.getTotalPlans()).isGreaterThanOrEqualTo(2);
         assertThat(analytics.getUpcomingPlans()).isNotEmpty();
@@ -124,7 +124,7 @@ class PlanControllerTest {
         var created = planService.createPlan(command);
         planService.publishPlan(created.getId(), "admin");
 
-        var analytics = controller.analytics(null, null, null).getData();
+        var analytics = controller.analytics(null, null, null, null).getData();
 
         assertThat(analytics.getOverdueCount()).isGreaterThanOrEqualTo(1);
     }

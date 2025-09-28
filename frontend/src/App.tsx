@@ -328,6 +328,107 @@ function App() {
       .finally(() => {
         setAuthLoading(false);
       });
+        {session ? (
+          <div className="auth-summary">
+            <p>{t('authWelcome', { name: session.displayName })}</p>
+            <p>{t('authTokenExpiry', { time: formatDateTime(session.expiresAt) })}</p>
+            <button type="button" onClick={handleLogout} className="link-button">
+              {t('authLogout')}
+            </button>
+          </div>
+        ) : (
+          <form className="auth-form" onSubmit={handleLogin}>
+            <label className="field">
+              <span>{t('authUsernameLabel')}</span>
+              <input
+                type="text"
+                name="username"
+                autoComplete="username"
+                value={credentials.username}
+                onChange={(event) =>
+                  setCredentials((current) => ({ ...current, username: event.target.value }))
+                }
+                disabled={authLoading}
+              />
+            </label>
+            <label className="field">
+              <span>{t('authPasswordLabel')}</span>
+              <input
+                type="password"
+                name="password"
+                autoComplete="current-password"
+                value={credentials.password}
+                onChange={(event) =>
+                  setCredentials((current) => ({ ...current, password: event.target.value }))
+                }
+                disabled={authLoading}
+              />
+            </label>
+            <button
+              type="submit"
+              className="primary-button"
+              disabled={
+                authLoading ||
+                credentials.username.trim().length === 0 ||
+                credentials.password.length === 0
+              }
+            >
+              {authLoading ? t('authLoggingIn') : t('authSubmit')}
+            </button>
+          </form>
+        )}
+        {authErrorDetail && <p className="error">{t('authError', { error: authErrorDetail })}</p>}
+      </section>
+      <section className="plan-panel">
+        <div className="plan-header">
+          <h2>{t('planSectionTitle')}</h2>
+          <button
+            type="button"
+            className="link-button"
+            onClick={() => loadPlans()}
+            disabled={!session || plansLoading}
+          >
+            {t('planRefresh')}
+          </button>
+        </div>
+        {!session && <p>{t('planLoginRequired')}</p>}
+        {session && plansLoading && <p>{t('planLoading')}</p>}
+        {session && planErrorDetail && (
+          <p className="error">{t('planError', { error: planErrorDetail })}</p>
+        )}
+        {session && !plansLoading && !planErrorDetail && plans.length === 0 && (
+          <p>{t('planEmpty')}</p>
+        )}
+        {session && !plansLoading && !planErrorDetail && plans.length > 0 && (
+          <table className="plan-table">
+            <thead>
+              <tr>
+                <th>{t('planTableHeaderId')}</th>
+                <th>{t('planTableHeaderTitle')}</th>
+                <th>{t('planTableHeaderOwner')}</th>
+                <th>{t('planTableHeaderStatus')}</th>
+                <th>{t('planTableHeaderWindow')}</th>
+                <th>{t('planTableHeaderProgress')}</th>
+                <th>{t('planTableHeaderParticipants')}</th>
+              </tr>
+            </thead>
+            <tbody>
+              {plans.map((plan) => (
+                <tr key={plan.id}>
+                  <td>{plan.id}</td>
+                  <td>{plan.title}</td>
+                  <td>{plan.owner}</td>
+                  <td>{t(STATUS_LABEL[plan.status])}</td>
+                  <td>{formatPlanWindow(plan)}</td>
+                  <td>{`${plan.progress}%`}</td>
+                  <td>{plan.participants.length}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </section>
+    </div>
   }, [authLoading, credentials, locale]);
 
   const handleLogout = useCallback(() => {

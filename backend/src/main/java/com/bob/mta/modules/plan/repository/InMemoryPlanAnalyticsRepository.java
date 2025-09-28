@@ -27,6 +27,7 @@ public class InMemoryPlanAnalyticsRepository implements PlanAnalyticsRepository 
 
         PlanSearchCriteria criteria = PlanSearchCriteria.builder()
                 .tenantId(query.getTenantId())
+                .customerId(query.getCustomerId())
                 .from(query.getFrom())
                 .to(query.getTo())
                 .build();
