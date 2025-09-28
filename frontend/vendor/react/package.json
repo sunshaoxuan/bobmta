@@ -1,0 +1,8 @@
+{
+  "name": "react",
+  "version": "18.2.0-offline",
+  "main": "index.js",
+  "module": "index.js",
+  "types": "index.d.ts",
+  "type": "module"
+}
