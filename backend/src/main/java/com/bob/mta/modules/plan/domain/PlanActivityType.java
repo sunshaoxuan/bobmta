@@ -9,5 +9,6 @@ public enum PlanActivityType {
     PLAN_HANDOVER,
     NODE_STARTED,
     NODE_COMPLETED,
+    NODE_HANDOVER,
     REMINDER_POLICY_UPDATED
 }
