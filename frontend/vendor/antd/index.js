@@ -391,6 +391,8 @@ export const Table = ({
   loading = false,
   locale,
   scroll,
+  rowClassName,
+  onRow,
 }) => {
   const normalizedColumns = alignCells(columns);
   const isLoading = typeof loading === 'boolean' ? loading : Boolean(loading?.spinning);
@@ -399,6 +401,16 @@ export const Table = ({
   const containerStyle = {
     overflowX: scroll?.x ? 'auto' : undefined,
     ...style,
+  };
+
+  const resolveRowClassName = (record, index) => {
+    if (typeof rowClassName === 'function') {
+      return rowClassName(record, index) ?? '';
+    }
+    if (typeof rowClassName === 'string') {
+      return rowClassName;
+    }
+    return '';
   };
 
   if (isLoading) {
@@ -430,23 +442,34 @@ export const Table = ({
           </tr>
         </thead>
         <tbody>
-          {dataSource.map((record, recordIndex) => (
-            <tr key={computeKey(rowKey, record, recordIndex)}>
-              {normalizedColumns.map((column, columnIndex) => {
-                const value = column.dataIndex
-                  ? typeof column.dataIndex === 'string'
-                    ? record?.[column.dataIndex]
-                    : record?.[column.dataIndex]
-                  : undefined;
-                const content = column.render ? column.render(value, record, recordIndex) : value;
-                return (
-                  <td key={columnKey(column, columnIndex)} style={{ textAlign: column.align }}>
-                    {content}
-                  </td>
-                );
-              })}
-            </tr>
-          ))}
+          {dataSource.map((record, recordIndex) => {
+            const rowProps = typeof onRow === 'function' ? onRow(record, recordIndex) ?? {} : {};
+            const { className: rowExtraClassName, ...restRowProps } = rowProps;
+            return (
+              <tr
+                key={computeKey(rowKey, record, recordIndex)}
+                className={classNames(
+                  resolveRowClassName(record, recordIndex),
+                  typeof rowExtraClassName === 'string' ? rowExtraClassName : ''
+                )}
+                {...restRowProps}
+              >
+                {normalizedColumns.map((column, columnIndex) => {
+                  const value = column.dataIndex
+                    ? typeof column.dataIndex === 'string'
+                      ? record?.[column.dataIndex]
+                      : record?.[column.dataIndex]
+                    : undefined;
+                  const content = column.render ? column.render(value, record, recordIndex) : value;
+                  return (
+                    <td key={columnKey(column, columnIndex)} style={{ textAlign: column.align }}>
+                      {content}
+                    </td>
+                  );
+                })}
+              </tr>
+            );
+          })}
         </tbody>
       </table>
     </div>

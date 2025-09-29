@@ -38,10 +38,12 @@ import {
 import { PLAN_STATUS_COLOR, PLAN_STATUS_LABEL } from './constants/planStatus';
 import { RemoteState } from './components/RemoteState';
 import { PlanFilters } from './components/PlanFilters';
+import { PlanPreview } from './components/PlanPreview';
 import {
   useSessionController,
   type SessionController,
 } from './state/session';
+import { formatDateTime, formatPlanWindow } from './utils/planFormatting';
 
 const { Header, Content } = Layout;
 const { Title, Paragraph, Text } = Typography;
@@ -68,7 +70,7 @@ function AppView({ client, localization, session, planList }: AppViewProps) {
   });
   const [pingError, setPingError] = useState<ApiError | null>(null);
   const [ping, setPing] = useState<{ status: string } | null>(null);
-
+  const [previewPlanId, setPreviewPlanId] = useState<string | null>(null);
   const describeRemoteError = useCallback(
     (error: ApiError | null) => {
       if (!error) {
@@ -113,6 +115,23 @@ function AppView({ client, localization, session, planList }: AppViewProps) {
       setCredentials({ username: '', password: '' });
     }
   }, [sessionState.session]);
+
+  useEffect(() => {
+    if (!sessionState.session) {
+      setPreviewPlanId(null);
+      return;
+    }
+    if (planState.records.length === 0) {
+      setPreviewPlanId(null);
+      return;
+    }
+    setPreviewPlanId((current) => {
+      if (current && planState.recordIndex[current]) {
+        return current;
+      }
+      return planState.records[0]?.id ?? null;
+    });
+  }, [sessionState.session, planState.records, planState.recordIndex]);
 
   const planColumns = useMemo<TableColumnsType<PlanSummary>>(
     () => [
@@ -191,6 +210,11 @@ function AppView({ client, localization, session, planList }: AppViewProps) {
     return translate('planLastUpdated', { time: formatted });
   }, [planState.lastUpdated, translate, locale]);
 
+  const previewPlan = useMemo(
+    () => (previewPlanId ? planList.getCachedPlan(previewPlanId) : null),
+    [planList, previewPlanId]
+  );
+
   const availableOwners = useMemo(() => {
     const ownerSet = new Set<string>();
     planState.records.forEach((plan) => {
@@ -216,6 +240,7 @@ function AppView({ client, localization, session, planList }: AppViewProps) {
       })),
     [availableLocales]
   );
+}
 
   return (
     <Layout className="app-layout">
@@ -403,6 +428,16 @@ function AppView({ client, localization, session, planList }: AppViewProps) {
                     dataSource={planState.records}
                     columns={planColumns}
                     pagination={false}
+                    rowClassName={(record: PlanSummary) =>
+                      ['plan-table-row', previewPlanId === record.id ? 'plan-table-row-active' : '']
+                        .filter(Boolean)
+                        .join(' ')
+                    }
+                    onRow={(record: PlanSummary) => ({
+                      onClick: () => {
+                        setPreviewPlanId(record.id);
+                      },
+                    })}
                     loading={{
                       spinning: planState.status === 'loading',
                       tip: translate('planLoading'),
@@ -432,6 +467,14 @@ function AppView({ client, localization, session, planList }: AppViewProps) {
                       />
                     </div>
                   )}
+                  {planState.records.length > 0 && (
+                    <PlanPreview
+                      plan={previewPlan}
+                      translate={translate}
+                      locale={locale}
+                      onClose={() => setPreviewPlanId(null)}
+                    />
+                  )}
                 </RemoteState>
               </Space>
             )}
@@ -440,110 +483,6 @@ function AppView({ client, localization, session, planList }: AppViewProps) {
       </Content>
     </Layout>
   );
-}
-
-function formatDateTime(value?: string | null, locale?: Locale) {
-  if (!value) {
-    return '';
-  }
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) {
-    return '';
-  }
-  return new Intl.DateTimeFormat(locale ?? 'ja-JP', {
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit',
-  }).format(date);
-}
-
-function formatPlanWindow(
-  plan: PlanSummary,
-  locale: Locale,
-  translate: LocalizationState['translate']
-) {
-  const start = formatDateTime(plan.plannedStartTime ?? null, locale);
-  const end = formatDateTime(plan.plannedEndTime ?? null, locale);
-  if (start && end) {
-    return translate('planWindowRange', { start, end });
-  }
-  if (start) {
-    return start;
-  }
-  if (end) {
-    return end;
-  }
-  return translate('planWindowMissing');
-}
-
-function App() {
-  const localization = useLocalizationState();
-  const client = useMemo(
-    () =>
-      createApiClient({
-        getLocale: () => localization.locale,
-      }),
-    [localization.locale]
-  );
-  const session = useSessionController(client);
-  const planList = usePlanListController(client, session.state.session);
-
-  return (
-    <ConfigProvider
-      theme={{
-        token: {
-          colorPrimary: '#1677ff',
-          borderRadius: 12,
-          fontSize: 14,
-        },
-      }}
-    >
-      <AppView
-        client={client}
-        localization={localization}
-        session={session}
-        planList={planList}
-      />
-    </ConfigProvider>
-  );
-}
-
-function formatDateTime(value?: string | null, locale?: Locale) {
-  if (!value) {
-    return '';
-  }
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) {
-    return '';
-  }
-  return new Intl.DateTimeFormat(locale ?? 'ja-JP', {
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit',
-  }).format(date);
-}
-
-function formatPlanWindow(
-  plan: PlanSummary,
-  locale: Locale,
-  translate: LocalizationState['translate']
-) {
-  const start = formatDateTime(plan.plannedStartTime ?? null, locale);
-  const end = formatDateTime(plan.plannedEndTime ?? null, locale);
-  if (start && end) {
-    return translate('planWindowRange', { start, end });
-  }
-  if (start) {
-    return start;
-  }
-  if (end) {
-    return end;
-  }
-  return translate('planWindowMissing');
 }
 
 function App() {

@@ -147,6 +147,8 @@ export interface TableProps<T> {
   locale?: TableLocale;
   scroll?: TableScrollOptions;
   pagination?: false | Record<string, unknown>;
+  rowClassName?: string | ((record: T, index: number) => string);
+  onRow?: (record: T, index: number) => Partial<React.HTMLAttributes<HTMLTableRowElement>>;
 }
 export function Table<T>(props: TableProps<T>): React.ReactElement;
 
