@@ -2,6 +2,7 @@ import React, {
   useCallback,
   useEffect,
   useMemo,
+  useRef,
   useState,
   type ReactNode,
 } from '../vendor/react/index.js';
@@ -35,6 +36,10 @@ import {
   usePlanListController,
   type PlanListController,
 } from './state/planList';
+import {
+  usePlanDetailController,
+  type PlanDetailController,
+} from './state/planDetail';
 import { PLAN_STATUS_COLOR, PLAN_STATUS_LABEL } from './constants/planStatus';
 import { RemoteState } from './components/RemoteState';
 import { PlanFilters } from './components/PlanFilters';
@@ -44,6 +49,14 @@ import {
   type SessionController,
 } from './state/session';
 import { formatDateTime, formatPlanWindow } from './utils/planFormatting';
+import { formatApiErrorMessage } from './utils/apiErrors';
+import {
+  buildPlanDetailSearch,
+  parsePlanDetailUrlState,
+  type PlanDetailUrlState,
+} from './utils/planDetailUrl';
+import { useHistoryRouter, type HistoryRouter } from './router/router';
+import { buildPlanDetailPath, parsePlanRoute } from './router/planRoutes';
 
 const { Header, Content } = Layout;
 const { Title, Paragraph, Text } = Typography;
@@ -58,33 +71,55 @@ type AppViewProps = {
   localization: LocalizationState;
   session: SessionController;
   planList: PlanListController;
+  planDetail: PlanDetailController;
+  router: HistoryRouter;
 };
 
-function AppView({ client, localization, session, planList }: AppViewProps) {
+function AppView({ client, localization, session, planList, planDetail, router }: AppViewProps) {
   const { locale, translate, availableLocales, loading, setLocale } = localization;
   const { state: sessionState, login, logout } = session;
   const { state: planState, refresh, changePage, changePageSize } = planList;
+  const {
+    state: planDetailState,
+    selectPlan: selectPlanDetail,
+    refresh: refreshPlanDetail,
+    retain: retainPlanDetails,
+    executeNodeAction,
+    updateReminder: updatePlanReminder,
+    setTimelineCategoryFilter,
+  } = planDetail;
+  const { location, navigate } = router;
+  const planRoute = useMemo(() => parsePlanRoute(location.pathname), [location.pathname]);
+  const initialUrlStateRef = useRef<PlanDetailUrlState | null>(null);
+  if (initialUrlStateRef.current === null) {
+    initialUrlStateRef.current = parsePlanDetailUrlState(location.search);
+  }
+  const initialUrlState = initialUrlStateRef.current;
+  const previewPlanId = planRoute.type === 'detail' ? planRoute.planId : null;
+  const [lastVisitedPlanId, setLastVisitedPlanId] = useState<string | null>(initialUrlState.planId);
+  const pendingTimelineCategoryRef = useRef<{ value: string | null; pending: boolean }>({
+    value: initialUrlState.timelineCategory,
+    pending: initialUrlState.hasTimelineCategory,
+  });
+  const suppressedAutoOpenRef = useRef(false);
+  const planRecordSignature = useMemo(
+    () => planState.records.map((record) => record.id).join('|'),
+    [planState.records]
+  );
   const [credentials, setCredentials] = useState<CredentialsState>({
     username: '',
     password: '',
   });
   const [pingError, setPingError] = useState<ApiError | null>(null);
   const [ping, setPing] = useState<{ status: string } | null>(null);
-  const [previewPlanId, setPreviewPlanId] = useState<string | null>(null);
   const describeRemoteError = useCallback(
-    (error: ApiError | null) => {
-      if (!error) {
-        return null;
-      }
-      if (error.type === 'status') {
-        return translate('backendErrorStatus', {
-          status: error.status,
-        });
-      }
-      return translate('backendErrorNetwork');
-    },
+    (error: ApiError | null) => formatApiErrorMessage(error, translate),
     [translate]
   );
+
+  const queueTimelineCategory = useCallback((value: string | null, shouldApply: boolean) => {
+    pendingTimelineCategoryRef.current = { value, pending: shouldApply };
+  }, []);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -117,21 +152,71 @@ function AppView({ client, localization, session, planList }: AppViewProps) {
   }, [sessionState.session]);
 
   useEffect(() => {
+    suppressedAutoOpenRef.current = false;
+  }, [planRecordSignature]);
+
+  useEffect(() => {
+    if (!previewPlanId) {
+      return;
+    }
+    if (!planState.recordIndex[previewPlanId]) {
+      return;
+    }
+    setLastVisitedPlanId(previewPlanId);
+  }, [previewPlanId, planState.recordIndex]);
+
+  useEffect(() => {
     if (!sessionState.session) {
-      setPreviewPlanId(null);
+      if (previewPlanId) {
+        navigate({ pathname: '/' }, { replace: true, preserveSearch: true, preserveHash: true });
+      }
       return;
     }
     if (planState.records.length === 0) {
-      setPreviewPlanId(null);
+      if (previewPlanId) {
+        navigate({ pathname: '/' }, { replace: true, preserveSearch: true, preserveHash: true });
+      }
       return;
     }
-    setPreviewPlanId((current) => {
-      if (current && planState.recordIndex[current]) {
-        return current;
-      }
-      return planState.records[0]?.id ?? null;
-    });
-  }, [sessionState.session, planState.records, planState.recordIndex]);
+    if (previewPlanId && planState.recordIndex[previewPlanId]) {
+      return;
+    }
+    if (suppressedAutoOpenRef.current) {
+      return;
+    }
+    const fromHistory =
+      lastVisitedPlanId && planState.recordIndex[lastVisitedPlanId] ? lastVisitedPlanId : null;
+    const fallbackPlanId = fromHistory ?? planState.records[0]?.id ?? null;
+    if (!fallbackPlanId) {
+      return;
+    }
+    if (previewPlanId === fallbackPlanId) {
+      return;
+    }
+    const shouldReplace = planRoute.type !== 'detail';
+    navigate(
+      { pathname: buildPlanDetailPath(fallbackPlanId) },
+      { replace: shouldReplace, preserveSearch: true, preserveHash: true }
+    );
+  }, [
+    sessionState.session,
+    planState.records,
+    planState.recordIndex,
+    previewPlanId,
+    lastVisitedPlanId,
+    planRoute.type,
+    navigate,
+  ]);
+
+  useEffect(() => {
+    const urlState = parsePlanDetailUrlState(location.search);
+    if (!urlState.hasTimelineCategory) {
+      pendingTimelineCategoryRef.current = { value: null, pending: false };
+      setTimelineCategoryFilter(null);
+      return;
+    }
+    queueTimelineCategory(urlState.timelineCategory, true);
+  }, [location.search, queueTimelineCategory, setTimelineCategoryFilter]);
 
   const planColumns = useMemo<TableColumnsType<PlanSummary>>(
     () => [
@@ -197,6 +282,9 @@ function AppView({ client, localization, session, planList }: AppViewProps) {
 
   const authErrorDetail = describeRemoteError(sessionState.error);
   const planErrorDetail = describeRemoteError(planState.error);
+  const planDetailErrorDetail = planDetailState.activePlanId
+    ? describeRemoteError(planDetailState.error)
+    : null;
   const pingErrorDetail = describeRemoteError(pingError);
 
   const lastUpdatedLabel = useMemo(() => {
@@ -214,6 +302,50 @@ function AppView({ client, localization, session, planList }: AppViewProps) {
     () => (previewPlanId ? planList.getCachedPlan(previewPlanId) : null),
     [planList, previewPlanId]
   );
+
+  useEffect(() => {
+    retainPlanDetails(planState.records.map((record) => record.id));
+  }, [planState.records, retainPlanDetails]);
+
+  useEffect(() => {
+    void selectPlanDetail(previewPlanId);
+  }, [previewPlanId, selectPlanDetail]);
+
+  useEffect(() => {
+    if (!planDetailState.activePlanId) {
+      return;
+    }
+    if (planDetailState.activePlanId !== previewPlanId) {
+      return;
+    }
+    const snapshot = pendingTimelineCategoryRef.current;
+    if (!snapshot || !snapshot.pending) {
+      return;
+    }
+    setTimelineCategoryFilter(snapshot.value);
+    pendingTimelineCategoryRef.current = { value: snapshot.value, pending: false };
+  }, [planDetailState.activePlanId, previewPlanId, setTimelineCategoryFilter]);
+
+  useEffect(() => {
+    const activeTimelineCategory =
+      planDetailState.activePlanId && planDetailState.activePlanId === previewPlanId
+        ? planDetailState.filters.timeline.activeCategory
+        : null;
+    const nextSearch = buildPlanDetailSearch(location.search, {
+      planId: previewPlanId,
+      timelineCategory: activeTimelineCategory,
+    });
+    if (nextSearch === location.search) {
+      return;
+    }
+    navigate({ search: nextSearch }, { replace: true, preserveHash: true });
+  }, [
+    planDetailState.activePlanId,
+    planDetailState.filters.timeline.activeCategory,
+    previewPlanId,
+    location.search,
+    navigate,
+  ]);
 
   const availableOwners = useMemo(() => {
     const ownerSet = new Set<string>();
@@ -240,7 +372,6 @@ function AppView({ client, localization, session, planList }: AppViewProps) {
       })),
     [availableLocales]
   );
-}
 
   return (
     <Layout className="app-layout">
@@ -435,7 +566,12 @@ function AppView({ client, localization, session, planList }: AppViewProps) {
                     }
                     onRow={(record: PlanSummary) => ({
                       onClick: () => {
-                        setPreviewPlanId(record.id);
+                        suppressedAutoOpenRef.current = false;
+                        setLastVisitedPlanId(record.id);
+                        navigate(
+                          { pathname: buildPlanDetailPath(record.id) },
+                          { preserveSearch: true, preserveHash: true }
+                        );
                       },
                     })}
                     loading={{
@@ -472,7 +608,19 @@ function AppView({ client, localization, session, planList }: AppViewProps) {
                       plan={previewPlan}
                       translate={translate}
                       locale={locale}
-                      onClose={() => setPreviewPlanId(null)}
+                      onClose={() => {
+                        suppressedAutoOpenRef.current = true;
+                        navigate({ pathname: '/' }, { preserveSearch: true, preserveHash: true });
+                      }}
+                      detailState={planDetailState}
+                      onRefreshDetail={() => {
+                        void refreshPlanDetail();
+                      }}
+                      detailErrorDetail={planDetailErrorDetail}
+                      onExecuteNodeAction={executeNodeAction}
+                      onUpdateReminder={updatePlanReminder}
+                      currentUserName={sessionState.session?.displayName ?? null}
+                      onTimelineCategoryChange={setTimelineCategoryFilter}
                     />
                   )}
                 </RemoteState>
@@ -496,6 +644,8 @@ function App() {
   );
   const session = useSessionController(client);
   const planList = usePlanListController(client, session.state.session);
+  const planDetail = usePlanDetailController(client, session.state.session);
+  const router = useHistoryRouter();
 
   return (
     <ConfigProvider
@@ -512,6 +662,8 @@ function App() {
         localization={localization}
         session={session}
         planList={planList}
+        planDetail={planDetail}
+        router={router}
       />
     </ConfigProvider>
   );

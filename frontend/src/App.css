@@ -172,10 +172,140 @@
   color: #5a5e66 !important;
 }
 
+.plan-preview-meta {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.plan-preview-meta-item {
+  font-size: 12px !important;
+}
+
 .plan-preview-grid {
   display: grid;
   gap: 16px;
   grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+}
+
+.plan-preview-sections {
+  display: grid;
+  gap: 20px;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+}
+
+.plan-preview-nodes-section {
+  grid-column: 1 / -1;
+}
+
+.plan-preview-section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+
+.plan-preview-section-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.plan-preview-timeline-filter {
+  min-width: 200px;
+}
+
+.plan-preview-section-helper {
+  margin-bottom: 12px;
+}
+
+.plan-preview-node-tree,
+.plan-preview-node-children {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.plan-preview-node-children {
+  margin-left: 18px;
+  padding-left: 18px;
+  border-left: 2px dashed rgba(22, 119, 255, 0.18);
+}
+
+.plan-preview-node-card {
+  background: rgba(255, 255, 255, 0.82);
+  border-radius: 16px;
+  border: 1px solid rgba(22, 119, 255, 0.12);
+  padding: 12px 16px;
+  box-shadow: 0 6px 16px rgba(22, 119, 255, 0.08);
+  margin-bottom: 14px;
+}
+
+.plan-preview-node-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.plan-preview-node-meta {
+  margin-top: 10px;
+}
+
+.plan-preview-timeline {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.plan-preview-timeline-item {
+  background: rgba(255, 255, 255, 0.75);
+  border-radius: 14px;
+  border: 1px solid rgba(22, 119, 255, 0.08);
+  padding: 12px 14px;
+}
+
+.plan-preview-timeline-item-highlight {
+  border-color: #faad14;
+  box-shadow: 0 0 0 2px rgba(250, 173, 20, 0.25);
+  animation: plan-timeline-highlight 0.4s ease-in-out;
+}
+
+@keyframes plan-timeline-highlight {
+  0% {
+    transform: translateY(-4px);
+    opacity: 0.6;
+  }
+  60% {
+    transform: translateY(0);
+    opacity: 1;
+  }
+  100% {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+.plan-preview-timeline-time {
+  font-size: 12px;
+  color: #6b7080;
+  margin-bottom: 4px;
+}
+
+.plan-preview-timeline-body {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.plan-preview-timeline-actor {
+  border-radius: 999px !important;
 }
 
 .plan-preview-field {
@@ -187,6 +317,137 @@
   background: rgba(255, 255, 255, 0.75);
   border: 1px solid rgba(22, 119, 255, 0.08);
   min-height: 80px;
+}
+
+.plan-node-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.plan-node-action-card {
+  background: rgba(255, 255, 255, 0.78);
+  border-radius: 14px;
+  border: 1px solid rgba(22, 119, 255, 0.12);
+  padding: 12px 14px;
+  box-shadow: 0 10px 20px rgba(22, 119, 255, 0.08);
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.plan-node-action-card-pending {
+  border-color: #1677ff;
+  box-shadow: 0 14px 30px rgba(22, 119, 255, 0.18);
+}
+
+.plan-node-action-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.plan-node-action-path {
+  display: block;
+  margin-top: 6px;
+  font-size: 12px !important;
+  color: #6b7080 !important;
+}
+
+.plan-node-action-buttons {
+  margin-top: 10px;
+}
+
+.plan-node-action-assignee {
+  display: block;
+  margin-top: 6px;
+  font-size: 12px !important;
+  color: #5a5e66 !important;
+}
+
+.plan-node-action-helper {
+  font-size: 12px !important;
+  margin-top: 4px;
+}
+
+.plan-reminder-board {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.plan-reminder-card {
+  background: rgba(255, 255, 255, 0.78);
+  border-radius: 14px;
+  border: 1px solid rgba(22, 119, 255, 0.1);
+  padding: 12px 14px;
+  box-shadow: 0 8px 20px rgba(22, 119, 255, 0.08);
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.plan-reminder-card-selected {
+  border-color: #722ed1;
+  box-shadow: 0 14px 28px rgba(114, 46, 209, 0.18);
+}
+
+.plan-reminder-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 6px;
+}
+
+.plan-reminder-card-description {
+  display: block;
+  margin-top: 6px;
+}
+
+.plan-reminder-card-actions {
+  margin-top: 10px;
+}
+
+.plan-reminder-board-helper {
+  font-size: 12px !important;
+  color: #6b7080 !important;
+}
+
+.plan-node-action-form {
+  width: 100%;
+}
+
+.plan-node-action-field,
+.plan-reminder-editor-field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-xs);
+}
+
+.plan-node-action-label,
+.plan-reminder-editor-label {
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #6b7080;
+}
+
+.plan-reminder-editor {
+  width: 100%;
+}
+
+.plan-node-action-field textarea,
+.plan-reminder-editor-field input[type='number'] {
+  width: 100%;
+  padding: var(--spacing-xs);
+  border: 1px solid rgba(0, 0, 0, 0.15);
+  border-radius: 4px;
+  font-size: 14px;
+}
+
+.plan-reminder-editor-field input[type='checkbox'] {
+  width: 16px;
+  height: 16px;
 }
 
 .plan-preview-field-label {
