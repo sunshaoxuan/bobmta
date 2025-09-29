@@ -74,6 +74,8 @@ function AppView({ client, localization, session, planList, planDetail }: AppVie
     selectPlan: selectPlanDetail,
     refresh: refreshPlanDetail,
     retain: retainPlanDetails,
+    executeNodeAction,
+    updateReminder: updatePlanReminder,
   } = planDetail;
   const [credentials, setCredentials] = useState<CredentialsState>({
     username: '',
@@ -499,6 +501,9 @@ function AppView({ client, localization, session, planList, planDetail }: AppVie
                         void refreshPlanDetail();
                       }}
                       detailErrorDetail={planDetailErrorDetail}
+                      onExecuteNodeAction={executeNodeAction}
+                      onUpdateReminder={updatePlanReminder}
+                      currentUserName={sessionState.session?.displayName ?? null}
                     />
                   )}
                 </RemoteState>

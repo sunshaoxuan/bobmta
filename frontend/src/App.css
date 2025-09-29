@@ -388,6 +388,43 @@
   color: #6b7080 !important;
 }
 
+.plan-node-action-form {
+  width: 100%;
+}
+
+.plan-node-action-field,
+.plan-reminder-editor-field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-xs);
+}
+
+.plan-node-action-label,
+.plan-reminder-editor-label {
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #6b7080;
+}
+
+.plan-reminder-editor {
+  width: 100%;
+}
+
+.plan-node-action-field textarea,
+.plan-reminder-editor-field input[type='number'] {
+  width: 100%;
+  padding: var(--spacing-xs);
+  border: 1px solid rgba(0, 0, 0, 0.15);
+  border-radius: 4px;
+  font-size: 14px;
+}
+
+.plan-reminder-editor-field input[type='checkbox'] {
+  width: 16px;
+  height: 16px;
+}
+
 .plan-preview-field-label {
   font-size: 12px !important;
   font-weight: 600;
