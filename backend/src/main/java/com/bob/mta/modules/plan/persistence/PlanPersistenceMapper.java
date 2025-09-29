@@ -95,7 +95,8 @@ public final class PlanPersistenceMapper {
                         rule.getChannels(),
                         rule.getTemplateId(),
                         rule.getRecipients(),
-                        rule.getDescription()
+                        rule.getDescription(),
+                        rule.isActive()
                 ))
                 .collect(Collectors.toList());
 
@@ -152,7 +153,8 @@ public final class PlanPersistenceMapper {
                         rule.channels(),
                         rule.templateId(),
                         rule.recipients(),
-                        rule.description()
+                        rule.description(),
+                        rule.active()
                 ))
                 .collect(Collectors.toList());
 
@@ -202,6 +204,8 @@ public final class PlanPersistenceMapper {
                     node.getAssignee(),
                     node.getOrder(),
                     node.getExpectedDurationMinutes(),
+                    node.getActionType(),
+                    node.getCompletionThreshold(),
                     node.getActionRef(),
                     node.getDescription()
             ));
@@ -238,6 +242,8 @@ public final class PlanPersistenceMapper {
                 entity.assignee(),
                 entity.orderIndex(),
                 entity.expectedDurationMinutes(),
+                entity.actionType(),
+                entity.completionThreshold(),
                 entity.actionRef(),
                 entity.description(),
                 children

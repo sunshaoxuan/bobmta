@@ -1,5 +1,7 @@
 package com.bob.mta.modules.plan.service.command;
 
+import com.bob.mta.modules.plan.domain.PlanNodeActionType;
+
 import java.util.List;
 
 public class PlanNodeCommand {
@@ -10,12 +12,15 @@ public class PlanNodeCommand {
     private final String assignee;
     private final int order;
     private final Integer expectedDurationMinutes;
+    private final PlanNodeActionType actionType;
+    private final Integer completionThreshold;
     private final String actionRef;
     private final String description;
     private final List<PlanNodeCommand> children;
 
     public PlanNodeCommand(String id, String name, String type, String assignee, int order,
-                           Integer expectedDurationMinutes, String actionRef, String description,
+                           Integer expectedDurationMinutes, PlanNodeActionType actionType,
+                           Integer completionThreshold, String actionRef, String description,
                            List<PlanNodeCommand> children) {
         this.id = id;
         this.name = name;
@@ -23,6 +28,10 @@ public class PlanNodeCommand {
         this.assignee = assignee;
         this.order = order;
         this.expectedDurationMinutes = expectedDurationMinutes;
+        this.actionType = actionType == null ? PlanNodeActionType.NONE : actionType;
+        this.completionThreshold = completionThreshold == null
+                ? 100
+                : Math.max(0, Math.min(100, completionThreshold));
         this.actionRef = actionRef;
         this.description = description;
         this.children = children == null ? List.of() : List.copyOf(children);
@@ -50,6 +59,14 @@ public class PlanNodeCommand {
 
     public Integer getExpectedDurationMinutes() {
         return expectedDurationMinutes;
+    }
+
+    public PlanNodeActionType getActionType() {
+        return actionType;
+    }
+
+    public Integer getCompletionThreshold() {
+        return completionThreshold;
     }
 
     public String getActionRef() {

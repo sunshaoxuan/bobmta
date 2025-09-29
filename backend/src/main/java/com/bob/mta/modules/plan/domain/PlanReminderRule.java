@@ -12,10 +12,17 @@ public class PlanReminderRule {
     private final String templateId;
     private final List<String> recipients;
     private final String description;
+    private final boolean active;
 
     public PlanReminderRule(String id, PlanReminderTrigger trigger, int offsetMinutes,
                             List<String> channels, String templateId, List<String> recipients,
                             String description) {
+        this(id, trigger, offsetMinutes, channels, templateId, recipients, description, true);
+    }
+
+    public PlanReminderRule(String id, PlanReminderTrigger trigger, int offsetMinutes,
+                            List<String> channels, String templateId, List<String> recipients,
+                            String description, boolean active) {
         if (trigger == null) {
             throw new IllegalArgumentException("trigger is required");
         }
@@ -32,13 +39,22 @@ public class PlanReminderRule {
         this.templateId = templateId == null ? null : templateId.trim();
         this.recipients = recipients == null ? List.of() : List.copyOf(recipients);
         this.description = description;
+        this.active = active;
     }
 
     public PlanReminderRule withId(String id) {
         if (id == null || id.isBlank()) {
             throw new IllegalArgumentException("id is required");
         }
-        return new PlanReminderRule(id, trigger, offsetMinutes, channels, templateId, recipients, description);
+        return new PlanReminderRule(id, trigger, offsetMinutes, channels, templateId, recipients, description, active);
+    }
+
+    public PlanReminderRule withOffsetMinutes(int offsetMinutes) {
+        return new PlanReminderRule(id, trigger, offsetMinutes, channels, templateId, recipients, description, active);
+    }
+
+    public PlanReminderRule withActive(boolean active) {
+        return new PlanReminderRule(id, trigger, offsetMinutes, channels, templateId, recipients, description, active);
     }
 
     public String getId() {
@@ -67,5 +83,9 @@ public class PlanReminderRule {
 
     public String getDescription() {
         return description;
+    }
+
+    public boolean isActive() {
+        return active;
     }
 }
