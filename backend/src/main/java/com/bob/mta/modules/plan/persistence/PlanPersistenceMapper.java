@@ -204,6 +204,8 @@ public final class PlanPersistenceMapper {
                     node.getAssignee(),
                     node.getOrder(),
                     node.getExpectedDurationMinutes(),
+                    node.getActionType(),
+                    node.getCompletionThreshold(),
                     node.getActionRef(),
                     node.getDescription()
             ));
@@ -240,6 +242,8 @@ public final class PlanPersistenceMapper {
                 entity.assignee(),
                 entity.orderIndex(),
                 entity.expectedDurationMinutes(),
+                entity.actionType(),
+                entity.completionThreshold(),
                 entity.actionRef(),
                 entity.description(),
                 children

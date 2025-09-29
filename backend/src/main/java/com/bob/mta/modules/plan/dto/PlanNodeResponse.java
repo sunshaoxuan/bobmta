@@ -1,6 +1,7 @@
 package com.bob.mta.modules.plan.dto;
 
 import com.bob.mta.modules.plan.domain.PlanNode;
+import com.bob.mta.modules.plan.domain.PlanNodeActionType;
 import com.bob.mta.modules.plan.domain.PlanNodeExecution;
 
 import java.util.List;
@@ -15,13 +16,16 @@ public class PlanNodeResponse {
     private final String assignee;
     private final int order;
     private final Integer expectedDurationMinutes;
+    private final PlanNodeActionType actionType;
+    private final Integer completionThreshold;
     private final String actionRef;
     private final String description;
     private final PlanNodeExecutionResponse execution;
     private final List<PlanNodeResponse> children;
 
     public PlanNodeResponse(String id, String name, String type, String assignee, int order,
-                            Integer expectedDurationMinutes, String actionRef, String description,
+                            Integer expectedDurationMinutes, PlanNodeActionType actionType,
+                            Integer completionThreshold, String actionRef, String description,
                             PlanNodeExecutionResponse execution, List<PlanNodeResponse> children) {
         this.id = id;
         this.name = name;
@@ -29,6 +33,8 @@ public class PlanNodeResponse {
         this.assignee = assignee;
         this.order = order;
         this.expectedDurationMinutes = expectedDurationMinutes;
+        this.actionType = actionType;
+        this.completionThreshold = completionThreshold;
         this.actionRef = actionRef;
         this.description = description;
         this.execution = execution;
@@ -42,7 +48,8 @@ public class PlanNodeResponse {
                 .map(child -> from(child, executionIndex, attachmentLoader))
                 .toList();
         return new PlanNodeResponse(node.getId(), node.getName(), node.getType(), node.getAssignee(),
-                node.getOrder(), node.getExpectedDurationMinutes(), node.getActionRef(), node.getDescription(),
+                node.getOrder(), node.getExpectedDurationMinutes(), node.getActionType(),
+                node.getCompletionThreshold(), node.getActionRef(), node.getDescription(),
                 PlanNodeExecutionResponse.from(execution, attachmentLoader), childResponses);
     }
 
@@ -68,6 +75,14 @@ public class PlanNodeResponse {
 
     public Integer getExpectedDurationMinutes() {
         return expectedDurationMinutes;
+    }
+
+    public PlanNodeActionType getActionType() {
+        return actionType;
+    }
+
+    public Integer getCompletionThreshold() {
+        return completionThreshold;
     }
 
     public String getActionRef() {

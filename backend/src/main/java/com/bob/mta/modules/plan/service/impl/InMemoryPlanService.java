@@ -39,6 +39,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 @Service
@@ -264,7 +265,10 @@ public class InMemoryPlanService implements PlanService {
         OffsetDateTime startTime = target.getStartTime() != null ? target.getStartTime() : now;
         List<PlanNodeExecution> executions = replaceExecution(current.getExecutions(), nodeId,
                 new PlanNodeExecution(nodeId, PlanNodeStatus.DONE, startTime, now, operator, result, log, safeFiles));
-        boolean allDone = executions.stream().allMatch(exec -> exec.getStatus() == PlanNodeStatus.DONE);
+        ThresholdAdjustment thresholdAdjustment = applyCompletionThresholds(current, executions, now, operator);
+        executions = thresholdAdjustment.executions();
+        boolean allDone = executions.stream()
+                .allMatch(exec -> exec.getStatus() == PlanNodeStatus.DONE || exec.getStatus() == PlanNodeStatus.SKIPPED);
         PlanStatus nextStatus = allDone ? PlanStatus.COMPLETED : current.getStatus();
         OffsetDateTime actualStart = current.getActualStartTime() != null ? current.getActualStartTime() : startTime;
         OffsetDateTime actualEnd = allDone ? now : current.getActualEndTime();
@@ -280,6 +284,9 @@ public class InMemoryPlanService implements PlanService {
                         "operator", operator,
                         "result", result
                 )));
+        for (PlanActivity activity : thresholdAdjustment.activities()) {
+            activities = appendActivity(activities, activity);
+        }
         if (allDone) {
             activities = appendActivity(activities, new PlanActivity(
                     PlanActivityType.PLAN_COMPLETED,
@@ -505,7 +512,8 @@ public class InMemoryPlanService implements PlanService {
         List<PlanNode> children = toNodes(command.getChildren());
         String nodeId = StringUtils.hasText(command.getId()) ? command.getId() : planRepository.nextNodeId();
         return new PlanNode(nodeId, command.getName(), command.getType(), command.getAssignee(), command.getOrder(),
-                command.getExpectedDurationMinutes(), command.getActionRef(), command.getDescription(), children);
+                command.getExpectedDurationMinutes(), command.getActionType(), command.getCompletionThreshold(),
+                command.getActionRef(), command.getDescription(), children);
     }
 
     private List<PlanNodeExecution> initializeExecutions(List<PlanNode> nodes) {
@@ -521,6 +529,108 @@ public class InMemoryPlanService implements PlanService {
             all.addAll(flatten(node.getChildren()));
         }
         return all;
+    }
+
+    private ThresholdAdjustment applyCompletionThresholds(Plan plan, List<PlanNodeExecution> executions,
+                                                           OffsetDateTime now, String operator) {
+        if (plan.getNodes().isEmpty()) {
+            return new ThresholdAdjustment(executions, List.of());
+        }
+        Map<String, PlanNodeExecution> executionIndex = executions.stream()
+                .collect(Collectors.toMap(PlanNodeExecution::getNodeId, Function.identity()));
+        List<PlanNode> allNodes = flatten(plan.getNodes());
+        Map<String, List<PlanNode>> childrenIndex = new HashMap<>();
+        for (PlanNode node : allNodes) {
+            for (PlanNode child : node.getChildren()) {
+                childrenIndex.computeIfAbsent(node.getId(), key -> new ArrayList<>()).add(child);
+            }
+        }
+
+        List<PlanActivity> activities = new ArrayList<>();
+        boolean changed;
+        do {
+            changed = false;
+            for (PlanNode node : allNodes) {
+                List<PlanNode> children = childrenIndex.getOrDefault(node.getId(), List.of());
+                if (children.isEmpty()) {
+                    continue;
+                }
+                PlanNodeExecution parentExec = executionIndex.get(node.getId());
+                if (parentExec == null || parentExec.getStatus() == PlanNodeStatus.DONE) {
+                    continue;
+                }
+                int threshold = normalizeThreshold(node.getCompletionThreshold());
+                long doneChildren = children.stream()
+                        .map(child -> executionIndex.get(child.getId()))
+                        .filter(exec -> exec != null && exec.getStatus() == PlanNodeStatus.DONE)
+                        .count();
+                int totalChildren = children.size();
+                double completionRatio = totalChildren == 0 ? 100 : doneChildren * 100.0 / totalChildren;
+                if (completionRatio < threshold) {
+                    continue;
+                }
+                if (parentExec.getStatus() != PlanNodeStatus.DONE) {
+                    PlanNodeExecution completed = new PlanNodeExecution(parentExec.getNodeId(), PlanNodeStatus.DONE,
+                            parentExec.getStartTime() == null ? now : parentExec.getStartTime(),
+                            now, operator, parentExec.getResult(), parentExec.getLog(), parentExec.getFileIds());
+                    executionIndex.put(parentExec.getNodeId(), completed);
+                    activities.add(new PlanActivity(
+                            PlanActivityType.NODE_AUTO_COMPLETED,
+                            now,
+                            operator,
+                            message("plan.activity.nodeAutoCompleted"),
+                            parentExec.getNodeId(),
+                            attributes(
+                                    "nodeName", node.getName(),
+                                    "threshold", String.valueOf(threshold),
+                                    "completedChildren", String.valueOf(doneChildren),
+                                    "totalChildren", String.valueOf(totalChildren)
+                            )));
+                    changed = true;
+                }
+                for (PlanNode child : children) {
+                    PlanNodeExecution childExec = executionIndex.get(child.getId());
+                    if (childExec == null || childExec.getStatus() == PlanNodeStatus.DONE
+                            || childExec.getStatus() == PlanNodeStatus.SKIPPED) {
+                        continue;
+                    }
+                    PlanNodeExecution skipped = new PlanNodeExecution(childExec.getNodeId(), PlanNodeStatus.SKIPPED,
+                            childExec.getStartTime(), now, operator, childExec.getResult(), childExec.getLog(),
+                            childExec.getFileIds());
+                    executionIndex.put(childExec.getNodeId(), skipped);
+                    activities.add(new PlanActivity(
+                            PlanActivityType.NODE_SKIPPED,
+                            now,
+                            operator,
+                            message("plan.activity.nodeSkipped"),
+                            childExec.getNodeId(),
+                            attributes(
+                                    "nodeName", child.getName(),
+                                    "parentNodeId", node.getId(),
+                                    "parentNode", node.getName()
+                            )));
+                    changed = true;
+                }
+            }
+        } while (changed);
+
+        List<PlanNodeExecution> orderedExecutions = executions.stream()
+                .map(exec -> executionIndex.getOrDefault(exec.getNodeId(), exec))
+                .toList();
+        return new ThresholdAdjustment(orderedExecutions, activities);
+    }
+
+    private int normalizeThreshold(Integer threshold) {
+        if (threshold == null) {
+            return 100;
+        }
+        if (threshold < 0) {
+            return 0;
+        }
+        return Math.min(threshold, 100);
+    }
+
+    private record ThresholdAdjustment(List<PlanNodeExecution> executions, List<PlanActivity> activities) {
     }
 
     private Plan requirePlan(String id) {
@@ -573,8 +683,8 @@ public class InMemoryPlanService implements PlanService {
                 List<PlanNode> updatedChildren = replaceNode(node.getChildren(), nodeId, replacement);
                 if (updatedChildren != node.getChildren()) {
                     next = new PlanNode(node.getId(), node.getName(), node.getType(), node.getAssignee(),
-                            node.getOrder(), node.getExpectedDurationMinutes(), node.getActionRef(),
-                            node.getDescription(), updatedChildren);
+                            node.getOrder(), node.getExpectedDurationMinutes(), node.getActionType(),
+                            node.getCompletionThreshold(), node.getActionRef(), node.getDescription(), updatedChildren);
                     changed = true;
                 }
             }

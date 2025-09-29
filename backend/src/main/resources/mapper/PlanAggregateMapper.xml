@@ -40,6 +40,8 @@
         <result column="assignee" property="assignee"/>
         <result column="order_index" property="orderIndex"/>
         <result column="expected_duration_minutes" property="expectedDurationMinutes"/>
+        <result column="action_type" property="actionType" javaType="com.bob.mta.modules.plan.domain.PlanNodeActionType"/>
+        <result column="completion_threshold" property="completionThreshold"/>
         <result column="action_ref" property="actionRef"/>
         <result column="description" property="description"/>
     </resultMap>
@@ -321,6 +323,8 @@
                assignee,
                order_index,
                expected_duration_minutes,
+               action_type,
+               completion_threshold,
                action_ref,
                description
         FROM mt_plan_node
@@ -444,11 +448,12 @@
 
     <insert id="insertNodes">
         INSERT INTO mt_plan_node (plan_id, node_id, parent_node_id, name, type, assignee, order_index,
-                                  expected_duration_minutes, action_ref, description)
+                                  expected_duration_minutes, action_type, completion_threshold, action_ref, description)
         VALUES
         <foreach collection="nodes" item="item" separator=",">
             (#{item.planId}, #{item.nodeId}, #{item.parentNodeId}, #{item.name}, #{item.type}, #{item.assignee},
-             #{item.orderIndex}, #{item.expectedDurationMinutes}, #{item.actionRef}, #{item.description})
+             #{item.orderIndex}, #{item.expectedDurationMinutes}, #{item.actionType}, #{item.completionThreshold},
+             #{item.actionRef}, #{item.description})
         </foreach>
     </insert>
 

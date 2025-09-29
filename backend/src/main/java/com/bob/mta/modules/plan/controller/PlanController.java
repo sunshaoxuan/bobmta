@@ -315,7 +315,8 @@ public class PlanController {
     private List<PlanNodeCommand> toCommands(List<PlanNodeRequest> nodes) {
         return nodes.stream()
                 .map(node -> new PlanNodeCommand(node.getId(), node.getName(), node.getType(), node.getAssignee(),
-                        node.getOrder(), node.getExpectedDurationMinutes(), node.getActionRef(), node.getDescription(),
+                        node.getOrder(), node.getExpectedDurationMinutes(), node.getActionType(),
+                        node.getCompletionThreshold(), node.getActionRef(), node.getDescription(),
                         toCommands(node.getChildren())))
                 .toList();
     }

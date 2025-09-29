@@ -10,6 +10,7 @@ import com.bob.mta.modules.audit.service.impl.InMemoryAuditService;
 import com.bob.mta.modules.file.service.impl.InMemoryFileService;
 import com.bob.mta.modules.plan.domain.PlanActivityType;
 import com.bob.mta.modules.plan.domain.PlanReminderTrigger;
+import com.bob.mta.modules.plan.domain.PlanNodeActionType;
 import com.bob.mta.modules.plan.dto.CancelPlanRequest;
 import com.bob.mta.modules.plan.dto.CompleteNodeRequest;
 import com.bob.mta.modules.plan.dto.PlanActivityResponse;
@@ -89,7 +90,7 @@ class PlanControllerTest {
                 OffsetDateTime.now().plusDays(5).plusHours(3),
                 "Asia/Shanghai",
                 List.of("ops-lead"),
-                List.of(new PlanNodeCommand(null, "巡检准备", "CHECKLIST", "ops-lead", 1, 60, null, "", List.of()))
+                List.of(new PlanNodeCommand(null, "巡检准备", "CHECKLIST", "ops-lead", 1, 60, PlanNodeActionType.NONE, 100, null, "", List.of()))
         );
         planService.createPlan(command);
 
@@ -113,7 +114,7 @@ class PlanControllerTest {
                 OffsetDateTime.now().plusDays(3).plusHours(6),
                 "Asia/Tokyo",
                 List.of("tenant-owner"),
-                List.of(new PlanNodeCommand(null, "准备", "CHECKLIST", "tenant-owner", 1, 60, null, "", List.of()))
+                List.of(new PlanNodeCommand(null, "准备", "CHECKLIST", "tenant-owner", 1, 60, PlanNodeActionType.NONE, 100, null, "", List.of()))
         );
         planService.createPlan(tenantSpecific);
 
@@ -154,7 +155,7 @@ class PlanControllerTest {
                 end,
                 "Asia/Tokyo",
                 List.of("admin"),
-                List.of(new PlanNodeCommand(null, "快速检查", "CHECKLIST", "admin", 1, 15, null, "", List.of()))
+                List.of(new PlanNodeCommand(null, "快速检查", "CHECKLIST", "admin", 1, 15, PlanNodeActionType.NONE, 100, null, "", List.of()))
         );
         var created = planService.createPlan(command);
         planService.publishPlan(created.getId(), "admin");
