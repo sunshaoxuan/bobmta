@@ -25,6 +25,7 @@ import com.bob.mta.modules.plan.service.PlanSearchResult;
 import com.bob.mta.modules.plan.service.command.CreatePlanCommand;
 import com.bob.mta.modules.plan.service.command.PlanNodeCommand;
 import com.bob.mta.modules.plan.service.command.UpdatePlanCommand;
+import com.bob.mta.modules.plan.service.PlanActivityDescriptor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
@@ -48,6 +49,69 @@ public class InMemoryPlanService implements PlanService {
 
     private static final DateTimeFormatter ICS_FORMATTER = DateTimeFormatter.ofPattern("yyyyMMdd'T'HHmmss'Z'", Locale.US)
             .withZone(ZoneOffset.UTC);
+
+    private static final List<PlanActivityDescriptor> ACTIVITY_DESCRIPTORS = List.of(
+            descriptor(PlanActivityType.PLAN_CREATED,
+                    List.of("plan.activity.created"),
+                    attribute("title", "plan.activity.attr.title"),
+                    attribute("owner", "plan.activity.attr.owner")),
+            descriptor(PlanActivityType.PLAN_UPDATED,
+                    List.of("plan.activity.definitionUpdated"),
+                    attribute("title", "plan.activity.attr.title"),
+                    attribute("timezone", "plan.activity.attr.timezone"),
+                    attribute("participantCount", "plan.activity.attr.participantCount")),
+            descriptor(PlanActivityType.PLAN_PUBLISHED,
+                    List.of("plan.activity.published"),
+                    attribute("status", "plan.activity.attr.status"),
+                    attribute("operator", "plan.activity.attr.operator")),
+            descriptor(PlanActivityType.PLAN_CANCELLED,
+                    List.of("plan.activity.cancelled"),
+                    attribute("reason", "plan.activity.attr.reason"),
+                    attribute("operator", "plan.activity.attr.operator")),
+            descriptor(PlanActivityType.PLAN_COMPLETED,
+                    List.of("plan.activity.completed"),
+                    attribute("operator", "plan.activity.attr.operator")),
+            descriptor(PlanActivityType.PLAN_HANDOVER,
+                    List.of("plan.activity.handover"),
+                    attribute("oldOwner", "plan.activity.attr.oldOwner"),
+                    attribute("newOwner", "plan.activity.attr.newOwner"),
+                    attribute("operator", "plan.activity.attr.operator"),
+                    attribute("participantCount", "plan.activity.attr.participantCount"),
+                    attribute("note", "plan.activity.attr.note")),
+            descriptor(PlanActivityType.NODE_STARTED,
+                    List.of("plan.activity.nodeStarted"),
+                    attribute("nodeName", "plan.activity.attr.nodeName"),
+                    attribute("assignee", "plan.activity.attr.assignee"),
+                    attribute("operator", "plan.activity.attr.operator")),
+            descriptor(PlanActivityType.NODE_COMPLETED,
+                    List.of("plan.activity.nodeCompleted"),
+                    attribute("nodeName", "plan.activity.attr.nodeName"),
+                    attribute("operator", "plan.activity.attr.operator"),
+                    attribute("result", "plan.activity.attr.result")),
+            descriptor(PlanActivityType.NODE_HANDOVER,
+                    List.of("plan.activity.nodeHandover"),
+                    attribute("nodeName", "plan.activity.attr.nodeName"),
+                    attribute("previousAssignee", "plan.activity.attr.previousAssignee"),
+                    attribute("newAssignee", "plan.activity.attr.newAssignee"),
+                    attribute("operator", "plan.activity.attr.operator"),
+                    attribute("comment", "plan.activity.attr.comment")),
+            descriptor(PlanActivityType.NODE_AUTO_COMPLETED,
+                    List.of("plan.activity.nodeAutoCompleted"),
+                    attribute("nodeName", "plan.activity.attr.nodeName"),
+                    attribute("threshold", "plan.activity.attr.threshold"),
+                    attribute("completedChildren", "plan.activity.attr.completedChildren"),
+                    attribute("totalChildren", "plan.activity.attr.totalChildren")),
+            descriptor(PlanActivityType.NODE_SKIPPED,
+                    List.of("plan.activity.nodeSkipped"),
+                    attribute("nodeName", "plan.activity.attr.nodeName"),
+                    attribute("parentNodeId", "plan.activity.attr.parentNodeId"),
+                    attribute("parentNode", "plan.activity.attr.parentNode")),
+            descriptor(PlanActivityType.REMINDER_POLICY_UPDATED,
+                    List.of("plan.activity.reminderUpdated", "plan.activity.reminderRuleUpdated"),
+                    attribute("ruleCount", "plan.activity.attr.ruleCount"),
+                    attribute("offsetMinutes", "plan.activity.attr.offsetMinutes"),
+                    attribute("active", "plan.activity.attr.active"))
+    );
 
     private final FileService fileService;
     private final PlanRepository planRepository;
@@ -479,6 +543,11 @@ public class InMemoryPlanService implements PlanService {
         return planAnalyticsRepository.summarize(query);
     }
 
+    @Override
+    public List<PlanActivityDescriptor> describeActivities() {
+        return ACTIVITY_DESCRIPTORS;
+    }
+
     private Plan buildPlan(String id, CreatePlanCommand command, OffsetDateTime now) {
         List<PlanNode> nodes = toNodes(command.getNodes());
         List<PlanNodeExecution> executions = initializeExecutions(nodes);
@@ -628,6 +697,15 @@ public class InMemoryPlanService implements PlanService {
             return 0;
         }
         return Math.min(threshold, 100);
+    }
+
+    private static PlanActivityDescriptor descriptor(PlanActivityType type, List<String> messageKeys,
+                                                     PlanActivityDescriptor.ActivityAttribute... attributes) {
+        return new PlanActivityDescriptor(type, messageKeys, List.of(attributes));
+    }
+
+    private static PlanActivityDescriptor.ActivityAttribute attribute(String name, String descriptionKey) {
+        return new PlanActivityDescriptor.ActivityAttribute(name, descriptionKey);
     }
 
     private record ThresholdAdjustment(List<PlanNodeExecution> executions, List<PlanActivity> activities) {

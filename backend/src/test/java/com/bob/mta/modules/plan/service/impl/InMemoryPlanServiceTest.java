@@ -174,6 +174,23 @@ class InMemoryPlanServiceTest {
     }
 
     @Test
+    @DisplayName("describeActivities exposes metadata for front-end dictionary")
+    void shouldDescribeActivities() {
+        var descriptors = service.describeActivities();
+
+        assertThat(descriptors).isNotEmpty();
+        assertThat(descriptors)
+                .anySatisfy(descriptor -> {
+                    if (descriptor.type() == PlanActivityType.PLAN_CREATED) {
+                        assertThat(descriptor.messageKeys()).contains("plan.activity.created");
+                        assertThat(descriptor.attributes())
+                                .extracting(attr -> attr.name())
+                                .contains("title", "owner");
+                    }
+                });
+    }
+
+    @Test
     void shouldStartNode() {
         var plan = service.listPlans(null, null, null, null, null, null, null, 0, 10).plans().get(0);
         service.publishPlan(plan.getId(), "admin");

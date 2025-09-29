@@ -13,6 +13,7 @@ import com.bob.mta.modules.plan.dto.CancelPlanRequest;
 import com.bob.mta.modules.plan.dto.CompleteNodeRequest;
 import com.bob.mta.modules.plan.dto.CreatePlanRequest;
 import com.bob.mta.modules.plan.dto.PlanActivityResponse;
+import com.bob.mta.modules.plan.dto.PlanActivityTypeMetadataResponse;
 import com.bob.mta.modules.plan.dto.PlanAnalyticsResponse;
 import com.bob.mta.modules.plan.dto.PlanDetailResponse;
 import com.bob.mta.modules.plan.dto.PlanNodeAttachmentResponse;
@@ -96,6 +97,15 @@ public class PlanController {
                                                         @RequestParam(required = false) OffsetDateTime to) {
         return ApiResponse.success(PlanAnalyticsResponse.from(
                 planService.getAnalytics(tenantId, customerId, from, to)));
+    }
+
+    @PreAuthorize("hasAnyRole('ADMIN','OPERATOR')")
+    @GetMapping("/activity-types")
+    public ApiResponse<List<PlanActivityTypeMetadataResponse>> activityTypes() {
+        List<PlanActivityTypeMetadataResponse> descriptors = planService.describeActivities().stream()
+                .map(descriptor -> PlanActivityTypeMetadataResponse.from(descriptor, messageResolver))
+                .toList();
+        return ApiResponse.success(descriptors);
     }
 
     @PreAuthorize("hasAnyRole('ADMIN','OPERATOR')")

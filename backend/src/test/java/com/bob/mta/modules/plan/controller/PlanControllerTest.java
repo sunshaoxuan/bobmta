@@ -142,6 +142,22 @@ class PlanControllerTest {
     }
 
     @Test
+    void activityTypesShouldExposeDictionary() {
+        var descriptors = controller.activityTypes().getData();
+
+        assertThat(descriptors).isNotEmpty();
+        assertThat(descriptors)
+                .anySatisfy(entry -> {
+                    if (entry.getType() == PlanActivityType.NODE_COMPLETED) {
+                        assertThat(entry.getMessages()).isNotEmpty();
+                        assertThat(entry.getAttributes())
+                                .extracting(attr -> attr.getName())
+                                .contains("nodeName", "result");
+                    }
+                });
+    }
+
+    @Test
     void analyticsShouldHighlightOverduePlans() {
         OffsetDateTime start = OffsetDateTime.now().minusHours(2);
         OffsetDateTime end = OffsetDateTime.now().minusHours(1);
