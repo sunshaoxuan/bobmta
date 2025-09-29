@@ -37,11 +37,7 @@ import {
   type PlanNodeWithPath,
   type PlanNodeActionType,
 } from '../utils/planNodes';
-import {
-  extractTimelineCategories,
-  filterTimelineEntries,
-  isTimelineHighlightVisible,
-} from '../utils/planTimeline';
+import { filterTimelineEntries, isTimelineHighlightVisible } from '../utils/planTimeline.js';
 import type {
   PlanDetailMutationState,
   PlanNodeActionInput,
@@ -62,6 +58,7 @@ type PlanPreviewProps = {
   onExecuteNodeAction: (input: PlanNodeActionInput) => Promise<void>;
   onUpdateReminder: (input: PlanReminderUpdateInput) => Promise<void>;
   currentUserName: string | null;
+  onTimelineCategoryChange: (category: string | null) => void;
 };
 
 export function PlanPreview({
@@ -75,6 +72,7 @@ export function PlanPreview({
   onExecuteNodeAction,
   onUpdateReminder,
   currentUserName,
+  onTimelineCategoryChange,
 }: PlanPreviewProps) {
   const isActiveDetail = Boolean(plan && detailState.activePlanId === plan.id);
   const detail: PlanDetail | null = isActiveDetail ? detailState.detail : null;
@@ -101,24 +99,16 @@ export function PlanPreview({
   const [reminderEditor, setReminderEditor] = useState<ReminderEditorState | null>(null);
   const [selectedReminderId, setSelectedReminderId] = useState<string | null>(null);
   const [highlightedTimelineEntryId, setHighlightedTimelineEntryId] = useState<string | null>(null);
-  const [timelineCategoryFilter, setTimelineCategoryFilter] = useState<string | null>(null);
 
   useEffect(() => {
     setActionDialog(null);
     setReminderEditor(null);
     setSelectedReminderId(null);
     setHighlightedTimelineEntryId(null);
-    setTimelineCategoryFilter(null);
   }, [detail?.id, plan?.id]);
 
-  const timelineCategories = useMemo(() => extractTimelineCategories(timeline), [timeline]);
-
-  useEffect(() => {
-    setTimelineCategoryFilter((current) =>
-      current && timelineCategories.includes(current) ? current : null
-    );
-  }, [timelineCategories]);
-
+  const timelineCategories = detailState.filters.timeline.categories;
+  const timelineCategoryFilter = detailState.filters.timeline.activeCategory;
   const activeTimelineCategories = useMemo(
     () => (timelineCategoryFilter ? [timelineCategoryFilter] : []),
     [timelineCategoryFilter]
@@ -169,7 +159,7 @@ export function PlanPreview({
               className="plan-preview-timeline-filter"
               value={timelineCategoryFilter ?? '__ALL__'}
               onChange={(value: string) => {
-                setTimelineCategoryFilter(value === '__ALL__' ? null : value);
+                onTimelineCategoryChange(value === '__ALL__' ? null : value);
               }}
               options={[
                 {
@@ -187,7 +177,7 @@ export function PlanPreview({
                 type="link"
                 size="small"
                 onClick={() => {
-                  setTimelineCategoryFilter(null);
+                  onTimelineCategoryChange(null);
                 }}
               >
                 {translate('planDetailTimelineFilterReset')}
@@ -1033,6 +1023,161 @@ function renderNodeMutationHelper({
     default:
       return null;
   }
+}
+
+function renderReminderMutationHelper({
+  mutation,
+  translate,
+  reminders,
+  onRetry,
+  onEdit,
+}: ReminderMutationHelperOptions): ReactNode {
+  const context = mutation.context;
+  if (!context || context.type !== 'reminder') {
+    return null;
+  }
+  const reminder = reminders.find((item) => item.id === context.reminderId) ?? null;
+  const channelLabel = reminder
+    ? translate(PLAN_REMINDER_CHANNEL_LABEL[reminder.channel])
+    : context.reminderId;
+  const actionLabel = translate(
+    context.action === 'edit'
+      ? 'planDetailReminderActionEdit'
+      : 'planDetailReminderActionToggle'
+  );
+  const offsetLabel = reminder
+    ? translate('planDetailReminderOffsetMinutes', { minutes: reminder.offsetMinutes })
+    : '';
+  const errorDetail = formatApiErrorMessage(mutation.error, translate);
+  switch (mutation.status) {
+    case 'loading':
+      return (
+        <Alert
+          type="info"
+          showIcon
+          message={translate('planDetailReminderProcessing', {
+            action: actionLabel,
+            channel: channelLabel,
+            offset: offsetLabel,
+          })}
+        />
+      );
+    case 'success':
+      return (
+        <Alert
+          type="success"
+          showIcon
+          message={translate('planDetailReminderSuccess', {
+            action: actionLabel,
+            channel: channelLabel,
+            offset: offsetLabel,
+          })}
+        />
+      );
+    case 'error':
+      const reminderActions: ReactNode[] = [];
+      if (onRetry) {
+        reminderActions.push(
+          <Button key="retry" type="primary" size="small" onClick={onRetry}>
+            {translate('planDetailReminderRetry')}
+          </Button>
+        );
+      }
+      if (onEdit && context.action === 'edit') {
+        reminderActions.push(
+          <Button key="edit" size="small" onClick={onEdit}>
+            {translate('planDetailReminderRetryEdit')}
+          </Button>
+        );
+      }
+      return (
+        <Alert
+          type="error"
+          showIcon
+          message={translate('planDetailReminderError', {
+            action: actionLabel,
+            channel: channelLabel,
+            offset: offsetLabel,
+            error: errorDetail ?? translate('commonStateErrorDescription'),
+          })}
+          action={
+            reminderActions.length > 0 ? (
+              <Space size="small">{reminderActions}</Space>
+            ) : undefined
+          }
+        />
+      );
+    default:
+      return null;
+  }
+}
+
+function renderTimelineHelper({
+  translate,
+  filterActive,
+  filteredEmpty,
+  highlightHidden,
+}: TimelineHelperOptions): ReactNode {
+  const helperMessages: ReactNode[] = [];
+  if (filterActive && filteredEmpty) {
+    helperMessages.push(
+      <Alert
+        key="filter-empty"
+        type="warning"
+        showIcon
+        message={translate('planDetailTimelineFilterNoMatch')}
+      />
+    );
+  }
+  if (highlightHidden) {
+    helperMessages.push(
+      <Alert
+        key="highlight-hidden"
+        type="info"
+        showIcon
+        message={translate('planDetailTimelineHighlightHidden')}
+      />
+    );
+  }
+  if (helperMessages.length === 0) {
+    return null;
+  }
+  return (
+    <Space direction="vertical" size="small" style={{ width: '100%' }}>
+      {helperMessages}
+    </Space>
+  );
+}
+
+function getDefaultOperatorId({
+  detail,
+  node,
+  currentUserName,
+}: OperatorSelectionOptions): string | null {
+  const participants = detail?.participants ?? [];
+  if (currentUserName) {
+    const currentUser = participants.find((participant) => participant.name === currentUserName);
+    if (currentUser) {
+      return currentUser.id;
+    }
+  }
+  if (node?.assignee?.id) {
+    return node.assignee.id;
+  }
+  if (detail) {
+    const ownerMatch = participants.find((participant) => participant.name === detail.owner);
+    if (ownerMatch) {
+      return ownerMatch.id;
+    }
+  }
+  return participants[0]?.id ?? null;
+}
+
+function getDefaultAssigneeId({ detail, node }: AssigneeSelectionOptions): string | null {
+  const participants = detail?.participants ?? [];
+  const currentAssignee = node?.assignee?.id ?? null;
+  const fallback = participants.find((participant) => participant.id !== currentAssignee);
+  return fallback?.id ?? currentAssignee ?? participants[0]?.id ?? null;
 }
 
 function renderReminderMutationHelper({

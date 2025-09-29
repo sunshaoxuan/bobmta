@@ -29,6 +29,13 @@ import {
   prunePlanDetailCache,
 } from './planDetailCache';
 import { normalizePlanDetailPayload } from './planDetailNormalizer';
+import {
+  applyTimelineCategorySelection,
+  derivePlanDetailFilters,
+  INITIAL_PLAN_DETAIL_FILTERS,
+  type PlanDetailFilterSnapshot,
+  type PlanDetailFilters,
+} from './planDetailFilters';
 
 export type PlanDetailState = {
   activePlanId: string | null;
@@ -40,6 +47,7 @@ export type PlanDetailState = {
   lastUpdated: string | null;
   origin: 'cache' | 'network' | null;
   mutation: PlanDetailMutationState;
+  filters: PlanDetailFilters;
 };
 
 export type PlanDetailController = {
@@ -50,6 +58,7 @@ export type PlanDetailController = {
   retain: (planIds: readonly string[]) => void;
   executeNodeAction: (input: PlanNodeActionInput) => Promise<void>;
   updateReminder: (input: PlanReminderUpdateInput) => Promise<void>;
+  setTimelineCategoryFilter: (category: string | null) => void;
 };
 
 export type PlanNodeActionInput =
@@ -120,6 +129,7 @@ const INITIAL_STATE: PlanDetailState = {
   lastUpdated: null,
   origin: null,
   mutation: INITIAL_MUTATION_STATE,
+  filters: INITIAL_PLAN_DETAIL_FILTERS,
 };
 
 export function usePlanDetailController(
@@ -128,11 +138,13 @@ export function usePlanDetailController(
 ): PlanDetailController {
   const [state, setState] = useState<PlanDetailState>(INITIAL_STATE);
   const cacheRef = useRef<Map<string, PlanDetailCacheEntry> | null>(new Map());
+  const filterSnapshotRef = useRef<Map<string, PlanDetailFilterSnapshot> | null>(new Map());
   const abortRef = useRef<AbortController | null>(null);
 
   const resetState = useCallback(() => {
     abortCurrentRequest(abortRef);
     ensurePlanDetailCache(cacheRef).clear();
+    ensurePlanDetailFilterSnapshots(filterSnapshotRef).clear();
     setState(INITIAL_STATE);
   }, []);
 
@@ -144,6 +156,11 @@ export function usePlanDetailController(
 
   const commitPlanDetail = useCallback(
     (planId: string, payload: PlanDetailPayload, origin: 'cache' | 'network', fetchedAt: number) => {
+      const snapshotStore = ensurePlanDetailFilterSnapshots(filterSnapshotRef);
+      const previousSnapshot = snapshotStore.get(planId) ?? null;
+      const { filters, snapshot } = derivePlanDetailFilters(payload, previousSnapshot);
+      snapshotStore.set(planId, snapshot);
+
       setState((current) => ({
         ...current,
         activePlanId: planId,
@@ -154,6 +171,7 @@ export function usePlanDetailController(
         error: null,
         lastUpdated: new Date(fetchedAt).toISOString(),
         origin,
+        filters,
       }));
     },
     []
@@ -254,14 +272,9 @@ export function usePlanDetailController(
         writeStateFromCache(planId, cached);
       } else {
         setState((current) => ({
-          ...current,
+          ...INITIAL_STATE,
           activePlanId: planId,
-          detail: null,
-          timeline: [],
-          reminders: [],
           status: 'loading',
-          error: null,
-          origin: null,
           mutation: INITIAL_MUTATION_STATE,
         }));
       }
@@ -279,13 +292,15 @@ export function usePlanDetailController(
 
   const retain = useCallback((planIds: readonly string[]) => {
     const cache = ensurePlanDetailCache(cacheRef);
-    const allowed = new Set(planIds);
-    for (const key of Array.from(cache.keys())) {
-      if (!allowed.has(key)) {
-        cache.delete(key);
+    prunePlanDetailCache(cache, planIds, PLAN_DETAIL_CACHE_LIMIT);
+
+    const cacheKeys = new Set(cache.keys());
+    const snapshotStore = ensurePlanDetailFilterSnapshots(filterSnapshotRef);
+    for (const planId of Array.from(snapshotStore.keys())) {
+      if (!cacheKeys.has(planId)) {
+        snapshotStore.delete(planId);
       }
     }
-    prunePlanDetailCache(cache, planIds, PLAN_DETAIL_CACHE_LIMIT);
   }, []);
 
   const executeNodeAction = useCallback(
@@ -437,6 +452,24 @@ export function usePlanDetailController(
     [client, commitPlanDetail, persistPlanDetail, session]
   );
 
+  const setTimelineCategoryFilter = useCallback((category: string | null) => {
+    setState((current) => {
+      if (!current.activePlanId) {
+        return current;
+      }
+      const { filters, snapshot } = applyTimelineCategorySelection(current.filters, category);
+      const snapshotStore = ensurePlanDetailFilterSnapshots(filterSnapshotRef);
+      snapshotStore.set(current.activePlanId, snapshot);
+      if (filters.timeline.activeCategory === current.filters.timeline.activeCategory) {
+        return current;
+      }
+      return {
+        ...current,
+        filters,
+      };
+    });
+  }, []);
+
   const controllerValue = useMemo<PlanDetailController>(() => ({
     state,
     selectPlan,
@@ -445,7 +478,17 @@ export function usePlanDetailController(
     retain,
     executeNodeAction,
     updateReminder,
-  }), [executeNodeAction, refresh, retain, resetState, selectPlan, state, updateReminder]);
+    setTimelineCategoryFilter,
+  }), [
+    executeNodeAction,
+    refresh,
+    retain,
+    resetState,
+    selectPlan,
+    setTimelineCategoryFilter,
+    state,
+    updateReminder,
+  ]);
 
   return controllerValue;
 }
@@ -453,6 +496,15 @@ export function usePlanDetailController(
 function ensurePlanDetailCache(
   ref: { current: Map<string, PlanDetailCacheEntry> | null }
 ): Map<string, PlanDetailCacheEntry> {
+  if (!ref.current) {
+    ref.current = new Map();
+  }
+  return ref.current;
+}
+
+function ensurePlanDetailFilterSnapshots(
+  ref: { current: Map<string, PlanDetailFilterSnapshot> | null }
+): Map<string, PlanDetailFilterSnapshot> {
   if (!ref.current) {
     ref.current = new Map();
   }
