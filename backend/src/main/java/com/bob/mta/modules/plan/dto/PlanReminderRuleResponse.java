@@ -14,10 +14,11 @@ public class PlanReminderRuleResponse {
     private final String templateId;
     private final List<String> recipients;
     private final String description;
+    private final boolean active;
 
     public PlanReminderRuleResponse(String id, PlanReminderTrigger trigger, int offsetMinutes,
                                     List<String> channels, String templateId, List<String> recipients,
-                                    String description) {
+                                    String description, boolean active) {
         this.id = id;
         this.trigger = trigger;
         this.offsetMinutes = offsetMinutes;
@@ -25,6 +26,7 @@ public class PlanReminderRuleResponse {
         this.templateId = templateId;
         this.recipients = recipients;
         this.description = description;
+        this.active = active;
     }
 
     public static PlanReminderRuleResponse from(PlanReminderRule rule) {
@@ -35,7 +37,8 @@ public class PlanReminderRuleResponse {
                 rule.getChannels(),
                 rule.getTemplateId(),
                 rule.getRecipients(),
-                rule.getDescription()
+                rule.getDescription(),
+                rule.isActive()
         );
     }
 
@@ -65,5 +68,9 @@ public class PlanReminderRuleResponse {
 
     public String getDescription() {
         return description;
+    }
+
+    public boolean isActive() {
+        return active;
     }
 }
