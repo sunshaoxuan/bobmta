@@ -48,6 +48,7 @@ import {
   type SessionController,
 } from './state/session';
 import { formatDateTime, formatPlanWindow } from './utils/planFormatting';
+import { formatApiErrorMessage } from './utils/apiErrors';
 
 const { Header, Content } = Layout;
 const { Title, Paragraph, Text } = Typography;
@@ -85,17 +86,7 @@ function AppView({ client, localization, session, planList, planDetail }: AppVie
   const [ping, setPing] = useState<{ status: string } | null>(null);
   const [previewPlanId, setPreviewPlanId] = useState<string | null>(null);
   const describeRemoteError = useCallback(
-    (error: ApiError | null) => {
-      if (!error) {
-        return null;
-      }
-      if (error.type === 'status') {
-        return translate('backendErrorStatus', {
-          status: error.status,
-        });
-      }
-      return translate('backendErrorNetwork');
-    },
+    (error: ApiError | null) => formatApiErrorMessage(error, translate),
     [translate]
   );
 

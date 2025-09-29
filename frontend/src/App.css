@@ -266,6 +266,27 @@
   padding: 12px 14px;
 }
 
+.plan-preview-timeline-item-highlight {
+  border-color: #faad14;
+  box-shadow: 0 0 0 2px rgba(250, 173, 20, 0.25);
+  animation: plan-timeline-highlight 0.4s ease-in-out;
+}
+
+@keyframes plan-timeline-highlight {
+  0% {
+    transform: translateY(-4px);
+    opacity: 0.6;
+  }
+  60% {
+    transform: translateY(0);
+    opacity: 1;
+  }
+  100% {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
 .plan-preview-timeline-time {
   font-size: 12px;
   color: #6b7080;

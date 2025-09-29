@@ -15,7 +15,6 @@ import type {
   PlanSummary,
   PlanTimelineEntry,
 } from '../api/types';
-import type { ApiError } from '../api/client';
 import type { Locale, UiMessageKey } from '../i18n/localization';
 import type { LocalizationState } from '../i18n/useLocalization';
 import { PLAN_STATUS_COLOR, PLAN_STATUS_LABEL } from '../constants/planStatus';
@@ -37,6 +36,7 @@ import type {
   PlanNodeActionInput,
   PlanReminderUpdateInput,
 } from '../state/planDetail';
+import { formatApiErrorMessage } from '../utils/apiErrors';
 
 const { Text, Paragraph } = Typography;
 
@@ -89,11 +89,13 @@ export function PlanPreview({
   const [actionDialog, setActionDialog] = useState<NodeActionDialogState | null>(null);
   const [reminderEditor, setReminderEditor] = useState<ReminderEditorState | null>(null);
   const [selectedReminderId, setSelectedReminderId] = useState<string | null>(null);
+  const [highlightedTimelineEntryId, setHighlightedTimelineEntryId] = useState<string | null>(null);
 
   useEffect(() => {
     setActionDialog(null);
     setReminderEditor(null);
     setSelectedReminderId(null);
+    setHighlightedTimelineEntryId(null);
   }, [detail?.id, plan?.id]);
 
   const actionableNodes: PlanNodeWithPath[] = useMemo(
@@ -111,6 +113,29 @@ export function PlanPreview({
   const mutation = detailState.mutation;
   const nodeMutationContext = mutation.context?.type === 'node' ? mutation.context : null;
   const reminderMutationContext = mutation.context?.type === 'reminder' ? mutation.context : null;
+
+  useEffect(() => {
+    if (mutation.status !== 'success' || !mutation.completedAt) {
+      return;
+    }
+    if (!detail || timeline.length === 0) {
+      return;
+    }
+    const newestEntryId = timeline[0]?.id ?? null;
+    if (!newestEntryId) {
+      return;
+    }
+    setHighlightedTimelineEntryId(newestEntryId);
+    if (typeof window === 'undefined') {
+      return;
+    }
+    const timer = window.setTimeout(() => {
+      setHighlightedTimelineEntryId((current) => (current === newestEntryId ? null : current));
+    }, 8000);
+    return () => {
+      window.clearTimeout(timer);
+    };
+  }, [detail, mutation.completedAt, mutation.status, timeline]);
 
   const actionHelper = renderNodeMutationHelper({
     mutation,
@@ -463,7 +488,17 @@ export function PlanPreview({
             >
               <ul className="plan-preview-timeline">
                 {timeline.map((entry) => (
-                  <li key={entry.id} className="plan-preview-timeline-item">
+                  <li
+                    key={entry.id}
+                    className={[
+                      'plan-preview-timeline-item',
+                      highlightedTimelineEntryId === entry.id
+                        ? 'plan-preview-timeline-item-highlight'
+                        : '',
+                    ]
+                      .filter(Boolean)
+                      .join(' ')}
+                  >
                     <div className="plan-preview-timeline-time">
                       {formatDateTime(entry.occurredAt, locale) ?? entry.occurredAt}
                     </div>
@@ -760,7 +795,7 @@ function renderNodeMutationHelper({
   const entry = nodeLookup.get(context.nodeId);
   const nodeName = entry?.node.name ?? context.nodeId;
   const actionLabel = translate(ACTION_LABEL_KEY[context.action]);
-  const errorDetail = describeApiError(mutation.error, translate);
+  const errorDetail = formatApiErrorMessage(mutation.error, translate);
   switch (mutation.status) {
     case 'loading':
       return (
@@ -799,6 +834,102 @@ function renderNodeMutationHelper({
     default:
       return null;
   }
+}
+
+function renderReminderMutationHelper({
+  mutation,
+  translate,
+  reminders,
+}: ReminderMutationHelperOptions): ReactNode {
+  const context = mutation.context;
+  if (!context || context.type !== 'reminder') {
+    return null;
+  }
+  const reminder = reminders.find((item) => item.id === context.reminderId) ?? null;
+  const channelLabel = reminder
+    ? translate(PLAN_REMINDER_CHANNEL_LABEL[reminder.channel])
+    : context.reminderId;
+  const actionLabel = translate(
+    context.action === 'edit'
+      ? 'planDetailReminderActionEdit'
+      : 'planDetailReminderActionToggle'
+  );
+  const offsetLabel = reminder
+    ? translate('planDetailReminderOffsetMinutes', { minutes: reminder.offsetMinutes })
+    : '';
+  const errorDetail = formatApiErrorMessage(mutation.error, translate);
+  switch (mutation.status) {
+    case 'loading':
+      return (
+        <Alert
+          type="info"
+          showIcon
+          message={translate('planDetailReminderProcessing', {
+            action: actionLabel,
+            channel: channelLabel,
+            offset: offsetLabel,
+          })}
+        />
+      );
+    case 'success':
+      return (
+        <Alert
+          type="success"
+          showIcon
+          message={translate('planDetailReminderSuccess', {
+            action: actionLabel,
+            channel: channelLabel,
+            offset: offsetLabel,
+          })}
+        />
+      );
+    case 'error':
+      return (
+        <Alert
+          type="error"
+          showIcon
+          message={translate('planDetailReminderError', {
+            action: actionLabel,
+            channel: channelLabel,
+            offset: offsetLabel,
+            error: errorDetail ?? translate('commonStateErrorDescription'),
+          })}
+        />
+      );
+    default:
+      return null;
+  }
+}
+
+function getDefaultOperatorId({
+  detail,
+  node,
+  currentUserName,
+}: OperatorSelectionOptions): string | null {
+  const participants = detail?.participants ?? [];
+  if (currentUserName) {
+    const currentUser = participants.find((participant) => participant.name === currentUserName);
+    if (currentUser) {
+      return currentUser.id;
+    }
+  }
+  if (node?.assignee?.id) {
+    return node.assignee.id;
+  }
+  if (detail) {
+    const ownerMatch = participants.find((participant) => participant.name === detail.owner);
+    if (ownerMatch) {
+      return ownerMatch.id;
+    }
+  }
+  return participants[0]?.id ?? null;
+}
+
+function getDefaultAssigneeId({ detail, node }: AssigneeSelectionOptions): string | null {
+  const participants = detail?.participants ?? [];
+  const currentAssignee = node?.assignee?.id ?? null;
+  const fallback = participants.find((participant) => participant.id !== currentAssignee);
+  return fallback?.id ?? currentAssignee ?? participants[0]?.id ?? null;
 }
 
 function renderReminderMutationHelper({
