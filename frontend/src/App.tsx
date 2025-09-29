@@ -35,6 +35,10 @@ import {
   usePlanListController,
   type PlanListController,
 } from './state/planList';
+import {
+  usePlanDetailController,
+  type PlanDetailController,
+} from './state/planDetail';
 import { PLAN_STATUS_COLOR, PLAN_STATUS_LABEL } from './constants/planStatus';
 import { RemoteState } from './components/RemoteState';
 import { PlanFilters } from './components/PlanFilters';
@@ -44,6 +48,7 @@ import {
   type SessionController,
 } from './state/session';
 import { formatDateTime, formatPlanWindow } from './utils/planFormatting';
+import { formatApiErrorMessage } from './utils/apiErrors';
 
 const { Header, Content } = Layout;
 const { Title, Paragraph, Text } = Typography;
@@ -58,12 +63,22 @@ type AppViewProps = {
   localization: LocalizationState;
   session: SessionController;
   planList: PlanListController;
+  planDetail: PlanDetailController;
 };
 
-function AppView({ client, localization, session, planList }: AppViewProps) {
+function AppView({ client, localization, session, planList, planDetail }: AppViewProps) {
   const { locale, translate, availableLocales, loading, setLocale } = localization;
   const { state: sessionState, login, logout } = session;
   const { state: planState, refresh, changePage, changePageSize } = planList;
+  const {
+    state: planDetailState,
+    selectPlan: selectPlanDetail,
+    refresh: refreshPlanDetail,
+    retain: retainPlanDetails,
+    executeNodeAction,
+    updateReminder: updatePlanReminder,
+    setTimelineCategoryFilter,
+  } = planDetail;
   const [credentials, setCredentials] = useState<CredentialsState>({
     username: '',
     password: '',
@@ -72,17 +87,7 @@ function AppView({ client, localization, session, planList }: AppViewProps) {
   const [ping, setPing] = useState<{ status: string } | null>(null);
   const [previewPlanId, setPreviewPlanId] = useState<string | null>(null);
   const describeRemoteError = useCallback(
-    (error: ApiError | null) => {
-      if (!error) {
-        return null;
-      }
-      if (error.type === 'status') {
-        return translate('backendErrorStatus', {
-          status: error.status,
-        });
-      }
-      return translate('backendErrorNetwork');
-    },
+    (error: ApiError | null) => formatApiErrorMessage(error, translate),
     [translate]
   );
 
@@ -197,6 +202,9 @@ function AppView({ client, localization, session, planList }: AppViewProps) {
 
   const authErrorDetail = describeRemoteError(sessionState.error);
   const planErrorDetail = describeRemoteError(planState.error);
+  const planDetailErrorDetail = planDetailState.activePlanId
+    ? describeRemoteError(planDetailState.error)
+    : null;
   const pingErrorDetail = describeRemoteError(pingError);
 
   const lastUpdatedLabel = useMemo(() => {
@@ -214,6 +222,14 @@ function AppView({ client, localization, session, planList }: AppViewProps) {
     () => (previewPlanId ? planList.getCachedPlan(previewPlanId) : null),
     [planList, previewPlanId]
   );
+
+  useEffect(() => {
+    retainPlanDetails(planState.records.map((record) => record.id));
+  }, [planState.records, retainPlanDetails]);
+
+  useEffect(() => {
+    void selectPlanDetail(previewPlanId);
+  }, [previewPlanId, selectPlanDetail]);
 
   const availableOwners = useMemo(() => {
     const ownerSet = new Set<string>();
@@ -240,7 +256,6 @@ function AppView({ client, localization, session, planList }: AppViewProps) {
       })),
     [availableLocales]
   );
-}
 
   return (
     <Layout className="app-layout">
@@ -473,6 +488,15 @@ function AppView({ client, localization, session, planList }: AppViewProps) {
                       translate={translate}
                       locale={locale}
                       onClose={() => setPreviewPlanId(null)}
+                      detailState={planDetailState}
+                      onRefreshDetail={() => {
+                        void refreshPlanDetail();
+                      }}
+                      detailErrorDetail={planDetailErrorDetail}
+                      onExecuteNodeAction={executeNodeAction}
+                      onUpdateReminder={updatePlanReminder}
+                      currentUserName={sessionState.session?.displayName ?? null}
+                      onTimelineCategoryChange={setTimelineCategoryFilter}
                     />
                   )}
                 </RemoteState>
@@ -496,6 +520,7 @@ function App() {
   );
   const session = useSessionController(client);
   const planList = usePlanListController(client, session.state.session);
+  const planDetail = usePlanDetailController(client, session.state.session);
 
   return (
     <ConfigProvider
@@ -512,6 +537,7 @@ function App() {
         localization={localization}
         session={session}
         planList={planList}
+        planDetail={planDetail}
       />
     </ConfigProvider>
   );
