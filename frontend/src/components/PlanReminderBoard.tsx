@@ -12,6 +12,8 @@ type PlanReminderBoardProps = {
   onEdit: (reminder: PlanReminderSummary) => void;
   onToggle: (reminder: PlanReminderSummary) => void;
   selectedReminderId: string | null;
+  pendingReminderId: string | null;
+  pendingStatus: 'idle' | 'loading';
 };
 
 export function PlanReminderBoard({
@@ -20,6 +22,8 @@ export function PlanReminderBoard({
   onEdit,
   onToggle,
   selectedReminderId,
+  pendingReminderId,
+  pendingStatus,
 }: PlanReminderBoardProps) {
   if (!reminders || reminders.length === 0) {
     return null;
@@ -29,6 +33,7 @@ export function PlanReminderBoard({
     <div className="plan-reminder-board">
       {reminders.map((reminder) => {
         const selected = reminder.id === selectedReminderId;
+        const isPending = pendingReminderId === reminder.id && pendingStatus === 'loading';
         return (
           <article
             key={reminder.id}
@@ -51,10 +56,22 @@ export function PlanReminderBoard({
               </Text>
             ) : null}
             <Space size="small" className="plan-reminder-card-actions" wrap>
-              <Button type="primary" size="small" onClick={() => onEdit(reminder)}>
+              <Button
+                type="primary"
+                size="small"
+                onClick={() => onEdit(reminder)}
+                loading={isPending}
+                disabled={isPending}
+              >
                 {translate('planDetailReminderActionEdit')}
               </Button>
-              <Button type="default" size="small" onClick={() => onToggle(reminder)}>
+              <Button
+                type="default"
+                size="small"
+                onClick={() => onToggle(reminder)}
+                loading={isPending}
+                disabled={isPending}
+              >
                 {translate('planDetailReminderActionToggle')}
               </Button>
             </Space>

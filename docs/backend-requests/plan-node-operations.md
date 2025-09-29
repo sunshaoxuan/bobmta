@@ -13,12 +13,12 @@
 
 ## 接口契约草案
 
-| 操作 | HTTP 方法 | 路径 | 请求体 | 响应 | 备注 |
-| --- | --- | --- | --- | --- | --- |
-| 启动节点 | POST | `/api/v1/plans/{planId}/nodes/{nodeId}/start` | `{ "operatorId": string }` | `PlanDetailPayload` | 触发成功后需更新时间线与节点状态 |
-| 完成节点 | POST | `/api/v1/plans/{planId}/nodes/{nodeId}/complete` | `{ "operatorId": string, "resultSummary"?: string }` | `PlanDetailPayload` | 当子节点达到父节点 `completionThreshold` 时，响应会携带父节点的自动完成与被跳过的兄弟节点 |
-| 节点交接 | POST | `/api/v1/plans/{planId}/nodes/{nodeId}/handover` | `{ "operatorId": string, "assigneeId": string, "comment"?: string }` | `PlanDetailPayload` | 需校验节点允许交接的状态 |
-| 更新提醒 | PUT | `/api/v1/plans/{planId}/reminders/{reminderId}` | `{ "active": boolean, "offsetMinutes"?: number }` | `PlanDetailPayload` | 前端当前仅需要启停能力，后续可拓展字段 |
+| 操作 | HTTP 方法 | 路径 | 请求体 | 响应 | 备注 | 状态 |
+| --- | --- | --- | --- | --- | --- | --- |
+| 启动节点 | POST | `/api/v1/plans/{planId}/nodes/{nodeId}/start` | `{ "operatorId": string }` | `PlanDetailPayload` | 触发成功后需更新时间线与节点状态 | 已完成 |
+| 完成节点 | POST | `/api/v1/plans/{planId}/nodes/{nodeId}/complete` | `{ "operatorId": string, "resultSummary"?: string }` | `PlanDetailPayload` | 当子节点达到父节点 `completionThreshold` 时，响应会携带父节点的自动完成与被跳过的兄弟节点 |  已完成 |
+| 节点交接 | POST | `/api/v1/plans/{planId}/nodes/{nodeId}/handover` | `{ "operatorId": string, "assigneeId": string, "comment"?: string }` | `PlanDetailPayload` | 需校验节点允许交接的状态 | 已完成 |
+| 更新提醒 | PUT | `/api/v1/plans/{planId}/reminders/{reminderId}` | `{ "active": boolean, "offsetMinutes"?: number }` | `PlanDetailPayload` | 前端当前仅需要启停能力，后续可拓展字段 | 已完成 |
 
 返回结构建议复用 `PlanDetailPayload`，以便前端用同一缓存写入逻辑覆盖节点、时间线与提醒最新值。
 
@@ -33,8 +33,7 @@
 
 在后端交付前，前端继续使用 `frontend/src/mocks/planDetail.ts` 中的节点与提醒示例，通过本地状态模拟按钮反馈，并在 `frontend/tests/planNodes.test.mjs` 中校验节点筛选逻辑。接口联调完成后将替换为真实调用并扩展单测覆盖接口错误分支。
 
-## 交付状态（2024-04-27）
+## 状态更新
 
-- ✅ 后端已实现上述四个接口，统一返回 `PlanDetailPayload`，在响应中附带节点执行状态、时间线及提醒策略快照。
-- ✅ 节点开始/完成接口支持请求体携带 `operatorId`，并会在审计日志内记录操作前后的计划详情。
-- ✅ 新增节点交接与提醒规则更新的审计与时间线事件，满足前端对责任人变更与提醒启停的提示需求。
+- 后端已交付节点执行与提醒更新接口，前端计划详情面板现已切换为真实调用并保留缓存回退逻辑，后续联调将重点验证错误码与权限提示。
+- 前端已完成权限/错误码联调，并补充失败态重试按钮、参数回填入口及时间线类别筛选提示；下一阶段将聚焦计划详情路由与列表筛选重构的协同规划。
