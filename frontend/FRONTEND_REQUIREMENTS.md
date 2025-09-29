@@ -22,5 +22,6 @@
 | F-002 | 计划详情与时间线视图 | `GET /api/v1/plans/{id}`、`GET /api/v1/plans/{id}/timeline` | 计划节点、附件、时间线事件的字段需确认必填项 | 🟡 规划中 | 🛠️ 开发中 | 已补充计划详情/时间线/提醒 Mock 样例与缓存策略单测，页面以占位组件展示数据结构 | 需要后端补充时间线事件类型说明，当前前端已上线节点树视图与字段归一化作为占位 |
 | F-003 | 提醒策略配置 | `GET /api/v1/plans/{id}/reminders`、`PUT /api/v1/plans/{id}/reminders` | 提醒渠道、触发时机、模板 ID 等字段 | 🛠️ 开发中 | 🟡 规划中 | 设计默认策略样例及更新成功响应 | 等待后端提供校验规则与错误码 |
 | F-004 | 计划统计驾驶舱 | `GET /api/v1/plans/analytics` | 按状态、负责人、逾期风险等聚合数据 | 🟡 规划中 | 🟡 规划中 | 参考阶段三文档构造统计 Mock | 需确认租户/时间范围参数 |
+| F-005 | 节点执行与提醒控制 | `POST /api/v1/plans/{id}/nodes/{nodeId}/{action}`、`PUT /api/v1/plans/{id}/reminders/{reminderId}` | 需返回最新 `PlanDetailPayload`（节点、时间线、提醒） | 🟡 规划中 | 🛠️ 开发中 | 前端使用本地状态模拟按钮效果，单测覆盖节点筛选 | 详见《docs/backend-requests/plan-node-operations.md》 |
 
 > 当条目状态发生变化时，请同步更新根目录 README 的「前端阶段四迭代进度」摘要。

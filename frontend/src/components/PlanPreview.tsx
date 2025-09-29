@@ -1,4 +1,4 @@
-import React, { type ReactNode } from '../../vendor/react/index.js';
+import React, { useEffect, useMemo, useState, type ReactNode } from '../../vendor/react/index.js';
 import {
   Alert,
   Button,
@@ -7,15 +7,25 @@ import {
   Tag,
   Typography,
 } from '../../vendor/antd/index.js';
-import type { PlanDetail, PlanReminderSummary, PlanSummary, PlanTimelineEntry } from '../api/types';
+import type {
+  PlanDetail,
+  PlanReminderChannel,
+  PlanReminderSummary,
+  PlanSummary,
+  PlanTimelineEntry,
+} from '../api/types';
 import type { ApiError } from '../api/client';
-import type { Locale } from '../i18n/localization';
+import type { Locale, UiMessageKey } from '../i18n/localization';
 import type { LocalizationState } from '../i18n/useLocalization';
 import { PLAN_STATUS_COLOR, PLAN_STATUS_LABEL } from '../constants/planStatus';
 import { PLAN_REMINDER_CHANNEL_COLOR, PLAN_REMINDER_CHANNEL_LABEL } from '../constants/planReminder';
 import { formatDateTime, formatPlanWindow } from '../utils/planFormatting';
 import type { PlanDetailState } from '../state/planDetail';
 import { PlanNodeTree } from './PlanNodeTree';
+import { PlanDetailSection } from './PlanDetailSection';
+import { PlanNodeActions, type PlanNodeActionIntent } from './PlanNodeActions';
+import { PlanReminderBoard } from './PlanReminderBoard';
+import { getActionablePlanNodes, type PlanNodeWithPath, type PlanNodeActionType } from '../utils/planNodes';
 
 const { Text, Paragraph } = Typography;
 
@@ -59,6 +69,97 @@ export function PlanPreview({
   const participantNames = detail
     ? detail.participants.map((participant) => participant.name)
     : plan?.participants ?? [];
+  const [pendingAction, setPendingAction] = useState<PlanNodeActionIntent | null>(null);
+  const [reminderDrafts, setReminderDrafts] = useState<Record<string, boolean>>({});
+  const [selectedReminderId, setSelectedReminderId] = useState<string | null>(null);
+  const [pendingReminderIntent, setPendingReminderIntent] = useState<ReminderActionIntent | null>(null);
+
+  useEffect(() => {
+    setPendingAction(null);
+    setReminderDrafts({});
+    setSelectedReminderId(null);
+    setPendingReminderIntent(null);
+  }, [detail?.id, plan?.id]);
+
+  const actionableNodes: PlanNodeWithPath[] = useMemo(
+    () => getActionablePlanNodes(nodes),
+    [nodes]
+  );
+
+  const effectiveReminders = useMemo(
+    () =>
+      reminders.map((reminder) => {
+        const override = reminderDrafts[reminder.id];
+        if (typeof override === 'boolean') {
+          return { ...reminder, active: override };
+        }
+        return reminder;
+      }),
+    [reminders, reminderDrafts]
+  );
+
+  const actionHelper = pendingAction
+    ? (
+        <Alert
+          type="info"
+          showIcon
+          message={translate('planDetailActionPending', {
+            action: translate(ACTION_LABEL_KEY[pendingAction.action]),
+            node: pendingAction.nodeName,
+          })}
+        />
+      )
+    : null;
+
+  const reminderHelper = pendingReminderIntent
+    ? (
+        <Alert
+          type="info"
+          showIcon
+          message={translate('planDetailReminderActionPending', {
+            action: translate(
+              pendingReminderIntent.action === 'edit'
+                ? 'planDetailReminderActionEdit'
+                : 'planDetailReminderActionToggle'
+            ),
+            channel: translate(PLAN_REMINDER_CHANNEL_LABEL[pendingReminderIntent.channel]),
+            offset: translate('planDetailReminderOffsetMinutes', {
+              minutes: pendingReminderIntent.offset,
+            }),
+          })}
+        />
+      )
+    : null;
+
+  const handleNodeAction = (intent: PlanNodeActionIntent) => {
+    setPendingAction(intent);
+  };
+
+  const handleReminderToggle = (reminder: PlanReminderSummary) => {
+    setReminderDrafts((current) => {
+      const currentActive = Object.prototype.hasOwnProperty.call(current, reminder.id)
+        ? current[reminder.id]
+        : reminder.active;
+      return { ...current, [reminder.id]: !currentActive };
+    });
+    setSelectedReminderId(reminder.id);
+    setPendingReminderIntent({
+      reminderId: reminder.id,
+      action: 'toggle',
+      channel: reminder.channel,
+      offset: reminder.offsetMinutes,
+    });
+  };
+
+  const handleReminderEdit = (reminder: PlanReminderSummary) => {
+    setSelectedReminderId(reminder.id);
+    setPendingReminderIntent({
+      reminderId: reminder.id,
+      action: 'edit',
+      channel: reminder.channel,
+      offset: reminder.offsetMinutes,
+    });
+  };
 
   return (
     <Card
@@ -172,93 +273,84 @@ export function PlanPreview({
             />
           ) : null}
           <div className="plan-preview-sections">
-            <section className="plan-preview-section plan-preview-nodes-section">
-              <div className="plan-preview-section-header">
-                <Text strong>{translate('planDetailNodesTitle')}</Text>
-              </div>
-              <DetailRemoteSection
-                status={detailStatus}
-                error={detailError}
+            <PlanDetailSection
+              title={translate('planDetailNodesTitle')}
+              status={detailStatus}
+              error={detailError}
+              translate={translate}
+              empty={detailStatus === 'success' && nodes.length === 0}
+              onRetry={onRefreshDetail}
+              errorDetail={detailErrorDetail}
+              emptyMessage={translate('planDetailNodesEmpty')}
+              className="plan-preview-nodes-section"
+            >
+              <PlanNodeTree nodes={nodes} translate={translate} locale={locale} />
+            </PlanDetailSection>
+            <PlanDetailSection
+              title={translate('planDetailActionsTitle')}
+              status={detailStatus}
+              error={detailError}
+              translate={translate}
+              empty={actionableNodes.length === 0}
+              onRetry={onRefreshDetail}
+              errorDetail={detailErrorDetail}
+              emptyMessage={translate('planDetailActionsEmpty')}
+              helper={actionHelper}
+            >
+              <PlanNodeActions
+                candidates={actionableNodes}
                 translate={translate}
-                empty={detailStatus === 'success' && nodes.length === 0}
-                onRetry={onRefreshDetail}
-                errorDetail={detailErrorDetail}
-                emptyMessage={translate('planDetailNodesEmpty')}
-              >
-                <PlanNodeTree nodes={nodes} translate={translate} locale={locale} />
-              </DetailRemoteSection>
-            </section>
-            <section>
-              <div className="plan-preview-section-header">
-                <Text strong>{translate('planDetailTimelineTitle')}</Text>
-              </div>
-              <DetailRemoteSection
-                status={detailStatus}
-                error={detailError}
-                translate={translate}
-                empty={timeline.length === 0}
-                onRetry={onRefreshDetail}
-                errorDetail={detailErrorDetail}
-                emptyMessage={translate('planDetailTimelineEmpty')}
-              >
-                <ul className="plan-preview-timeline">
-                  {timeline.map((entry) => (
-                    <li key={entry.id} className="plan-preview-timeline-item">
-                      <div className="plan-preview-timeline-time">
-                        {formatDateTime(entry.occurredAt, locale) ?? entry.occurredAt}
-                      </div>
-                      <div className="plan-preview-timeline-body">
-                        <Text>{entry.message}</Text>
-                        {entry.actor ? (
-                          <Tag color="cyan" className="plan-preview-timeline-actor">
-                            {entry.actor.name}
-                          </Tag>
-                        ) : null}
-                      </div>
-                    </li>
-                  ))}
-                </ul>
-              </DetailRemoteSection>
-            </section>
-            <section>
-              <div className="plan-preview-section-header">
-                <Text strong>{translate('planDetailRemindersTitle')}</Text>
-              </div>
-              <DetailRemoteSection
-                status={detailStatus}
-                error={detailError}
-                translate={translate}
-                empty={reminders.length === 0}
-                onRetry={onRefreshDetail}
-                errorDetail={detailErrorDetail}
-                emptyMessage={translate('planDetailRemindersEmpty')}
-              >
-                <ul className="plan-preview-reminders">
-                  {reminders.map((reminder) => (
-                    <li key={reminder.id} className="plan-preview-reminders-item">
-                      <Space size="small" align="center" wrap>
-                        <Tag color={PLAN_REMINDER_CHANNEL_COLOR[reminder.channel]}>
-                          {translate(PLAN_REMINDER_CHANNEL_LABEL[reminder.channel])}
+                onAction={handleNodeAction}
+                pendingAction={pendingAction}
+              />
+            </PlanDetailSection>
+            <PlanDetailSection
+              title={translate('planDetailTimelineTitle')}
+              status={detailStatus}
+              error={detailError}
+              translate={translate}
+              empty={timeline.length === 0}
+              onRetry={onRefreshDetail}
+              errorDetail={detailErrorDetail}
+              emptyMessage={translate('planDetailTimelineEmpty')}
+            >
+              <ul className="plan-preview-timeline">
+                {timeline.map((entry) => (
+                  <li key={entry.id} className="plan-preview-timeline-item">
+                    <div className="plan-preview-timeline-time">
+                      {formatDateTime(entry.occurredAt, locale) ?? entry.occurredAt}
+                    </div>
+                    <div className="plan-preview-timeline-body">
+                      <Text>{entry.message}</Text>
+                      {entry.actor ? (
+                        <Tag color="cyan" className="plan-preview-timeline-actor">
+                          {entry.actor.name}
                         </Tag>
-                        <Text>
-                          {translate('planDetailReminderOffsetMinutes', {
-                            minutes: reminder.offsetMinutes,
-                          })}
-                        </Text>
-                        {!reminder.active ? (
-                          <Tag color="default">{translate('planDetailReminderInactive')}</Tag>
-                        ) : null}
-                      </Space>
-                      {reminder.description ? (
-                        <Text type="secondary" className="plan-preview-reminder-description">
-                          {reminder.description}
-                        </Text>
                       ) : null}
-                    </li>
-                  ))}
-                </ul>
-              </DetailRemoteSection>
-            </section>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            </PlanDetailSection>
+            <PlanDetailSection
+              title={translate('planDetailRemindersTitle')}
+              status={detailStatus}
+              error={detailError}
+              translate={translate}
+              empty={effectiveReminders.length === 0}
+              onRetry={onRefreshDetail}
+              errorDetail={detailErrorDetail}
+              emptyMessage={translate('planDetailRemindersEmpty')}
+              helper={reminderHelper}
+            >
+              <PlanReminderBoard
+                reminders={effectiveReminders}
+                translate={translate}
+                onEdit={handleReminderEdit}
+                onToggle={handleReminderToggle}
+                selectedReminderId={selectedReminderId}
+              />
+            </PlanDetailSection>
           </div>
         </Space>
       )}
@@ -289,65 +381,15 @@ function normalizeProgress(value: number | undefined): number {
   return Math.max(0, Math.min(100, Math.round(value ?? 0)));
 }
 
-type DetailRemoteSectionProps = {
-  status: 'idle' | 'loading' | 'success';
-  error: ApiError | null;
-  translate: LocalizationState['translate'];
-  empty: boolean;
-  onRetry: () => void;
-  children: ReactNode;
-  errorDetail: string | null;
-  emptyMessage: string;
+const ACTION_LABEL_KEY: Record<PlanNodeActionType, UiMessageKey> = {
+  start: 'planDetailActionStart',
+  complete: 'planDetailActionComplete',
+  handover: 'planDetailActionHandover',
 };
 
-function DetailRemoteSection({
-  status,
-  error,
-  translate,
-  empty,
-  onRetry,
-  children,
-  errorDetail,
-  emptyMessage,
-}: DetailRemoteSectionProps) {
-  if (status === 'loading') {
-    return (
-      <Alert
-        type="info"
-        showIcon
-        message={translate('commonStateLoadingTitle')}
-        description={translate('commonStateLoadingDescription')}
-      />
-    );
-  }
-
-  if (error) {
-    return (
-      <Space direction="vertical" size="small" style={{ width: '100%' }}>
-        <Alert
-          type="error"
-          showIcon
-          message={translate('commonStateErrorTitle')}
-          description={errorDetail ?? translate('commonStateErrorDescription')}
-        />
-        <div>
-          <Button type="primary" size="small" onClick={onRetry}>
-            {translate('commonStateRetry')}
-          </Button>
-        </div>
-      </Space>
-    );
-  }
-
-  if (empty) {
-    return (
-      <Alert
-        type="warning"
-        showIcon
-        message={emptyMessage}
-      />
-    );
-  }
-
-  return <>{children}</>;
-}
+type ReminderActionIntent = {
+  reminderId: string;
+  action: 'edit' | 'toggle';
+  channel: PlanReminderChannel;
+  offset: number;
+};
