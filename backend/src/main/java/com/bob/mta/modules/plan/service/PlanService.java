@@ -54,4 +54,6 @@ public interface PlanService {
     PlanAnalytics getAnalytics(String tenantId, String customerId, OffsetDateTime from, OffsetDateTime to);
 
     List<PlanActivityDescriptor> describeActivities();
+
+    PlanReminderConfigurationDescriptor describeReminderOptions();
 }

@@ -24,6 +24,7 @@ import com.bob.mta.modules.plan.dto.PlanHandoverRequest;
 import com.bob.mta.modules.plan.dto.PlanReminderPolicyRequest;
 import com.bob.mta.modules.plan.dto.PlanReminderPolicyResponse;
 import com.bob.mta.modules.plan.dto.PlanReminderPreviewResponse;
+import com.bob.mta.modules.plan.dto.PlanReminderOptionsResponse;
 import com.bob.mta.modules.plan.dto.PlanReminderRuleRequest;
 import com.bob.mta.modules.plan.dto.PlanReminderUpdateRequest;
 import com.bob.mta.modules.plan.dto.PlanSummaryResponse;
@@ -106,6 +107,13 @@ public class PlanController {
                 .map(descriptor -> PlanActivityTypeMetadataResponse.from(descriptor, messageResolver))
                 .toList();
         return ApiResponse.success(descriptors);
+    }
+
+    @PreAuthorize("hasAnyRole('ADMIN','OPERATOR')")
+    @GetMapping("/reminder-options")
+    public ApiResponse<PlanReminderOptionsResponse> reminderOptions() {
+        return ApiResponse.success(PlanReminderOptionsResponse.from(
+                planService.describeReminderOptions(), messageResolver));
     }
 
     @PreAuthorize("hasAnyRole('ADMIN','OPERATOR')")

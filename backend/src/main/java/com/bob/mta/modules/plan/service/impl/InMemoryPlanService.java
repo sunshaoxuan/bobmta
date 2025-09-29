@@ -20,6 +20,8 @@ import com.bob.mta.modules.plan.repository.PlanAnalyticsQuery;
 import com.bob.mta.modules.plan.repository.PlanAnalyticsRepository;
 import com.bob.mta.modules.plan.repository.PlanRepository;
 import com.bob.mta.modules.plan.repository.PlanSearchCriteria;
+import com.bob.mta.modules.plan.service.PlanActivityDescriptor;
+import com.bob.mta.modules.plan.service.PlanReminderConfigurationDescriptor;
 import com.bob.mta.modules.plan.service.PlanService;
 import com.bob.mta.modules.plan.service.PlanSearchResult;
 import com.bob.mta.modules.plan.service.command.CreatePlanCommand;
@@ -546,6 +548,49 @@ public class InMemoryPlanService implements PlanService {
     @Override
     public List<PlanActivityDescriptor> describeActivities() {
         return ACTIVITY_DESCRIPTORS;
+    }
+
+    @Override
+    public PlanReminderConfigurationDescriptor describeReminderOptions() {
+        List<PlanReminderConfigurationDescriptor.Option> triggers = List.of(
+                new PlanReminderConfigurationDescriptor.Option(
+                        PlanReminderTrigger.BEFORE_PLAN_START.name(),
+                        LocalizationKeys.PlanReminder.TRIGGER_BEFORE_START,
+                        LocalizationKeys.PlanReminder.TRIGGER_BEFORE_START_DESC),
+                new PlanReminderConfigurationDescriptor.Option(
+                        PlanReminderTrigger.BEFORE_PLAN_END.name(),
+                        LocalizationKeys.PlanReminder.TRIGGER_BEFORE_END,
+                        LocalizationKeys.PlanReminder.TRIGGER_BEFORE_END_DESC)
+        );
+        List<PlanReminderConfigurationDescriptor.Option> channels = List.of(
+                new PlanReminderConfigurationDescriptor.Option(
+                        "EMAIL",
+                        LocalizationKeys.PlanReminder.CHANNEL_EMAIL,
+                        LocalizationKeys.PlanReminder.CHANNEL_EMAIL_DESC),
+                new PlanReminderConfigurationDescriptor.Option(
+                        "IM",
+                        LocalizationKeys.PlanReminder.CHANNEL_IM,
+                        LocalizationKeys.PlanReminder.CHANNEL_IM_DESC),
+                new PlanReminderConfigurationDescriptor.Option(
+                        "SMS",
+                        LocalizationKeys.PlanReminder.CHANNEL_SMS,
+                        LocalizationKeys.PlanReminder.CHANNEL_SMS_DESC)
+        );
+        List<PlanReminderConfigurationDescriptor.Option> recipientGroups = List.of(
+                new PlanReminderConfigurationDescriptor.Option(
+                        "OWNER",
+                        LocalizationKeys.PlanReminder.RECIPIENT_OWNER,
+                        LocalizationKeys.PlanReminder.RECIPIENT_OWNER_DESC),
+                new PlanReminderConfigurationDescriptor.Option(
+                        "PARTICIPANTS",
+                        LocalizationKeys.PlanReminder.RECIPIENT_PARTICIPANTS,
+                        LocalizationKeys.PlanReminder.RECIPIENT_PARTICIPANTS_DESC),
+                new PlanReminderConfigurationDescriptor.Option(
+                        "CUSTOM",
+                        LocalizationKeys.PlanReminder.RECIPIENT_CUSTOM,
+                        LocalizationKeys.PlanReminder.RECIPIENT_CUSTOM_DESC)
+        );
+        return new PlanReminderConfigurationDescriptor(triggers, channels, recipientGroups, 0, 1440, 60);
     }
 
     private Plan buildPlan(String id, CreatePlanCommand command, OffsetDateTime now) {

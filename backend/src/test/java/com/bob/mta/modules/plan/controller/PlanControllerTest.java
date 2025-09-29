@@ -28,6 +28,7 @@ import com.bob.mta.modules.plan.repository.InMemoryPlanRepository;
 import com.bob.mta.modules.plan.service.impl.InMemoryPlanService;
 import com.bob.mta.modules.plan.service.command.CreatePlanCommand;
 import com.bob.mta.modules.plan.service.command.PlanNodeCommand;
+import com.bob.mta.i18n.LocalizationKeys;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -251,6 +252,29 @@ class PlanControllerTest {
         var logs = auditService.query(new AuditQuery("Plan", planId, "UPDATE_PLAN_REMINDERS", "admin"));
         assertThat(logs).hasSize(1);
         assertThat(logs.get(0).getNewData()).contains("custom-template");
+    }
+
+    @Test
+    void reminderOptionsShouldReturnLocalizedDictionary() {
+        var options = controller.reminderOptions().getData();
+
+        assertThat(options.getTriggers())
+                .extracting(com.bob.mta.modules.plan.dto.PlanReminderOptionsResponse.Option::getId)
+                .contains("BEFORE_PLAN_START", "BEFORE_PLAN_END");
+
+        String expectedEmail = messageResolver.getMessage(LocalizationKeys.PlanReminder.CHANNEL_EMAIL);
+        assertThat(options.getChannels())
+                .anySatisfy(option -> {
+                    if ("EMAIL".equals(option.getId())) {
+                        assertThat(option.getLabel()).isEqualTo(expectedEmail);
+                        assertThat(option.getDescription())
+                                .isEqualTo(messageResolver.getMessage(LocalizationKeys.PlanReminder.CHANNEL_EMAIL_DESC));
+                    }
+                });
+
+        assertThat(options.getMinOffsetMinutes()).isZero();
+        assertThat(options.getMaxOffsetMinutes()).isEqualTo(1440);
+        assertThat(options.getDefaultOffsetMinutes()).isEqualTo(60);
     }
 
     @Test
