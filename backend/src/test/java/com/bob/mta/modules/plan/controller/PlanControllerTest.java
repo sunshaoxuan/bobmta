@@ -12,11 +12,15 @@ import com.bob.mta.modules.plan.domain.PlanActivityType;
 import com.bob.mta.modules.plan.domain.PlanReminderTrigger;
 import com.bob.mta.modules.plan.dto.CancelPlanRequest;
 import com.bob.mta.modules.plan.dto.CompleteNodeRequest;
+import com.bob.mta.modules.plan.dto.PlanActivityResponse;
 import com.bob.mta.modules.plan.dto.PlanDetailResponse;
 import com.bob.mta.modules.plan.dto.PlanHandoverRequest;
 import com.bob.mta.modules.plan.dto.PlanNodeAttachmentResponse;
+import com.bob.mta.modules.plan.dto.PlanNodeHandoverRequest;
+import com.bob.mta.modules.plan.dto.PlanNodeStartRequest;
 import com.bob.mta.modules.plan.dto.PlanReminderPolicyRequest;
 import com.bob.mta.modules.plan.dto.PlanReminderRuleRequest;
+import com.bob.mta.modules.plan.dto.PlanReminderUpdateRequest;
 import com.bob.mta.modules.plan.dto.PlanSummaryResponse;
 import com.bob.mta.modules.plan.repository.InMemoryPlanAnalyticsRepository;
 import com.bob.mta.modules.plan.repository.InMemoryPlanRepository;
@@ -175,18 +179,25 @@ class PlanControllerTest {
         String nodeId = planService.getPlan(planId).getExecutions().get(0).getNodeId();
         authenticate("admin");
         controller.publish(planId);
-        controller.startNode(planId, nodeId);
+        PlanNodeStartRequest startRequest = new PlanNodeStartRequest();
+        startRequest.setOperatorId("admin");
+        controller.startNode(planId, nodeId, startRequest);
         var file = fileService.register("evidence.log", "text/plain", 128, "plan-files", "PLAN_NODE", nodeId,
                 "admin");
         CompleteNodeRequest request = new CompleteNodeRequest();
-        request.setResult("完成");
+        request.setOperatorId("admin");
+        request.setResultSummary("完成");
         request.setLog("上传巡检记录");
         request.setFileIds(List.of(file.getId()));
 
-        controller.completeNode(planId, nodeId, request);
-
-        PlanDetailResponse response = controller.detail(planId).getData();
-        PlanNodeAttachmentResponse attachment = response.getNodes().get(0).getExecution().getAttachments().get(0);
+        PlanDetailResponse response = controller.completeNode(planId, nodeId, request).getData();
+        PlanNodeAttachmentResponse attachment = response.getNodes().stream()
+                .filter(node -> node.getId().equals(nodeId))
+                .findFirst()
+                .orElseThrow()
+                .getExecution()
+                .getAttachments()
+                .get(0);
         assertThat(attachment.getId()).isEqualTo(file.getId());
         assertThat(attachment.getDownloadUrl()).isEqualTo(fileService.buildDownloadUrl(file));
     }
@@ -304,7 +315,9 @@ class PlanControllerTest {
         authenticate("operator");
         controller.publish(planId);
 
-        controller.startNode(planId, nodeId);
+        PlanNodeStartRequest request = new PlanNodeStartRequest();
+        request.setOperatorId("operator");
+        controller.startNode(planId, nodeId, request);
 
         var logs = auditService.query(new AuditQuery("PlanNode", planId + "::" + nodeId, "START_NODE", "operator"));
         assertThat(logs).hasSize(1);
@@ -318,26 +331,92 @@ class PlanControllerTest {
         String nodeId = planService.getPlan(planId).getExecutions().get(0).getNodeId();
         authenticate("operator");
         controller.publish(planId);
-        controller.startNode(planId, nodeId);
+        PlanNodeStartRequest startRequest = new PlanNodeStartRequest();
+        startRequest.setOperatorId("operator");
+        controller.startNode(planId, nodeId, startRequest);
         var file = fileService.register("result.txt", "text/plain", 256, "plan-files", "PLAN_NODE", nodeId,
                 "operator");
         CompleteNodeRequest request = new CompleteNodeRequest();
-        request.setResult("巡检完成");
+        request.setOperatorId("operator");
+        request.setResultSummary("巡检完成");
         request.setLog("一切正常");
         request.setFileIds(List.of(file.getId()));
 
-        var response = controller.completeNode(planId, nodeId, request).getData();
+        PlanDetailResponse response = controller.completeNode(planId, nodeId, request).getData();
 
         var logs = auditService.query(new AuditQuery("PlanNode", planId + "::" + nodeId, "COMPLETE_NODE", "operator"));
         assertThat(logs).hasSize(1);
         AuditLog log = logs.get(0);
         assertThat(log.getOldData()).contains("\"status\":\"IN_PROGRESS\"");
         assertThat(log.getNewData()).contains("\"status\":\"DONE\"");
-        assertThat(response.getAttachments())
-                .extracting(PlanNodeAttachmentResponse::getId)
-                .contains(file.getId());
-        assertThat(response.getAttachments().get(0).getDownloadUrl())
+        PlanNodeAttachmentResponse attachment = response.getNodes().stream()
+                .filter(node -> node.getId().equals(nodeId))
+                .findFirst()
+                .orElseThrow()
+                .getExecution()
+                .getAttachments()
+                .get(0);
+        assertThat(attachment.getId()).isEqualTo(file.getId());
+        assertThat(attachment.getDownloadUrl())
                 .isEqualTo(fileService.buildDownloadUrl(file));
+    }
+
+    @Test
+    void handoverNodeShouldUpdateAssigneeAndTimeline() {
+        String planId = planService.listPlans(null, null, null, null, null, null, null, 0, 10).plans().get(0).getId();
+        String nodeId = planService.getPlan(planId).getExecutions().get(0).getNodeId();
+        authenticate("operator");
+        controller.publish(planId);
+
+        PlanNodeHandoverRequest request = new PlanNodeHandoverRequest();
+        request.setOperatorId("operator");
+        request.setAssigneeId("new-operator");
+        request.setComment("交接说明");
+
+        PlanDetailResponse response = controller.handoverNode(planId, nodeId, request).getData();
+
+        String updatedAssignee = response.getNodes().stream()
+                .filter(node -> node.getId().equals(nodeId))
+                .findFirst()
+                .orElseThrow()
+                .getAssignee();
+        assertThat(updatedAssignee).isEqualTo("new-operator");
+        assertThat(response.getTimeline())
+                .extracting(PlanActivityResponse::getType)
+                .contains(PlanActivityType.NODE_HANDOVER);
+
+        var logs = auditService.query(new AuditQuery("PlanNode", planId + "::" + nodeId, "HANDOVER_NODE", "operator"));
+        assertThat(logs).hasSize(1);
+        assertThat(logs.get(0).getNewData()).contains("new-operator");
+    }
+
+    @Test
+    void updateReminderRuleShouldToggleActiveAndOffset() {
+        String planId = planService.listPlans(null, null, null, null, null, null, null, 0, 10).plans().get(0).getId();
+        authenticate("admin");
+        PlanDetailResponse before = controller.detail(planId).getData();
+        String reminderId = before.getReminderPolicy().getRules().get(0).getId();
+
+        PlanReminderUpdateRequest request = new PlanReminderUpdateRequest();
+        request.setActive(false);
+        request.setOffsetMinutes(999);
+
+        PlanDetailResponse response = controller.updateReminderRule(planId, reminderId, request).getData();
+
+        var updatedRule = response.getReminderPolicy().getRules().stream()
+                .filter(rule -> reminderId.equals(rule.getId()))
+                .findFirst()
+                .orElseThrow();
+        assertThat(updatedRule.isActive()).isFalse();
+        assertThat(updatedRule.getOffsetMinutes()).isEqualTo(999);
+        assertThat(response.getTimeline())
+                .extracting(PlanActivityResponse::getType)
+                .contains(PlanActivityType.REMINDER_POLICY_UPDATED);
+
+        var logs = auditService.query(new AuditQuery("PlanReminder", planId + "::" + reminderId,
+                "UPDATE_REMINDER", "admin"));
+        assertThat(logs).hasSize(1);
+        assertThat(logs.get(0).getNewData()).contains("\"offsetMinutes\":999");
     }
 
     private void authenticate(String username) {

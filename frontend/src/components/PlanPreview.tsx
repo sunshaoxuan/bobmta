@@ -906,3 +906,16 @@ function getDefaultAssigneeId({ detail, node }: AssigneeSelectionOptions): strin
   const fallback = participants.find((participant) => participant.id !== currentAssignee);
   return fallback?.id ?? currentAssignee ?? participants[0]?.id ?? null;
 }
+
+const ACTION_LABEL_KEY: Record<PlanNodeActionType, UiMessageKey> = {
+  start: 'planDetailActionStart',
+  complete: 'planDetailActionComplete',
+  handover: 'planDetailActionHandover',
+};
+
+type ReminderActionIntent = {
+  reminderId: string;
+  action: 'edit' | 'toggle';
+  channel: PlanReminderChannel;
+  offset: number;
+};
