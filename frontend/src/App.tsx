@@ -2,6 +2,7 @@ import React, {
   useCallback,
   useEffect,
   useMemo,
+  useRef,
   useState,
   type ReactNode,
 } from '../vendor/react/index.js';
@@ -49,6 +50,11 @@ import {
 } from './state/session';
 import { formatDateTime, formatPlanWindow } from './utils/planFormatting';
 import { formatApiErrorMessage } from './utils/apiErrors';
+import {
+  buildPlanDetailSearch,
+  parsePlanDetailUrlState,
+  type PlanDetailUrlState,
+} from './utils/planDetailUrl';
 
 const { Header, Content } = Layout;
 const { Title, Paragraph, Text } = Typography;
@@ -79,17 +85,33 @@ function AppView({ client, localization, session, planList, planDetail }: AppVie
     updateReminder: updatePlanReminder,
     setTimelineCategoryFilter,
   } = planDetail;
+  const initialUrlStateRef = useRef<PlanDetailUrlState | null>(null);
+  if (initialUrlStateRef.current === null) {
+    initialUrlStateRef.current =
+      typeof window === 'undefined'
+        ? { planId: null, timelineCategory: null, hasTimelineCategory: false }
+        : parsePlanDetailUrlState(window.location.search);
+  }
+  const initialUrlState = initialUrlStateRef.current;
+  const [previewPlanId, setPreviewPlanId] = useState<string | null>(initialUrlState.planId);
+  const pendingTimelineCategoryRef = useRef<{ value: string | null; pending: boolean }>({
+    value: initialUrlState.timelineCategory,
+    pending: initialUrlState.hasTimelineCategory,
+  });
   const [credentials, setCredentials] = useState<CredentialsState>({
     username: '',
     password: '',
   });
   const [pingError, setPingError] = useState<ApiError | null>(null);
   const [ping, setPing] = useState<{ status: string } | null>(null);
-  const [previewPlanId, setPreviewPlanId] = useState<string | null>(null);
   const describeRemoteError = useCallback(
     (error: ApiError | null) => formatApiErrorMessage(error, translate),
     [translate]
   );
+
+  const queueTimelineCategory = useCallback((value: string | null, shouldApply: boolean) => {
+    pendingTimelineCategoryRef.current = { value, pending: shouldApply };
+  }, []);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -230,6 +252,68 @@ function AppView({ client, localization, session, planList, planDetail }: AppVie
   useEffect(() => {
     void selectPlanDetail(previewPlanId);
   }, [previewPlanId, selectPlanDetail]);
+
+  useEffect(() => {
+    const initial = initialUrlStateRef.current;
+    if (!initial || !initial.hasTimelineCategory) {
+      return;
+    }
+    setTimelineCategoryFilter(initial.timelineCategory);
+  }, [setTimelineCategoryFilter]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') {
+      return;
+    }
+    const handlePopState = () => {
+      const next = parsePlanDetailUrlState(window.location.search);
+      setPreviewPlanId(next.planId);
+      queueTimelineCategory(next.timelineCategory, true);
+      setTimelineCategoryFilter(next.timelineCategory);
+    };
+    window.addEventListener('popstate', handlePopState);
+    return () => {
+      window.removeEventListener('popstate', handlePopState);
+    };
+  }, [queueTimelineCategory, setTimelineCategoryFilter]);
+
+  useEffect(() => {
+    if (!planDetailState.activePlanId) {
+      return;
+    }
+    if (planDetailState.activePlanId !== previewPlanId) {
+      return;
+    }
+    const snapshot = pendingTimelineCategoryRef.current;
+    if (!snapshot || !snapshot.pending) {
+      return;
+    }
+    setTimelineCategoryFilter(snapshot.value);
+    pendingTimelineCategoryRef.current = { value: snapshot.value, pending: false };
+  }, [planDetailState.activePlanId, previewPlanId, setTimelineCategoryFilter]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') {
+      return;
+    }
+    const activeTimelineCategory =
+      planDetailState.activePlanId && planDetailState.activePlanId === previewPlanId
+        ? planDetailState.filters.timeline.activeCategory
+        : null;
+    const nextSearch = buildPlanDetailSearch(window.location.search, {
+      planId: previewPlanId,
+      timelineCategory: activeTimelineCategory,
+    });
+    if (nextSearch === window.location.search) {
+      return;
+    }
+    const nextUrl = `${window.location.pathname}${nextSearch}${window.location.hash}`;
+    window.history.replaceState(null, '', nextUrl);
+  }, [
+    planDetailState.activePlanId,
+    planDetailState.filters.timeline.activeCategory,
+    previewPlanId,
+  ]);
 
   const availableOwners = useMemo(() => {
     const ownerSet = new Set<string>();
