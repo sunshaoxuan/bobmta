@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.bob.mta.common.i18n.persistence.MultilingualTextMapper">
+
+    <resultMap id="MultilingualTextResultMap" type="com.bob.mta.common.i18n.persistence.MultilingualTextEntity">
+        <id property="scope" column="scope" javaType="com.bob.mta.common.i18n.MultilingualTextScope"/>
+        <result property="entityId" column="entity_id"/>
+        <result property="field" column="field"/>
+        <result property="defaultLocale" column="default_locale"/>
+        <result property="translations" column="translations"
+                typeHandler="com.bob.mta.common.mybatis.StringMapJsonTypeHandler"/>
+        <result property="updatedAt" column="updated_at"/>
+    </resultMap>
+
+    <select id="find" parameterType="map"
+            resultMap="MultilingualTextResultMap">
+        SELECT scope,
+               entity_id,
+               field,
+               default_locale,
+               translations,
+               updated_at
+        FROM mt_multilingual_texts
+        WHERE scope = #{scope}
+          AND entity_id = #{entityId}
+          AND field = #{field}
+    </select>
+
+    <update id="update" parameterType="com.bob.mta.common.i18n.persistence.MultilingualTextEntity">
+        UPDATE mt_multilingual_texts
+        SET default_locale = #{defaultLocale},
+            translations = #{translations, typeHandler=com.bob.mta.common.mybatis.StringMapJsonTypeHandler},
+            updated_at = #{updatedAt}
+        WHERE scope = #{scope}
+          AND entity_id = #{entityId}
+          AND field = #{field}
+    </update>
+
+    <insert id="insert" parameterType="com.bob.mta.common.i18n.persistence.MultilingualTextEntity">
+        INSERT INTO mt_multilingual_texts (scope, entity_id, field, default_locale, translations, updated_at)
+        VALUES (#{scope},
+                #{entityId},
+                #{field},
+                #{defaultLocale},
+                #{translations, typeHandler=com.bob.mta.common.mybatis.StringMapJsonTypeHandler},
+                #{updatedAt})
+    </insert>
+</mapper>

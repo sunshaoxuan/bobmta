@@ -71,7 +71,6 @@ function AppView({ client, localization, session, planList }: AppViewProps) {
   const [pingError, setPingError] = useState<ApiError | null>(null);
   const [ping, setPing] = useState<{ status: string } | null>(null);
   const [previewPlanId, setPreviewPlanId] = useState<string | null>(null);
-
   const describeRemoteError = useCallback(
     (error: ApiError | null) => {
       if (!error) {
@@ -241,6 +240,7 @@ function AppView({ client, localization, session, planList }: AppViewProps) {
       })),
     [availableLocales]
   );
+}
 
   return (
     <Layout className="app-layout">
@@ -516,5 +516,4 @@ function App() {
     </ConfigProvider>
   );
 }
-
 export default App;
