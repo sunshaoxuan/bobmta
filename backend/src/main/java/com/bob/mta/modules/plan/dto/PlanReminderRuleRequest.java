@@ -27,6 +27,8 @@ public class PlanReminderRuleRequest {
 
     private String description;
 
+    private Boolean active;
+
     public String getId() {
         return id;
     }
@@ -81,5 +83,13 @@ public class PlanReminderRuleRequest {
 
     public void setDescription(String description) {
         this.description = description;
+    }
+
+    public Boolean getActive() {
+        return active;
+    }
+
+    public void setActive(Boolean active) {
+        this.active = active;
     }
 }

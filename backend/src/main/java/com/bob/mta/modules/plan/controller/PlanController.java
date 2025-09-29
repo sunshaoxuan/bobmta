@@ -7,7 +7,6 @@ import com.bob.mta.modules.audit.service.AuditRecorder;
 import com.bob.mta.modules.file.domain.FileMetadata;
 import com.bob.mta.modules.file.service.FileService;
 import com.bob.mta.modules.plan.domain.Plan;
-import com.bob.mta.modules.plan.domain.PlanNodeExecution;
 import com.bob.mta.modules.plan.domain.PlanReminderRule;
 import com.bob.mta.modules.plan.domain.PlanStatus;
 import com.bob.mta.modules.plan.dto.CancelPlanRequest;
@@ -17,13 +16,15 @@ import com.bob.mta.modules.plan.dto.PlanActivityResponse;
 import com.bob.mta.modules.plan.dto.PlanAnalyticsResponse;
 import com.bob.mta.modules.plan.dto.PlanDetailResponse;
 import com.bob.mta.modules.plan.dto.PlanNodeAttachmentResponse;
-import com.bob.mta.modules.plan.dto.PlanNodeExecutionResponse;
+import com.bob.mta.modules.plan.dto.PlanNodeHandoverRequest;
 import com.bob.mta.modules.plan.dto.PlanNodeRequest;
+import com.bob.mta.modules.plan.dto.PlanNodeStartRequest;
 import com.bob.mta.modules.plan.dto.PlanHandoverRequest;
 import com.bob.mta.modules.plan.dto.PlanReminderPolicyRequest;
 import com.bob.mta.modules.plan.dto.PlanReminderPolicyResponse;
 import com.bob.mta.modules.plan.dto.PlanReminderPreviewResponse;
 import com.bob.mta.modules.plan.dto.PlanReminderRuleRequest;
+import com.bob.mta.modules.plan.dto.PlanReminderUpdateRequest;
 import com.bob.mta.modules.plan.dto.PlanSummaryResponse;
 import com.bob.mta.modules.plan.dto.UpdatePlanRequest;
 import com.bob.mta.i18n.Localization;
@@ -133,6 +134,22 @@ public class PlanController {
     }
 
     @PreAuthorize("hasAnyRole('ADMIN','OPERATOR')")
+    @PutMapping("/{planId}/reminders/{reminderId}")
+    public ApiResponse<PlanDetailResponse> updateReminderRule(@PathVariable String planId,
+                                                              @PathVariable String reminderId,
+                                                              @Valid @RequestBody PlanReminderUpdateRequest request) {
+        Plan before = planService.getPlan(planId);
+        PlanDetailResponse beforeSnapshot = toDetailResponse(before);
+        String operator = resolveOperator(null);
+        Plan updated = planService.updateReminderRule(planId, reminderId, request.getActive(),
+                request.getOffsetMinutes(), operator);
+        PlanDetailResponse afterSnapshot = toDetailResponse(updated);
+        auditRecorder.record("PlanReminder", planId + "::" + reminderId, "UPDATE_REMINDER",
+                messageResolver.getMessage("audit.plan.reminder.update"), beforeSnapshot, afterSnapshot);
+        return ApiResponse.success(afterSnapshot);
+    }
+
+    @PreAuthorize("hasAnyRole('ADMIN','OPERATOR')")
     @GetMapping("/{id}/reminders/preview")
     public ApiResponse<List<PlanReminderPreviewResponse>> previewReminders(@PathVariable String id,
                                                                            @RequestParam(required = false)
@@ -239,29 +256,50 @@ public class PlanController {
 
     @PreAuthorize("hasAnyRole('ADMIN','OPERATOR')")
     @PostMapping("/{planId}/nodes/{nodeId}/start")
-    public ApiResponse<PlanNodeExecutionResponse> startNode(@PathVariable String planId,
-                                                             @PathVariable String nodeId) {
-        PlanNodeExecutionResponse before = snapshotExecution(planId, nodeId);
-        PlanNodeExecution execution = planService.startNode(planId, nodeId, currentUsername());
-        PlanNodeExecutionResponse after = PlanNodeExecutionResponse.from(execution, this::resolveAttachments);
+    public ApiResponse<PlanDetailResponse> startNode(@PathVariable String planId,
+                                                     @PathVariable String nodeId,
+                                                     @Valid @RequestBody PlanNodeStartRequest request) {
+        Plan before = planService.getPlan(planId);
+        PlanDetailResponse beforeSnapshot = toDetailResponse(before);
+        String operator = resolveOperator(request.getOperatorId());
+        Plan updated = planService.startNode(planId, nodeId, operator);
+        PlanDetailResponse afterSnapshot = toDetailResponse(updated);
         auditRecorder.record("PlanNode", planId + "::" + nodeId, "START_NODE",
-                messageResolver.getMessage("audit.plan.startNode"), before, after);
-        return ApiResponse.success(after);
+                messageResolver.getMessage("audit.plan.startNode"), beforeSnapshot, afterSnapshot);
+        return ApiResponse.success(afterSnapshot);
     }
 
     @PreAuthorize("hasAnyRole('ADMIN','OPERATOR')")
     @PostMapping("/{planId}/nodes/{nodeId}/complete")
-    public ApiResponse<PlanNodeExecutionResponse> completeNode(@PathVariable String planId,
-                                                                @PathVariable String nodeId,
-                                                                @Valid @RequestBody CompleteNodeRequest request) {
-        PlanNodeExecutionResponse before = snapshotExecution(planId, nodeId);
-        PlanNodeExecution execution = planService.completeNode(planId, nodeId, currentUsername(),
+    public ApiResponse<PlanDetailResponse> completeNode(@PathVariable String planId,
+                                                        @PathVariable String nodeId,
+                                                        @Valid @RequestBody CompleteNodeRequest request) {
+        Plan before = planService.getPlan(planId);
+        PlanDetailResponse beforeSnapshot = toDetailResponse(before);
+        String operator = resolveOperator(request.getOperatorId());
+        Plan updated = planService.completeNode(planId, nodeId, operator,
                 request.getResult(), request.getLog(), request.getFileIds());
-        PlanNodeExecutionResponse after = PlanNodeExecutionResponse.from(execution, this::resolveAttachments);
+        PlanDetailResponse afterSnapshot = toDetailResponse(updated);
         auditRecorder.record("PlanNode", planId + "::" + nodeId, "COMPLETE_NODE",
                 messageResolver.getMessage("audit.plan.completeNode"),
-                before, after);
-        return ApiResponse.success(after);
+                beforeSnapshot, afterSnapshot);
+        return ApiResponse.success(afterSnapshot);
+    }
+
+    @PreAuthorize("hasAnyRole('ADMIN','OPERATOR')")
+    @PostMapping("/{planId}/nodes/{nodeId}/handover")
+    public ApiResponse<PlanDetailResponse> handoverNode(@PathVariable String planId,
+                                                        @PathVariable String nodeId,
+                                                        @Valid @RequestBody PlanNodeHandoverRequest request) {
+        Plan before = planService.getPlan(planId);
+        PlanDetailResponse beforeSnapshot = toDetailResponse(before);
+        String operator = resolveOperator(request.getOperatorId());
+        Plan updated = planService.handoverNode(planId, nodeId, request.getAssigneeId(), request.getComment(), operator);
+        PlanDetailResponse afterSnapshot = toDetailResponse(updated);
+        auditRecorder.record("PlanNode", planId + "::" + nodeId, "HANDOVER_NODE",
+                messageResolver.getMessage("audit.plan.node.handover"),
+                beforeSnapshot, afterSnapshot);
+        return ApiResponse.success(afterSnapshot);
     }
 
     @PreAuthorize("hasAnyRole('ADMIN','OPERATOR')")
@@ -277,7 +315,8 @@ public class PlanController {
     private List<PlanNodeCommand> toCommands(List<PlanNodeRequest> nodes) {
         return nodes.stream()
                 .map(node -> new PlanNodeCommand(node.getId(), node.getName(), node.getType(), node.getAssignee(),
-                        node.getOrder(), node.getExpectedDurationMinutes(), node.getActionRef(), node.getDescription(),
+                        node.getOrder(), node.getExpectedDurationMinutes(), node.getActionType(),
+                        node.getCompletionThreshold(), node.getActionRef(), node.getDescription(),
                         toCommands(node.getChildren())))
                 .toList();
     }
@@ -288,17 +327,9 @@ public class PlanController {
         }
         return rules.stream()
                 .map(rule -> new PlanReminderRule(rule.getId(), rule.getTrigger(), rule.getOffsetMinutes(),
-                        rule.getChannels(), rule.getTemplateId(), rule.getRecipients(), rule.getDescription()))
+                        rule.getChannels(), rule.getTemplateId(), rule.getRecipients(), rule.getDescription(),
+                        rule.getActive() == null || rule.getActive()))
                 .toList();
-    }
-
-    private PlanNodeExecutionResponse snapshotExecution(String planId, String nodeId) {
-        Plan plan = planService.getPlan(planId);
-        return plan.getExecutions().stream()
-                .filter(exec -> exec.getNodeId().equals(nodeId))
-                .findFirst()
-                .map(execution -> PlanNodeExecutionResponse.from(execution, this::resolveAttachments))
-                .orElseGet(() -> PlanNodeExecutionResponse.from(null, this::resolveAttachments));
     }
 
     private PlanDetailResponse toDetailResponse(Plan plan) {
@@ -327,5 +358,12 @@ public class PlanController {
             return "system";
         }
         return authentication.getName();
+    }
+
+    private String resolveOperator(String requestOperatorId) {
+        if (requestOperatorId != null && !requestOperatorId.isBlank()) {
+            return requestOperatorId;
+        }
+        return currentUsername();
     }
 }

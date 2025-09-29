@@ -6,6 +6,7 @@ import com.bob.mta.modules.plan.domain.Plan;
 import com.bob.mta.modules.plan.domain.PlanActivity;
 import com.bob.mta.modules.plan.domain.PlanActivityType;
 import com.bob.mta.modules.plan.domain.PlanNode;
+import com.bob.mta.modules.plan.domain.PlanNodeActionType;
 import com.bob.mta.modules.plan.domain.PlanNodeExecution;
 import com.bob.mta.modules.plan.domain.PlanNodeStatus;
 import com.bob.mta.modules.plan.domain.PlanReminderPolicy;
@@ -31,6 +32,8 @@ class PlanPersistenceMapperTest {
                 "assignee-2",
                 2,
                 30,
+                PlanNodeActionType.LINK,
+                80,
                 "action-2",
                 "description-2",
                 List.of()
@@ -42,6 +45,8 @@ class PlanPersistenceMapperTest {
                 "assignee-1",
                 1,
                 60,
+                PlanNodeActionType.REMOTE,
+                50,
                 "action-1",
                 "description-1",
                 List.of(childNode)
@@ -128,6 +133,10 @@ class PlanPersistenceMapperTest {
         assertThat(converted.getParticipants()).containsExactlyElementsOf(plan.getParticipants());
         assertThat(converted.getNodes()).hasSize(1);
         assertThat(converted.getNodes().get(0).getChildren()).hasSize(1);
+        assertThat(converted.getNodes().get(0).getActionType()).isEqualTo(PlanNodeActionType.REMOTE);
+        assertThat(converted.getNodes().get(0).getCompletionThreshold()).isEqualTo(50);
+        assertThat(converted.getNodes().get(0).getChildren().get(0).getActionType()).isEqualTo(PlanNodeActionType.LINK);
+        assertThat(converted.getNodes().get(0).getChildren().get(0).getCompletionThreshold()).isEqualTo(80);
         assertThat(converted.getExecutions()).hasSize(2);
         assertThat(converted.getExecutions().get(0).getFileIds()).containsExactly("file-1");
         assertThat(converted.getReminderPolicy().getRules()).hasSize(1);
