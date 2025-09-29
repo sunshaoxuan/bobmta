@@ -21,6 +21,7 @@ import {
   isPlanDetailCacheEntryFresh,
   prunePlanDetailCache,
 } from './planDetailCache';
+import { normalizePlanDetailPayload } from './planDetailNormalizer';
 
 export type PlanDetailState = {
   activePlanId: string | null;
@@ -113,9 +114,10 @@ export function usePlanDetailController(
       }));
 
       try {
-        const payload = await fetchPlanDetail(client, session.token, planId, {
+        const payloadRaw = await fetchPlanDetail(client, session.token, planId, {
           signal: controller.signal,
         });
+        const payload = normalizePlanDetailPayload(payloadRaw);
         const fetchedAt = Date.now();
         const entry: PlanDetailCacheEntry = { payload, fetchedAt };
         cache.set(planId, entry);

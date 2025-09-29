@@ -7,12 +7,7 @@ import {
   Tag,
   Typography,
 } from '../../vendor/antd/index.js';
-import type {
-  PlanDetail,
-  PlanReminderSummary,
-  PlanSummary,
-  PlanTimelineEntry,
-} from '../api/types';
+import type { PlanDetail, PlanReminderSummary, PlanSummary, PlanTimelineEntry } from '../api/types';
 import type { ApiError } from '../api/client';
 import type { Locale } from '../i18n/localization';
 import type { LocalizationState } from '../i18n/useLocalization';
@@ -20,6 +15,7 @@ import { PLAN_STATUS_COLOR, PLAN_STATUS_LABEL } from '../constants/planStatus';
 import { PLAN_REMINDER_CHANNEL_COLOR, PLAN_REMINDER_CHANNEL_LABEL } from '../constants/planReminder';
 import { formatDateTime, formatPlanWindow } from '../utils/planFormatting';
 import type { PlanDetailState } from '../state/planDetail';
+import { PlanNodeTree } from './PlanNodeTree';
 
 const { Text, Paragraph } = Typography;
 
@@ -46,6 +42,7 @@ export function PlanPreview({
   const detail: PlanDetail | null = isActiveDetail ? detailState.detail : null;
   const timeline: PlanTimelineEntry[] = isActiveDetail ? detailState.timeline : [];
   const reminders: PlanReminderSummary[] = isActiveDetail ? detailState.reminders : [];
+  const nodes = detail?.nodes ?? [];
   const detailStatus = isActiveDetail ? detailState.status : 'idle';
   const detailError = isActiveDetail ? detailState.error : null;
   const detailOrigin = isActiveDetail ? detailState.origin : null;
@@ -175,6 +172,22 @@ export function PlanPreview({
             />
           ) : null}
           <div className="plan-preview-sections">
+            <section className="plan-preview-section plan-preview-nodes-section">
+              <div className="plan-preview-section-header">
+                <Text strong>{translate('planDetailNodesTitle')}</Text>
+              </div>
+              <DetailRemoteSection
+                status={detailStatus}
+                error={detailError}
+                translate={translate}
+                empty={detailStatus === 'success' && nodes.length === 0}
+                onRetry={onRefreshDetail}
+                errorDetail={detailErrorDetail}
+                emptyMessage={translate('planDetailNodesEmpty')}
+              >
+                <PlanNodeTree nodes={nodes} translate={translate} locale={locale} />
+              </DetailRemoteSection>
+            </section>
             <section>
               <div className="plan-preview-section-header">
                 <Text strong>{translate('planDetailTimelineTitle')}</Text>
