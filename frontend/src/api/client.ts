@@ -22,6 +22,7 @@ export type RequestWithBodyOptions = RequestOptions & {
 export type ApiClient = {
   get: <T>(path: string, options?: RequestOptions) => Promise<T>;
   post: <T>(path: string, body: unknown, options?: RequestOptions) => Promise<T>;
+  put: <T>(path: string, body: unknown, options?: RequestOptions) => Promise<T>;
 };
 
 export function isApiError(value: unknown): value is ApiError {
@@ -85,5 +86,7 @@ export function createApiClient(config: { getLocale: () => Locale }): ApiClient 
     get: <T>(path: string, options?: RequestOptions) => request<T>(path, 'GET', options),
     post: <T>(path: string, body: unknown, options?: RequestOptions) =>
       request<T>(path, 'POST', { ...options, body }),
+    put: <T>(path: string, body: unknown, options?: RequestOptions) =>
+      request<T>(path, 'PUT', { ...options, body }),
   };
 }
