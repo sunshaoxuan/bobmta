@@ -172,10 +172,112 @@
   color: #5a5e66 !important;
 }
 
+.plan-preview-meta {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.plan-preview-meta-item {
+  font-size: 12px !important;
+}
+
 .plan-preview-grid {
   display: grid;
   gap: 16px;
   grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+}
+
+.plan-preview-sections {
+  display: grid;
+  gap: 20px;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+}
+
+.plan-preview-nodes-section {
+  grid-column: 1 / -1;
+}
+
+.plan-preview-section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+
+.plan-preview-node-tree,
+.plan-preview-node-children {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.plan-preview-node-children {
+  margin-left: 18px;
+  padding-left: 18px;
+  border-left: 2px dashed rgba(22, 119, 255, 0.18);
+}
+
+.plan-preview-node-card {
+  background: rgba(255, 255, 255, 0.82);
+  border-radius: 16px;
+  border: 1px solid rgba(22, 119, 255, 0.12);
+  padding: 12px 16px;
+  box-shadow: 0 6px 16px rgba(22, 119, 255, 0.08);
+  margin-bottom: 14px;
+}
+
+.plan-preview-node-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.plan-preview-node-meta {
+  margin-top: 10px;
+}
+
+.plan-preview-timeline,
+.plan-preview-reminders {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.plan-preview-timeline-item,
+.plan-preview-reminders-item {
+  background: rgba(255, 255, 255, 0.75);
+  border-radius: 14px;
+  border: 1px solid rgba(22, 119, 255, 0.08);
+  padding: 12px 14px;
+}
+
+.plan-preview-timeline-time {
+  font-size: 12px;
+  color: #6b7080;
+  margin-bottom: 4px;
+}
+
+.plan-preview-timeline-body {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.plan-preview-timeline-actor {
+  border-radius: 999px !important;
+}
+
+.plan-preview-reminder-description {
+  display: block;
+  margin-top: 6px;
 }
 
 .plan-preview-field {

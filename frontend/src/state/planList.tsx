@@ -18,6 +18,7 @@ import {
   clampPage,
   clampPageSize,
   createPlanListCacheKey,
+  evictPlanListCacheEntries,
   type PlanListCacheEntry,
   normalizeFilters,
 } from './planListCache';
@@ -56,6 +57,7 @@ export type PlanListController = {
 };
 
 const DEFAULT_PAGE_SIZE = 10;
+const PLAN_LIST_CACHE_LIMIT = 12;
 
 function createEmptyFilters(): PlanListFilters {
   return {
@@ -173,6 +175,7 @@ export function usePlanListController(
           fetchedAt,
         };
         cache.set(cacheKey, cacheEntry);
+        evictPlanListCacheEntries(cache, PLAN_LIST_CACHE_LIMIT);
         updateRecordIndex(recordIndex, records);
         setState({
           records,
