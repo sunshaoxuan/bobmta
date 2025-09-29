@@ -64,4 +64,9 @@ public class PlanNode {
     public List<PlanNode> getChildren() {
         return Collections.unmodifiableList(children);
     }
+
+    public PlanNode withAssignee(String newAssignee) {
+        return new PlanNode(id, name, type, newAssignee, order, expectedDurationMinutes, actionRef, description,
+                children);
+    }
 }

@@ -208,12 +208,12 @@ public class InMemoryPlanService implements PlanService {
 
     @Override
     @Transactional
-    public PlanNodeExecution startNode(String planId, String nodeId, String operator) {
+    public Plan startNode(String planId, String nodeId, String operator) {
         Plan current = requirePlan(planId);
         ensurePlanExecutable(current);
         PlanNodeExecution target = findExecution(current, nodeId);
         if (target.getStatus() == PlanNodeStatus.DONE || target.getStatus() == PlanNodeStatus.IN_PROGRESS) {
-            return target;
+            return current;
         }
         OffsetDateTime now = OffsetDateTime.now();
         PlanNode node = findNode(current, nodeId);
@@ -240,18 +240,18 @@ public class InMemoryPlanService implements PlanService {
         Plan updated = current.withStatus(nextStatus, actualStart, null, executions, now,
                 null, null, null, activities);
         planRepository.save(updated);
-        return executions.stream().filter(exec -> exec.getNodeId().equals(nodeId)).findFirst().orElse(target);
+        return updated;
     }
 
     @Override
     @Transactional
-    public PlanNodeExecution completeNode(String planId, String nodeId, String operator, String result,
-                                   String log, List<String> fileIds) {
+    public Plan completeNode(String planId, String nodeId, String operator, String result,
+                             String log, List<String> fileIds) {
         Plan current = requirePlan(planId);
         ensurePlanExecutable(current);
         PlanNodeExecution target = findExecution(current, nodeId);
         if (target.getStatus() == PlanNodeStatus.DONE) {
-            return target;
+            return current;
         }
         if (target.getStatus() != PlanNodeStatus.IN_PROGRESS) {
             throw new BusinessException(ErrorCode.BAD_REQUEST, message("plan.error.nodeMustBeStarted"));
@@ -294,7 +294,39 @@ public class InMemoryPlanService implements PlanService {
         Plan updated = current.withStatus(nextStatus, actualStart, actualEnd, executions, now,
                 null, null, null, activities);
         planRepository.save(updated);
-        return executions.stream().filter(exec -> exec.getNodeId().equals(nodeId)).findFirst().orElse(target);
+        return updated;
+    }
+
+    @Override
+    @Transactional
+    public Plan handoverNode(String planId, String nodeId, String newAssignee, String comment, String operator) {
+        Plan current = requirePlan(planId);
+        ensurePlanExecutable(current);
+        if (!StringUtils.hasText(newAssignee)) {
+            throw new BusinessException(ErrorCode.BAD_REQUEST, message("plan.error.nodeAssigneeRequired"));
+        }
+        OffsetDateTime now = OffsetDateTime.now();
+        PlanNode node = findNode(current, nodeId);
+        PlanNode updatedNode = node.withAssignee(newAssignee);
+        List<PlanNode> nodes = replaceNode(current.getNodes(), nodeId, updatedNode);
+        Map<String, String> attributes = attributes(
+                "nodeName", node.getName(),
+                "previousAssignee", node.getAssignee(),
+                "newAssignee", newAssignee,
+                "operator", operator,
+                "comment", StringUtils.hasText(comment) ? comment : null
+        );
+        List<PlanActivity> activities = appendActivity(current, new PlanActivity(
+                PlanActivityType.NODE_HANDOVER,
+                now,
+                operator,
+                message("plan.activity.nodeHandover"),
+                nodeId,
+                attributes
+        ));
+        Plan updated = current.withNodes(nodes, current.getExecutions(), now, activities);
+        planRepository.save(updated);
+        return updated;
     }
 
     @Override
@@ -368,6 +400,41 @@ public class InMemoryPlanService implements PlanService {
                 current.getId(),
                 attributes(
                         "ruleCount", String.valueOf(normalized.size())
+                )));
+        Plan updated = current.withReminderPolicy(policy, now, activities);
+        planRepository.save(updated);
+        return updated;
+    }
+
+    @Override
+    @Transactional
+    public Plan updateReminderRule(String planId, String reminderId, Boolean active, Integer offsetMinutes, String operator) {
+        Plan current = requirePlan(planId);
+        OffsetDateTime now = OffsetDateTime.now();
+        List<PlanReminderRule> rules = current.getReminderPolicy().getRules();
+        PlanReminderRule target = rules.stream()
+                .filter(rule -> Objects.equals(rule.getId(), reminderId))
+                .findFirst()
+                .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND));
+        int normalizedOffset = offsetMinutes == null ? target.getOffsetMinutes() : offsetMinutes;
+        if (normalizedOffset < 0) {
+            throw new BusinessException(ErrorCode.BAD_REQUEST, message("plan.error.reminderOffsetNonNegative"));
+        }
+        boolean nextActive = active == null ? target.isActive() : active;
+        PlanReminderRule updatedRule = target.withOffsetMinutes(normalizedOffset).withActive(nextActive);
+        List<PlanReminderRule> updatedRules = rules.stream()
+                .map(rule -> Objects.equals(rule.getId(), reminderId) ? updatedRule : rule)
+                .collect(Collectors.toList());
+        PlanReminderPolicy policy = current.getReminderPolicy().withRules(updatedRules, now, operator);
+        List<PlanActivity> activities = appendActivity(current, new PlanActivity(
+                PlanActivityType.REMINDER_POLICY_UPDATED,
+                now,
+                operator,
+                message("plan.activity.reminderRuleUpdated"),
+                reminderId,
+                attributes(
+                        "offsetMinutes", String.valueOf(normalizedOffset),
+                        "active", String.valueOf(nextActive)
                 )));
         Plan updated = current.withReminderPolicy(policy, now, activities);
         planRepository.save(updated);
@@ -489,6 +556,31 @@ public class InMemoryPlanService implements PlanService {
         return executions.stream()
                 .map(exec -> exec.getNodeId().equals(nodeId) ? replacement : exec)
                 .toList();
+    }
+
+    private List<PlanNode> replaceNode(List<PlanNode> nodes, String nodeId, PlanNode replacement) {
+        if (nodes == null || nodes.isEmpty()) {
+            return nodes;
+        }
+        boolean changed = false;
+        List<PlanNode> updated = new ArrayList<>(nodes.size());
+        for (PlanNode node : nodes) {
+            PlanNode next = node;
+            if (node.getId().equals(nodeId)) {
+                next = replacement;
+                changed = true;
+            } else {
+                List<PlanNode> updatedChildren = replaceNode(node.getChildren(), nodeId, replacement);
+                if (updatedChildren != node.getChildren()) {
+                    next = new PlanNode(node.getId(), node.getName(), node.getType(), node.getAssignee(),
+                            node.getOrder(), node.getExpectedDurationMinutes(), node.getActionRef(),
+                            node.getDescription(), updatedChildren);
+                    changed = true;
+                }
+            }
+            updated.add(next);
+        }
+        return changed ? updated : nodes;
     }
 
     private List<PlanActivity> appendActivity(Plan plan, PlanActivity activity) {

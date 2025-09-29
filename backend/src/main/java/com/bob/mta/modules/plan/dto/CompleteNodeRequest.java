@@ -1,5 +1,6 @@
 package com.bob.mta.modules.plan.dto;
 
+import com.fasterxml.jackson.annotation.JsonAlias;
 import jakarta.validation.constraints.NotBlank;
 
 import java.util.List;
@@ -7,18 +8,38 @@ import java.util.List;
 public class CompleteNodeRequest {
 
     @NotBlank
-    private String result;
+    private String operatorId;
+
+    @NotBlank
+    @JsonAlias({"result", "resultSummary"})
+    private String resultSummary;
 
     private String log;
 
     private List<String> fileIds = List.of();
 
+    public String getOperatorId() {
+        return operatorId;
+    }
+
+    public void setOperatorId(String operatorId) {
+        this.operatorId = operatorId;
+    }
+
     public String getResult() {
-        return result;
+        return resultSummary;
     }
 
     public void setResult(String result) {
-        this.result = result;
+        this.resultSummary = result;
+    }
+
+    public String getResultSummary() {
+        return resultSummary;
+    }
+
+    public void setResultSummary(String resultSummary) {
+        this.resultSummary = resultSummary;
     }
 
     public String getLog() {

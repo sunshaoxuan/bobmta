@@ -12,7 +12,8 @@ public record PlanReminderRuleEntity(
         List<String> channels,
         String templateId,
         List<String> recipients,
-        String description
+        String description,
+        boolean active
 ) {
 
     public PlanReminderRuleEntity {

@@ -30,10 +30,12 @@ public interface PlanService {
 
     Plan cancelPlan(String id, String operator, String reason);
 
-    PlanNodeExecution startNode(String planId, String nodeId, String operator);
+    Plan startNode(String planId, String nodeId, String operator);
 
-    PlanNodeExecution completeNode(String planId, String nodeId, String operator, String result,
-                                   String log, List<String> fileIds);
+    Plan completeNode(String planId, String nodeId, String operator, String result,
+                      String log, List<String> fileIds);
+
+    Plan handoverNode(String planId, String nodeId, String newAssignee, String comment, String operator);
 
     Plan handoverPlan(String planId, String newOwner, List<String> participants, String note, String operator);
 
@@ -44,6 +46,8 @@ public interface PlanService {
     List<PlanActivity> getPlanTimeline(String planId);
 
     Plan updateReminderPolicy(String planId, List<PlanReminderRule> rules, String operator);
+
+    Plan updateReminderRule(String planId, String reminderId, Boolean active, Integer offsetMinutes, String operator);
 
     List<PlanReminderSchedule> previewReminderSchedule(String planId, OffsetDateTime referenceTime);
 

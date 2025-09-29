@@ -198,12 +198,14 @@ mvn spring-boot:run
 | `DELETE /api/v1/plans/{id}` | 删除运维计划 | 仅 DESIGN 计划可删除，删除时写入审计日志 |
 | `POST /api/v1/plans/{id}/publish` | 发布运维计划 | 根据开始时间切换为 SCHEDULED/IN_PROGRESS，并记录审计 |
 | `POST /api/v1/plans/{id}/cancel` | 取消运维计划 | 写入取消原因/操作者并终止计划 |
-| `POST /api/v1/plans/{id}/nodes/{nodeId}/start` | 开始执行节点 | 切换节点状态为 IN_PROGRESS，驱动计划进入执行态 |
-| `POST /api/v1/plans/{id}/nodes/{nodeId}/complete` | 完成节点 | 校验已启动后方可完成，支持提交结果、日志与附件 |
+| `POST /api/v1/plans/{id}/nodes/{nodeId}/start` | 开始执行节点 | 切换节点状态为 IN_PROGRESS，返回最新计划详情 |
+| `POST /api/v1/plans/{id}/nodes/{nodeId}/complete` | 完成节点 | 校验已启动后方可完成，支持提交结果、日志与附件并返回计划详情 |
+| `POST /api/v1/plans/{id}/nodes/{nodeId}/handover` | 节点交接 | 指定新的执行人并写入审计与时间线 |
 | `GET /api/v1/plans/{id}` | 运维计划详情 | 展示流程节点树形结构及执行进度 |
 | `GET /api/v1/plans/{id}/timeline` | 运维计划时间线 | 返回计划与节点的关键活动轨迹 |
 | `GET /api/v1/plans/{id}/reminders` | 查看运维计划提醒策略 | 返回默认及自定义的提醒规则列表 |
 | `PUT /api/v1/plans/{id}/reminders` | 更新运维计划提醒策略 | 支持配置渠道、模板、触发时机并记录审计 |
+| `PUT /api/v1/plans/{id}/reminders/{reminderId}` | 更新单条提醒规则 | 启停提醒或调整偏移量，返回最新计划详情 |
 | `GET /api/v1/plans/{id}/reminders/preview` | 预览运维计划提醒触达计划 | 基于时间窗口计算未来触达时间点 |
 | `GET /api/v1/plans/{id}/ics` | 导出单计划 ICS | 生成 `text/calendar` 文件，可导入主流日历 |
 | `GET /api/v1/calendar/tenant/{tenant}.ics` | 租户计划订阅 | 输出租户可见计划的 ICS 订阅源 |
