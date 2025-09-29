@@ -172,10 +172,74 @@
   color: #5a5e66 !important;
 }
 
+.plan-preview-meta {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.plan-preview-meta-item {
+  font-size: 12px !important;
+}
+
 .plan-preview-grid {
   display: grid;
   gap: 16px;
   grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+}
+
+.plan-preview-sections {
+  display: grid;
+  gap: 20px;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+}
+
+.plan-preview-section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+
+.plan-preview-timeline,
+.plan-preview-reminders {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.plan-preview-timeline-item,
+.plan-preview-reminders-item {
+  background: rgba(255, 255, 255, 0.75);
+  border-radius: 14px;
+  border: 1px solid rgba(22, 119, 255, 0.08);
+  padding: 12px 14px;
+}
+
+.plan-preview-timeline-time {
+  font-size: 12px;
+  color: #6b7080;
+  margin-bottom: 4px;
+}
+
+.plan-preview-timeline-body {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.plan-preview-timeline-actor {
+  border-radius: 999px !important;
+}
+
+.plan-preview-reminder-description {
+  display: block;
+  margin-top: 6px;
 }
 
 .plan-preview-field {
