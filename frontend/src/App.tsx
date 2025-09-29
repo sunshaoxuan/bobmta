@@ -55,6 +55,8 @@ import {
   parsePlanDetailUrlState,
   type PlanDetailUrlState,
 } from './utils/planDetailUrl';
+import { useHistoryRouter, type HistoryRouter } from './router/router';
+import { buildPlanDetailPath, parsePlanRoute } from './router/planRoutes';
 
 const { Header, Content } = Layout;
 const { Title, Paragraph, Text } = Typography;
@@ -70,9 +72,10 @@ type AppViewProps = {
   session: SessionController;
   planList: PlanListController;
   planDetail: PlanDetailController;
+  router: HistoryRouter;
 };
 
-function AppView({ client, localization, session, planList, planDetail }: AppViewProps) {
+function AppView({ client, localization, session, planList, planDetail, router }: AppViewProps) {
   const { locale, translate, availableLocales, loading, setLocale } = localization;
   const { state: sessionState, login, logout } = session;
   const { state: planState, refresh, changePage, changePageSize } = planList;
@@ -85,19 +88,24 @@ function AppView({ client, localization, session, planList, planDetail }: AppVie
     updateReminder: updatePlanReminder,
     setTimelineCategoryFilter,
   } = planDetail;
+  const { location, navigate } = router;
+  const planRoute = useMemo(() => parsePlanRoute(location.pathname), [location.pathname]);
   const initialUrlStateRef = useRef<PlanDetailUrlState | null>(null);
   if (initialUrlStateRef.current === null) {
-    initialUrlStateRef.current =
-      typeof window === 'undefined'
-        ? { planId: null, timelineCategory: null, hasTimelineCategory: false }
-        : parsePlanDetailUrlState(window.location.search);
+    initialUrlStateRef.current = parsePlanDetailUrlState(location.search);
   }
   const initialUrlState = initialUrlStateRef.current;
-  const [previewPlanId, setPreviewPlanId] = useState<string | null>(initialUrlState.planId);
+  const previewPlanId = planRoute.type === 'detail' ? planRoute.planId : null;
+  const [lastVisitedPlanId, setLastVisitedPlanId] = useState<string | null>(initialUrlState.planId);
   const pendingTimelineCategoryRef = useRef<{ value: string | null; pending: boolean }>({
     value: initialUrlState.timelineCategory,
     pending: initialUrlState.hasTimelineCategory,
   });
+  const suppressedAutoOpenRef = useRef(false);
+  const planRecordSignature = useMemo(
+    () => planState.records.map((record) => record.id).join('|'),
+    [planState.records]
+  );
   const [credentials, setCredentials] = useState<CredentialsState>({
     username: '',
     password: '',
@@ -144,21 +152,71 @@ function AppView({ client, localization, session, planList, planDetail }: AppVie
   }, [sessionState.session]);
 
   useEffect(() => {
+    suppressedAutoOpenRef.current = false;
+  }, [planRecordSignature]);
+
+  useEffect(() => {
+    if (!previewPlanId) {
+      return;
+    }
+    if (!planState.recordIndex[previewPlanId]) {
+      return;
+    }
+    setLastVisitedPlanId(previewPlanId);
+  }, [previewPlanId, planState.recordIndex]);
+
+  useEffect(() => {
     if (!sessionState.session) {
-      setPreviewPlanId(null);
+      if (previewPlanId) {
+        navigate({ pathname: '/' }, { replace: true, preserveSearch: true, preserveHash: true });
+      }
       return;
     }
     if (planState.records.length === 0) {
-      setPreviewPlanId(null);
+      if (previewPlanId) {
+        navigate({ pathname: '/' }, { replace: true, preserveSearch: true, preserveHash: true });
+      }
       return;
     }
-    setPreviewPlanId((current) => {
-      if (current && planState.recordIndex[current]) {
-        return current;
-      }
-      return planState.records[0]?.id ?? null;
-    });
-  }, [sessionState.session, planState.records, planState.recordIndex]);
+    if (previewPlanId && planState.recordIndex[previewPlanId]) {
+      return;
+    }
+    if (suppressedAutoOpenRef.current) {
+      return;
+    }
+    const fromHistory =
+      lastVisitedPlanId && planState.recordIndex[lastVisitedPlanId] ? lastVisitedPlanId : null;
+    const fallbackPlanId = fromHistory ?? planState.records[0]?.id ?? null;
+    if (!fallbackPlanId) {
+      return;
+    }
+    if (previewPlanId === fallbackPlanId) {
+      return;
+    }
+    const shouldReplace = planRoute.type !== 'detail';
+    navigate(
+      { pathname: buildPlanDetailPath(fallbackPlanId) },
+      { replace: shouldReplace, preserveSearch: true, preserveHash: true }
+    );
+  }, [
+    sessionState.session,
+    planState.records,
+    planState.recordIndex,
+    previewPlanId,
+    lastVisitedPlanId,
+    planRoute.type,
+    navigate,
+  ]);
+
+  useEffect(() => {
+    const urlState = parsePlanDetailUrlState(location.search);
+    if (!urlState.hasTimelineCategory) {
+      pendingTimelineCategoryRef.current = { value: null, pending: false };
+      setTimelineCategoryFilter(null);
+      return;
+    }
+    queueTimelineCategory(urlState.timelineCategory, true);
+  }, [location.search, queueTimelineCategory, setTimelineCategoryFilter]);
 
   const planColumns = useMemo<TableColumnsType<PlanSummary>>(
     () => [
@@ -254,30 +312,6 @@ function AppView({ client, localization, session, planList, planDetail }: AppVie
   }, [previewPlanId, selectPlanDetail]);
 
   useEffect(() => {
-    const initial = initialUrlStateRef.current;
-    if (!initial || !initial.hasTimelineCategory) {
-      return;
-    }
-    setTimelineCategoryFilter(initial.timelineCategory);
-  }, [setTimelineCategoryFilter]);
-
-  useEffect(() => {
-    if (typeof window === 'undefined') {
-      return;
-    }
-    const handlePopState = () => {
-      const next = parsePlanDetailUrlState(window.location.search);
-      setPreviewPlanId(next.planId);
-      queueTimelineCategory(next.timelineCategory, true);
-      setTimelineCategoryFilter(next.timelineCategory);
-    };
-    window.addEventListener('popstate', handlePopState);
-    return () => {
-      window.removeEventListener('popstate', handlePopState);
-    };
-  }, [queueTimelineCategory, setTimelineCategoryFilter]);
-
-  useEffect(() => {
     if (!planDetailState.activePlanId) {
       return;
     }
@@ -293,26 +327,24 @@ function AppView({ client, localization, session, planList, planDetail }: AppVie
   }, [planDetailState.activePlanId, previewPlanId, setTimelineCategoryFilter]);
 
   useEffect(() => {
-    if (typeof window === 'undefined') {
-      return;
-    }
     const activeTimelineCategory =
       planDetailState.activePlanId && planDetailState.activePlanId === previewPlanId
         ? planDetailState.filters.timeline.activeCategory
         : null;
-    const nextSearch = buildPlanDetailSearch(window.location.search, {
+    const nextSearch = buildPlanDetailSearch(location.search, {
       planId: previewPlanId,
       timelineCategory: activeTimelineCategory,
     });
-    if (nextSearch === window.location.search) {
+    if (nextSearch === location.search) {
       return;
     }
-    const nextUrl = `${window.location.pathname}${nextSearch}${window.location.hash}`;
-    window.history.replaceState(null, '', nextUrl);
+    navigate({ search: nextSearch }, { replace: true, preserveHash: true });
   }, [
     planDetailState.activePlanId,
     planDetailState.filters.timeline.activeCategory,
     previewPlanId,
+    location.search,
+    navigate,
   ]);
 
   const availableOwners = useMemo(() => {
@@ -534,7 +566,12 @@ function AppView({ client, localization, session, planList, planDetail }: AppVie
                     }
                     onRow={(record: PlanSummary) => ({
                       onClick: () => {
-                        setPreviewPlanId(record.id);
+                        suppressedAutoOpenRef.current = false;
+                        setLastVisitedPlanId(record.id);
+                        navigate(
+                          { pathname: buildPlanDetailPath(record.id) },
+                          { preserveSearch: true, preserveHash: true }
+                        );
                       },
                     })}
                     loading={{
@@ -571,7 +608,10 @@ function AppView({ client, localization, session, planList, planDetail }: AppVie
                       plan={previewPlan}
                       translate={translate}
                       locale={locale}
-                      onClose={() => setPreviewPlanId(null)}
+                      onClose={() => {
+                        suppressedAutoOpenRef.current = true;
+                        navigate({ pathname: '/' }, { preserveSearch: true, preserveHash: true });
+                      }}
                       detailState={planDetailState}
                       onRefreshDetail={() => {
                         void refreshPlanDetail();
@@ -605,6 +645,7 @@ function App() {
   const session = useSessionController(client);
   const planList = usePlanListController(client, session.state.session);
   const planDetail = usePlanDetailController(client, session.state.session);
+  const router = useHistoryRouter();
 
   return (
     <ConfigProvider
@@ -622,6 +663,7 @@ function App() {
         session={session}
         planList={planList}
         planDetail={planDetail}
+        router={router}
       />
     </ConfigProvider>
   );
