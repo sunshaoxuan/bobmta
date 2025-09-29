@@ -931,3 +931,122 @@ function getDefaultAssigneeId({ detail, node }: AssigneeSelectionOptions): strin
   const fallback = participants.find((participant) => participant.id !== currentAssignee);
   return fallback?.id ?? currentAssignee ?? participants[0]?.id ?? null;
 }
+
+function renderReminderMutationHelper({
+  mutation,
+  translate,
+  reminders,
+}: ReminderMutationHelperOptions): ReactNode {
+  const context = mutation.context;
+  if (!context || context.type !== 'reminder') {
+    return null;
+  }
+  const reminder = reminders.find((item) => item.id === context.reminderId) ?? null;
+  const channelLabel = reminder
+    ? translate(PLAN_REMINDER_CHANNEL_LABEL[reminder.channel])
+    : context.reminderId;
+  const actionLabel = translate(
+    context.action === 'edit'
+      ? 'planDetailReminderActionEdit'
+      : 'planDetailReminderActionToggle'
+  );
+  const offsetLabel = reminder
+    ? translate('planDetailReminderOffsetMinutes', { minutes: reminder.offsetMinutes })
+    : '';
+  const errorDetail = describeApiError(mutation.error, translate);
+  switch (mutation.status) {
+    case 'loading':
+      return (
+        <Alert
+          type="info"
+          showIcon
+          message={translate('planDetailReminderProcessing', {
+            action: actionLabel,
+            channel: channelLabel,
+            offset: offsetLabel,
+          })}
+        />
+      );
+    case 'success':
+      return (
+        <Alert
+          type="success"
+          showIcon
+          message={translate('planDetailReminderSuccess', {
+            action: actionLabel,
+            channel: channelLabel,
+            offset: offsetLabel,
+          })}
+        />
+      );
+    case 'error':
+      return (
+        <Alert
+          type="error"
+          showIcon
+          message={translate('planDetailReminderError', {
+            action: actionLabel,
+            channel: channelLabel,
+            offset: offsetLabel,
+            error: errorDetail ?? translate('commonStateErrorDescription'),
+          })}
+        />
+      );
+    default:
+      return null;
+  }
+}
+
+function describeApiError(error: ApiError | null, translate: LocalizationState['translate']): string | null {
+  if (!error) {
+    return null;
+  }
+  if (error.type === 'status') {
+    return translate('backendErrorStatus', { status: error.status });
+  }
+  return translate('backendErrorNetwork');
+}
+
+function getDefaultOperatorId({
+  detail,
+  node,
+  currentUserName,
+}: OperatorSelectionOptions): string | null {
+  const participants = detail?.participants ?? [];
+  if (currentUserName) {
+    const currentUser = participants.find((participant) => participant.name === currentUserName);
+    if (currentUser) {
+      return currentUser.id;
+    }
+  }
+  if (node?.assignee?.id) {
+    return node.assignee.id;
+  }
+  if (detail) {
+    const ownerMatch = participants.find((participant) => participant.name === detail.owner);
+    if (ownerMatch) {
+      return ownerMatch.id;
+    }
+  }
+  return participants[0]?.id ?? null;
+}
+
+function getDefaultAssigneeId({ detail, node }: AssigneeSelectionOptions): string | null {
+  const participants = detail?.participants ?? [];
+  const currentAssignee = node?.assignee?.id ?? null;
+  const fallback = participants.find((participant) => participant.id !== currentAssignee);
+  return fallback?.id ?? currentAssignee ?? participants[0]?.id ?? null;
+}
+
+const ACTION_LABEL_KEY: Record<PlanNodeActionType, UiMessageKey> = {
+  start: 'planDetailActionStart',
+  complete: 'planDetailActionComplete',
+  handover: 'planDetailActionHandover',
+};
+
+type ReminderActionIntent = {
+  reminderId: string;
+  action: 'edit' | 'toggle';
+  channel: PlanReminderChannel;
+  offset: number;
+};

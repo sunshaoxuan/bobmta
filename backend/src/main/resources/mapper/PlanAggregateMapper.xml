@@ -84,6 +84,7 @@
         <result column="recipients" property="recipients"
                 typeHandler="com.bob.mta.common.mybatis.StringListJsonTypeHandler"/>
         <result column="description" property="description"/>
+        <result column="active" property="active"/>
     </resultMap>
 
     <resultMap id="PlanStatusCountResult" type="com.bob.mta.modules.plan.persistence.PlanStatusCountEntity">
@@ -378,7 +379,8 @@
                channels,
                template_id,
                recipients,
-               description
+               description,
+               active
         FROM mt_plan_reminder_rule
         WHERE plan_id IN
         <foreach collection="planIds" item="planId" open="(" separator="," close=")">
@@ -497,14 +499,15 @@
 
     <insert id="insertReminderRules">
         INSERT INTO mt_plan_reminder_rule (plan_id, rule_id, trigger, offset_minutes, channels, template_id,
-                                           recipients, description)
+                                           recipients, description, active)
         VALUES
         <foreach collection="rules" item="item" separator=",">
             (#{item.planId}, #{item.ruleId}, #{item.trigger}, #{item.offsetMinutes},
              #{item.channels, typeHandler=com.bob.mta.common.mybatis.StringListJsonTypeHandler, jdbcType=OTHER},
              #{item.templateId},
              #{item.recipients, typeHandler=com.bob.mta.common.mybatis.StringListJsonTypeHandler, jdbcType=OTHER},
-             #{item.description})
+             #{item.description},
+             #{item.active})
         </foreach>
     </insert>
 
