@@ -9,6 +9,8 @@ public record PlanNodeEntity(
         String assignee,
         int orderIndex,
         Integer expectedDurationMinutes,
+        com.bob.mta.modules.plan.domain.PlanNodeActionType actionType,
+        Integer completionThreshold,
         String actionRef,
         String description
 ) {
