@@ -87,11 +87,13 @@ export type PlanDetailMutationContext =
       type: 'node';
       nodeId: string;
       action: PlanNodeActionKind;
+      input: PlanNodeActionInput;
     }
   | {
       type: 'reminder';
       reminderId: string;
       action: 'toggle' | 'edit';
+      input: PlanReminderUpdateInput;
     };
 
 export type PlanDetailMutationState = {
@@ -295,6 +297,7 @@ export function usePlanDetailController(
         type: 'node',
         nodeId: input.nodeId,
         action: input.type,
+        input,
       };
       setState((current) => ({
         ...current,
@@ -376,6 +379,7 @@ export function usePlanDetailController(
         type: 'reminder',
         reminderId: input.reminderId,
         action: typeof input.offsetMinutes === 'number' ? 'edit' : 'toggle',
+        input,
       };
       setState((current) => ({
         ...current,

@@ -20,8 +20,8 @@
 | F-000 | 登录与计划列表基线 | `POST /api/v1/auth/login`、`GET /api/v1/plans?page=0&size=20` | 计划列表需返回 `PageResponse<PlanSummary>`，包含进度、参与人数量等字段 | ✅ 完成 | ✅ 完成（迭代 #0） | 未使用 Mock；直接联调 | 继续关注分页参数及多语言头的兼容性 |
 | F-001 | 计划列表筛选扩展 | `GET /api/v1/plans` 支持负责人、关键字、时间范围与分页参数 | 需确认分页上限、关键字匹配策略及排序顺序 | 🟡 规划中 | 🟡 规划中 | 已提供 `queryMockPlanSummaries` 过滤分页样例，覆盖 owner/keyword/status/page/size | 依赖迭代 #3 的 UI 开发 |
 | F-002 | 计划详情与时间线视图 | `GET /api/v1/plans/{id}`、`GET /api/v1/plans/{id}/timeline` | 计划节点、附件、时间线事件的字段需确认必填项 | 🟡 规划中 | 🛠️ 开发中 | 已补充计划详情/时间线/提醒 Mock 样例与缓存策略单测，页面以占位组件展示数据结构 | 需要后端补充时间线事件类型说明，当前前端已上线节点树视图与字段归一化作为占位 |
-| F-003 | 提醒策略配置 | `GET /api/v1/plans/{id}/reminders`、`PUT /api/v1/plans/{id}/reminders` | 提醒渠道、触发时机、模板 ID 等字段 | ✅ 完成 | 🧪 联调中 | 接入真实提醒接口并保留归一化缓存与节点测试作为回退 | 已透出后端错误码与权限提示，高亮时间线同步操作日志，后续补齐失败态重试策略 |
+| F-003 | 提醒策略配置 | `GET /api/v1/plans/{id}/reminders`、`PUT /api/v1/plans/{id}/reminders` | 提醒渠道、触发时机、模板 ID 等字段 | ✅ 完成 | 🧪 联调中 | 接入真实提醒接口并保留归一化缓存与节点测试作为回退 | 已透出后端错误码与权限提示，并在失败态提供重试/编辑入口与时间线筛选提示，后续筹备列表筛选重构 |
 | F-004 | 计划统计驾驶舱 | `GET /api/v1/plans/analytics` | 按状态、负责人、逾期风险等聚合数据 | 🟡 规划中 | 🟡 规划中 | 参考阶段三文档构造统计 Mock | 需确认租户/时间范围参数 |
-| F-005 | 节点执行与提醒控制 | `POST /api/v1/plans/{id}/nodes/{nodeId}/{action}`、`PUT /api/v1/plans/{id}/reminders/{reminderId}` | 需返回最新 `PlanDetailPayload`（节点、时间线、提醒） | ✅ 完成 | 🧪 联调中 | 直接调用后端节点操作接口，缓存命中仍可离线回显 | 详见《docs/backend-requests/plan-node-operations.md》，已完成权限/错误码联调，待扩展失败态重试与日志筛选 |
+| F-005 | 节点执行与提醒控制 | `POST /api/v1/plans/{id}/nodes/{nodeId}/{action}`、`PUT /api/v1/plans/{id}/reminders/{reminderId}` | 需返回最新 `PlanDetailPayload`（节点、时间线、提醒） | ✅ 完成 | 🧪 联调中 | 直接调用后端节点操作接口，缓存命中仍可离线回显 | 详见《docs/backend-requests/plan-node-operations.md》，已补齐失败态重试指引与时间线筛选，下一阶段聚焦详情路由与筛选重构 |
 
 > 当条目状态发生变化时，请同步更新根目录 README 的「前端阶段四迭代进度」摘要。

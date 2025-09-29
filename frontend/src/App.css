@@ -212,6 +212,10 @@
   gap: 8px;
 }
 
+.plan-preview-timeline-filter {
+  min-width: 200px;
+}
+
 .plan-preview-section-helper {
   margin-bottom: 12px;
 }
