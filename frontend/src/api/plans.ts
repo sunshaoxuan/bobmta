@@ -1,5 +1,10 @@
 import type { ApiClient, ApiError } from './client';
-import type { ApiEnvelope, PageResponse, PlanSummary } from './types';
+import type {
+  ApiEnvelope,
+  PageResponse,
+  PlanDetailPayload,
+  PlanSummary,
+} from './types';
 
 export type PlanListQuery = {
   page: number;
@@ -42,6 +47,35 @@ export async function fetchPlans(
       {
         authToken: token,
         signal: query.signal,
+      }
+    );
+    if (!response || !response.data) {
+      throw { type: 'network' } as ApiError;
+    }
+    return response.data;
+  } catch (error) {
+    if (error instanceof DOMException && error.name === 'AbortError') {
+      throw error;
+    }
+    if ((error as ApiError)?.type === 'network' || (error as ApiError)?.type === 'status') {
+      throw error;
+    }
+    throw { type: 'network' } as ApiError;
+  }
+}
+
+export async function fetchPlanDetail(
+  client: ApiClient,
+  token: string,
+  planId: string,
+  options: { signal?: AbortSignal } = {}
+): Promise<PlanDetailPayload> {
+  try {
+    const response = await client.get<ApiEnvelope<PlanDetailPayload | null>>(
+      `/api/v1/plans/${encodeURIComponent(planId)}`,
+      {
+        authToken: token,
+        signal: options.signal,
       }
     );
     if (!response || !response.data) {
