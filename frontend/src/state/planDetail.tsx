@@ -19,6 +19,7 @@ import type {
   PlanDetailPayload,
   PlanReminderSummary,
   PlanTimelineEntry,
+  PlanStatus,
 } from '../api/types';
 import {
   PLAN_DETAIL_CACHE_LIMIT,
@@ -36,6 +37,24 @@ import {
   type PlanDetailFilterSnapshot,
   type PlanDetailFilters,
 } from './planDetailFilters';
+import { PLAN_STATUS_MODE, type PlanViewMode } from '../constants/planMode';
+import { findCurrentPlanNodeId } from '../utils/planNodes';
+
+export type PlanDetailContext = {
+  planStatus: PlanStatus | null;
+  mode: PlanViewMode;
+  currentNodeId: string | null;
+};
+
+export function derivePlanDetailContext(detail: PlanDetail | null): PlanDetailContext {
+  if (!detail) {
+    return { planStatus: null, mode: 'design', currentNodeId: null };
+  }
+  const planStatus = detail.status;
+  const mode = PLAN_STATUS_MODE[planStatus];
+  const currentNodeId = findCurrentPlanNodeId(detail.nodes ?? []);
+  return { planStatus, mode, currentNodeId };
+}
 
 export type PlanDetailState = {
   activePlanId: string | null;
@@ -48,6 +67,7 @@ export type PlanDetailState = {
   origin: 'cache' | 'network' | null;
   mutation: PlanDetailMutationState;
   filters: PlanDetailFilters;
+  context: PlanDetailContext;
 };
 
 export type PlanDetailController = {
@@ -130,6 +150,7 @@ const INITIAL_STATE: PlanDetailState = {
   origin: null,
   mutation: INITIAL_MUTATION_STATE,
   filters: INITIAL_PLAN_DETAIL_FILTERS,
+  context: derivePlanDetailContext(null),
 };
 
 export function usePlanDetailController(
@@ -172,6 +193,7 @@ export function usePlanDetailController(
         lastUpdated: new Date(fetchedAt).toISOString(),
         origin,
         filters,
+        context: derivePlanDetailContext(payload.detail),
       }));
     },
     []
