@@ -7,6 +7,7 @@ import java.time.OffsetDateTime;
 public record PlanAnalyticsQueryParameters(
         String tenantId,
         String customerId,
+        String ownerId,
         OffsetDateTime plannedStartFrom,
         OffsetDateTime plannedEndTo,
         OffsetDateTime referenceTime,
@@ -19,7 +20,7 @@ public record PlanAnalyticsQueryParameters(
     public static PlanAnalyticsQueryParameters fromQuery(PlanAnalyticsQuery query) {
         if (query == null) {
             OffsetDateTime reference = OffsetDateTime.now();
-            return new PlanAnalyticsQueryParameters(null, null, null, null, reference, 5, 5, 5,
+            return new PlanAnalyticsQueryParameters(null, null, null, null, null, reference, 5, 5, 5,
                     reference.plusMinutes(1440));
         }
         OffsetDateTime reference = query.getReferenceTime();
@@ -27,6 +28,7 @@ public record PlanAnalyticsQueryParameters(
         return new PlanAnalyticsQueryParameters(
                 query.getTenantId(),
                 query.getCustomerId(),
+                query.getOwnerId(),
                 query.getFrom(),
                 query.getTo(),
                 reference,

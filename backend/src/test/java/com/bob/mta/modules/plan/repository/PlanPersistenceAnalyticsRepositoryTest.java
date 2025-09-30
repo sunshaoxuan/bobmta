@@ -41,6 +41,7 @@ class PlanPersistenceAnalyticsRepositoryTest {
         PlanAnalyticsQuery query = PlanAnalyticsQuery.builder()
                 .tenantId("tenant-1")
                 .customerId("cust-1")
+                .ownerId("owner-55")
                 .from(now.minusDays(1))
                 .to(now.plusDays(7))
                 .referenceTime(now)
@@ -72,6 +73,7 @@ class PlanPersistenceAnalyticsRepositoryTest {
         verify(mapper).countPlansByStatus(captor.capture());
         assertThat(captor.getValue().tenantId()).isEqualTo("tenant-1");
         assertThat(captor.getValue().customerId()).isEqualTo("cust-1");
+        assertThat(captor.getValue().ownerId()).isEqualTo("owner-55");
     }
 
 }

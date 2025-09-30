@@ -225,6 +225,9 @@
             <if test="customerId != null">
                 AND customer_id = #{customerId}
             </if>
+            <if test="ownerId != null">
+                AND owner_id = #{ownerId}
+            </if>
             <if test="plannedStartFrom != null">
                 AND planned_end_time &gt;= #{plannedStartFrom}
             </if>
@@ -245,6 +248,9 @@
             </if>
             <if test="customerId != null">
                 AND customer_id = #{customerId}
+            </if>
+            <if test="ownerId != null">
+                AND owner_id = #{ownerId}
             </if>
             <if test="plannedStartFrom != null">
                 AND planned_end_time &gt;= #{plannedStartFrom}
@@ -284,6 +290,9 @@
             <if test="customerId != null">
                 AND p.customer_id = #{customerId}
             </if>
+            <if test="ownerId != null">
+                AND p.owner_id = #{ownerId}
+            </if>
             <if test="plannedStartFrom != null">
                 AND p.planned_end_time &gt;= #{plannedStartFrom}
             </if>
@@ -319,6 +328,9 @@
             </if>
             <if test="customerId != null">
                 AND customer_id = #{customerId}
+            </if>
+            <if test="ownerId != null">
+                AND owner_id = #{ownerId}
             </if>
             <if test="plannedStartFrom != null">
                 AND planned_end_time &gt;= #{plannedStartFrom}
@@ -366,6 +378,9 @@
             </if>
             <if test="customerId != null">
                 AND p.customer_id = #{customerId}
+            </if>
+            <if test="ownerId != null">
+                AND p.owner_id = #{ownerId}
             </if>
             <if test="plannedStartFrom != null">
                 AND p.planned_end_time &gt;= #{plannedStartFrom}

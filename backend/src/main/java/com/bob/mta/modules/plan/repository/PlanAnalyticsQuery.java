@@ -7,6 +7,7 @@ public final class PlanAnalyticsQuery {
     private final String tenantId;
     private final OffsetDateTime from;
     private final OffsetDateTime to;
+    private final String ownerId;
     private final OffsetDateTime referenceTime;
     private final int upcomingLimit;
     private final String customerId;
@@ -14,11 +15,13 @@ public final class PlanAnalyticsQuery {
     private final int riskLimit;
     private final int dueSoonMinutes;
 
-    private PlanAnalyticsQuery(String tenantId, String customerId, OffsetDateTime from, OffsetDateTime to,
+    private PlanAnalyticsQuery(String tenantId, String customerId, String ownerId,
+                               OffsetDateTime from, OffsetDateTime to,
                                OffsetDateTime referenceTime, int upcomingLimit,
                                int ownerLimit, int riskLimit, int dueSoonMinutes) {
         this.tenantId = tenantId;
         this.customerId = customerId;
+        this.ownerId = ownerId;
         this.from = from;
         this.to = to;
         this.referenceTime = referenceTime;
@@ -38,6 +41,10 @@ public final class PlanAnalyticsQuery {
 
     public OffsetDateTime getTo() {
         return to;
+    }
+
+    public String getOwnerId() {
+        return ownerId;
     }
 
     public OffsetDateTime getReferenceTime() {
@@ -73,6 +80,7 @@ public final class PlanAnalyticsQuery {
         private String customerId;
         private OffsetDateTime from;
         private OffsetDateTime to;
+        private String ownerId;
         private OffsetDateTime referenceTime;
         private Integer upcomingLimit;
         private Integer ownerLimit;
@@ -89,6 +97,11 @@ public final class PlanAnalyticsQuery {
 
         public Builder customerId(String customerId) {
             this.customerId = customerId;
+            return this;
+        }
+
+        public Builder ownerId(String ownerId) {
+            this.ownerId = ownerId;
             return this;
         }
 
@@ -133,7 +146,7 @@ public final class PlanAnalyticsQuery {
             int owner = ownerLimit == null || ownerLimit <= 0 ? 5 : ownerLimit;
             int risk = riskLimit == null || riskLimit <= 0 ? 5 : riskLimit;
             int dueSoon = dueSoonMinutes == null || dueSoonMinutes <= 0 ? 1440 : dueSoonMinutes;
-            return new PlanAnalyticsQuery(tenantId, customerId, from, to, reference, limit, owner, risk, dueSoon);
+            return new PlanAnalyticsQuery(tenantId, customerId, ownerId, from, to, reference, limit, owner, risk, dueSoon);
         }
     }
 }

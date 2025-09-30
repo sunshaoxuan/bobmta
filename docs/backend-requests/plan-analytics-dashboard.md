@@ -9,6 +9,7 @@
 - **Query**:
   - `tenantId` *(optional)*：指定租户进行隔离；为空时返回当前环境全部计划概览。
   - `customerId` *(optional)*：按客户过滤分析结果。
+  - `ownerId` *(optional)*：限定特定负责人范围，统计结果仅包含该负责人负责的计划。
   - `from`、`to` *(optional, ISO-8601 datetime)*：筛选计划预计时间窗的开始/结束边界。
 
 ## 响应
@@ -69,9 +70,9 @@
 ```
 
 ### 字段说明
-- `ownerLoads`：最多返回 5 位负责人，按活跃计划数倒序排列；`activePlans` 包含 `SCHEDULED/IN_PROGRESS` 状态，`overduePlans` 代表在 24 小时窗口内已逾期的活跃计划。
+- `ownerLoads`：最多返回 5 位负责人，按活跃计划数倒序排列；`activePlans` 包含 `SCHEDULED/IN_PROGRESS` 状态，`overduePlans` 代表在 24 小时窗口内已逾期的活跃计划。传入 `ownerId` 时，仅返回对应负责人的统计。
 - `riskPlans`：最多返回 5 条风险计划，优先展示 `OVERDUE`，随后是未来 24 小时内 `DUE_SOON` 的计划；`minutesUntilDue` 与 `minutesOverdue` 均为非负整数，单位分钟。
 
 ## 校验与验收
-- 通过租户与客户过滤时，`ownerLoads` 与 `riskPlans` 仅统计过滤范围内的数据。
+- 通过租户、客户或负责人过滤时，`ownerLoads` 与 `riskPlans` 仅统计过滤范围内的数据。
 - 新增服务层与控制层单元测试覆盖逾期及即将到期场景；前端可使用上述样例对齐卡片渲染与风险提醒逻辑。

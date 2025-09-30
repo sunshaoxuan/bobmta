@@ -381,7 +381,7 @@ class InMemoryPlanServiceTest {
                 .orElseThrow();
         service.cancelPlan(planToCancel.getId(), "admin", "客户取消");
 
-        PlanAnalytics analytics = service.getAnalytics("tenant-001", null, null, null);
+        PlanAnalytics analytics = service.getAnalytics("tenant-001", null, null, null, null);
 
         assertThat(analytics.getTotalPlans()).isGreaterThanOrEqualTo(3);
         assertThat(analytics.getInProgressCount()).isGreaterThanOrEqualTo(1);
@@ -425,7 +425,7 @@ class InMemoryPlanServiceTest {
         );
         service.createPlan(otherCommand);
 
-        PlanAnalytics analytics = service.getAnalytics("tenant-analytics", "cust-target", null, null);
+        PlanAnalytics analytics = service.getAnalytics("tenant-analytics", "cust-target", null, null, null);
 
         assertThat(analytics.getTotalPlans()).isGreaterThanOrEqualTo(1);
         assertThat(analytics.getUpcomingPlans())
@@ -435,5 +435,51 @@ class InMemoryPlanServiceTest {
                 .isEqualTo(analytics.getTotalPlans());
         assertThat(analytics.getOwnerLoads())
                 .allSatisfy(load -> assertThat(load.getOwnerId()).isNotBlank());
+    }
+
+    @Test
+    void analyticsShouldFilterByOwner() {
+        OffsetDateTime plannedStart = OffsetDateTime.now().plusDays(2);
+        CreatePlanCommand focusCommand = new CreatePlanCommand(
+                "tenant-owner-scope",
+                "Owner specific maintenance",
+                "Target owner scope",
+                "cust-scope",
+                "owner-focus",
+                plannedStart,
+                plannedStart.plusHours(3),
+                "Asia/Tokyo",
+                List.of("owner-focus"),
+                List.of(new PlanNodeCommand(null, "检查机柜", "CHECKLIST", "owner-focus", 1, 45,
+                        PlanNodeActionType.NONE, 100, null, "", List.of()))
+        );
+        var focusPlan = service.createPlan(focusCommand);
+        service.publishPlan(focusPlan.getId(), "owner-focus");
+
+        CreatePlanCommand otherOwner = new CreatePlanCommand(
+                "tenant-owner-scope",
+                "Other owner window",
+                "Non target owner",
+                "cust-scope",
+                "owner-other",
+                plannedStart.plusDays(1),
+                plannedStart.plusDays(1).plusHours(2),
+                "Asia/Tokyo",
+                List.of("owner-other"),
+                List.of(new PlanNodeCommand(null, "确认状态", "CHECKLIST", "owner-other", 1, 30,
+                        PlanNodeActionType.NONE, 100, null, "", List.of()))
+        );
+        var otherPlan = service.createPlan(otherOwner);
+        service.publishPlan(otherPlan.getId(), "owner-other");
+
+        PlanAnalytics analytics = service.getAnalytics("tenant-owner-scope", null, "owner-focus", null, null);
+
+        assertThat(analytics.getOwnerLoads()).hasSize(1);
+        assertThat(analytics.getOwnerLoads().get(0).getOwnerId()).isEqualTo("owner-focus");
+        assertThat(analytics.getUpcomingPlans())
+                .allSatisfy(plan -> assertThat(plan.getOwner()).isEqualTo("owner-focus"));
+        assertThat(analytics.getTotalPlans()).isGreaterThanOrEqualTo(1);
+        assertThat(analytics.getRiskPlans())
+                .allSatisfy(plan -> assertThat(plan.getOwner()).isEqualTo("owner-focus"));
     }
 }

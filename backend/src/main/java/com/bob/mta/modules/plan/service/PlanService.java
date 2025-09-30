@@ -51,7 +51,8 @@ public interface PlanService {
 
     List<PlanReminderSchedule> previewReminderSchedule(String planId, OffsetDateTime referenceTime);
 
-    PlanAnalytics getAnalytics(String tenantId, String customerId, OffsetDateTime from, OffsetDateTime to);
+    PlanAnalytics getAnalytics(String tenantId, String customerId, String ownerId,
+                               OffsetDateTime from, OffsetDateTime to);
 
     List<PlanActivityDescriptor> describeActivities();
 

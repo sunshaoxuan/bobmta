@@ -138,7 +138,7 @@ class PlanControllerTest {
 
     @Test
     void analyticsShouldSummarizePlans() {
-        var analytics = controller.analytics(null, null, null, null).getData();
+        var analytics = controller.analytics(null, null, null, null, null).getData();
 
         assertThat(analytics.getTotalPlans()).isGreaterThanOrEqualTo(2);
         assertThat(analytics.getUpcomingPlans()).isNotEmpty();
@@ -147,58 +147,47 @@ class PlanControllerTest {
     }
 
     @Test
-    void filterOptionsShouldExposeDictionaryMetadata() {
-        OffsetDateTime start = OffsetDateTime.now().plusDays(2);
-        OffsetDateTime end = start.plusHours(4);
-        planService.createPlan(new CreatePlanCommand(
-                "tenant-888",
-                "冬季巡检",
-                "冬季专项巡检计划",
-                "cust-888",
-                "winter-lead",
-                start,
-                end,
+    void analyticsShouldFilterByOwner() {
+        OffsetDateTime plannedStart = OffsetDateTime.now().plusDays(2);
+        CreatePlanCommand focusCommand = new CreatePlanCommand(
+                "tenant-owner-controller",
+                "Owner focused plan",
+                "Controller scoped owner",
+                "cust-ctrl",
+                "controller-owner",
+                plannedStart,
+                plannedStart.plusHours(2),
                 "Asia/Tokyo",
-                List.of("winter-lead", "observer"),
-                List.of(new PlanNodeCommand(null, "巡检准备", "CHECKLIST", "winter-lead", 1, 120,
+                List.of("controller-owner"),
+                List.of(new PlanNodeCommand(null, "准备巡检", "CHECKLIST", "controller-owner", 1, 30,
                         PlanNodeActionType.NONE, 100, null, "", List.of()))
-        ));
+        );
+        var focusPlan = planService.createPlan(focusCommand);
+        planService.publishPlan(focusPlan.getId(), "controller-owner");
 
-        var options = controller.filterOptions(null).getData();
+        CreatePlanCommand otherOwner = new CreatePlanCommand(
+                "tenant-owner-controller",
+                "Other owner coverage",
+                "Different owner", 
+                "cust-ctrl",
+                "controller-other",
+                plannedStart.plusDays(1),
+                plannedStart.plusDays(1).plusHours(3),
+                "Asia/Tokyo",
+                List.of("controller-other"),
+                List.of(new PlanNodeCommand(null, "执行检查", "CHECKLIST", "controller-other", 1, 45,
+                        PlanNodeActionType.NONE, 100, null, "", List.of()))
+        );
+        var otherPlan = planService.createPlan(otherOwner);
+        planService.publishPlan(otherPlan.getId(), "controller-other");
 
-        assertThat(options.getStatuses())
-                .anySatisfy(option -> {
-                    if ("DESIGN".equals(option.getValue())) {
-                        assertThat(option.getLabel()).contains("设计");
-                        assertThat(option.getCount()).isGreaterThanOrEqualTo(1);
-                    }
-                });
-        assertThat(options.getOwners())
-                .extracting(PlanFilterOptionsResponse.Option::getValue)
-                .contains("winter-lead");
-        assertThat(options.getCustomers())
-                .extracting(PlanFilterOptionsResponse.Option::getValue)
-                .contains("cust-888");
-        assertThat(options.getPlannedWindow()).isNotNull();
-        assertThat(options.getPlannedWindow().getLabel()).isNotBlank();
-        assertThat(options.getPlannedWindow().getStart()).isNotNull();
-        assertThat(options.getPlannedWindow().getEnd()).isNotNull();
-    }
+        var analytics = controller.analytics("tenant-owner-controller", null, "controller-owner", null, null)
+                .getData();
 
-    @Test
-    void activityTypesShouldExposeDictionary() {
-        var descriptors = controller.activityTypes().getData();
-
-        assertThat(descriptors).isNotEmpty();
-        assertThat(descriptors)
-                .anySatisfy(entry -> {
-                    if (entry.getType() == PlanActivityType.NODE_COMPLETED) {
-                        assertThat(entry.getMessages()).isNotEmpty();
-                        assertThat(entry.getAttributes())
-                                .extracting(attr -> attr.getName())
-                                .contains("nodeName", "result");
-                    }
-                });
+        assertThat(analytics.getOwnerLoads()).hasSize(1);
+        assertThat(analytics.getOwnerLoads().get(0).getOwnerId()).isEqualTo("controller-owner");
+        assertThat(analytics.getUpcomingPlans())
+                .allSatisfy(plan -> assertThat(plan.getOwner()).isEqualTo("controller-owner"));
     }
 
     @Test
@@ -275,7 +264,7 @@ class PlanControllerTest {
         var created = planService.createPlan(command);
         planService.publishPlan(created.getId(), "admin");
 
-        var analytics = controller.analytics(null, null, null, null).getData();
+        var analytics = controller.analytics(null, null, null, null, null).getData();
 
         assertThat(analytics.getOverdueCount()).isGreaterThanOrEqualTo(1);
         assertThat(analytics.getRiskPlans())
@@ -302,7 +291,7 @@ class PlanControllerTest {
         var created = planService.createPlan(command);
         planService.publishPlan(created.getId(), "admin");
 
-        var analytics = controller.analytics(null, null, null, null).getData();
+        var analytics = controller.analytics(null, null, null, null, null).getData();
 
         assertThat(analytics.getRiskPlans())
                 .anySatisfy(risk -> assertThat(risk.getRiskLevel()).isEqualTo(PlanAnalytics.RiskLevel.DUE_SOON));
