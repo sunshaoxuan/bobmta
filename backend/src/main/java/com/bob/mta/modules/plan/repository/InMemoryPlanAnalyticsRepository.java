@@ -62,7 +62,53 @@ public class InMemoryPlanAnalyticsRepository implements PlanAnalyticsRepository 
                 ))
                 .collect(Collectors.toList());
 
-        return new PlanAnalytics(filtered.size(), design, scheduled, inProgress, completed, canceled, overdue, upcoming);
+        List<PlanAnalytics.OwnerLoad> ownerLoads = filtered.stream()
+                .filter(plan -> plan.getOwner() != null && !plan.getOwner().isBlank())
+                .collect(Collectors.groupingBy(Plan::getOwner))
+                .entrySet().stream()
+                .map(entry -> {
+                    String owner = entry.getKey();
+                    List<Plan> ownerPlans = entry.getValue();
+                    long ownerTotal = ownerPlans.size();
+                    long ownerActive = ownerPlans.stream()
+                            .filter(plan -> plan.getStatus() == PlanStatus.SCHEDULED || plan.getStatus() == PlanStatus.IN_PROGRESS)
+                            .count();
+                    long ownerOverdue = ownerPlans.stream()
+                            .filter(plan -> plan.getStatus() == PlanStatus.SCHEDULED || plan.getStatus() == PlanStatus.IN_PROGRESS)
+                            .filter(plan -> isOverdue(plan, reference))
+                            .count();
+                    return new PlanAnalytics.OwnerLoad(owner, ownerTotal, ownerActive, ownerOverdue);
+                })
+                .sorted(Comparator.comparingLong(PlanAnalytics.OwnerLoad::getActivePlans).reversed()
+                        .thenComparingLong(PlanAnalytics.OwnerLoad::getOverduePlans).reversed()
+                        .thenComparing(PlanAnalytics.OwnerLoad::getOwnerId))
+                .limit(query.getOwnerLimit())
+                .toList();
+
+        OffsetDateTime dueSoonThreshold = reference.plusMinutes(query.getDueSoonMinutes());
+        List<PlanAnalytics.RiskPlan> riskPlans = filtered.stream()
+                .filter(plan -> plan.getStatus() == PlanStatus.SCHEDULED || plan.getStatus() == PlanStatus.IN_PROGRESS)
+                .filter(plan -> plan.getPlannedEndTime() != null)
+                .map(plan -> toRiskPlan(plan, reference, dueSoonThreshold))
+                .filter(risk -> risk != null)
+                .sorted((a, b) -> {
+                    if (a.getRiskLevel() != b.getRiskLevel()) {
+                        return a.getRiskLevel() == PlanAnalytics.RiskLevel.OVERDUE ? -1 : 1;
+                    }
+                    if (a.getRiskLevel() == PlanAnalytics.RiskLevel.OVERDUE) {
+                        return Long.compare(b.getMinutesOverdue(), a.getMinutesOverdue());
+                    }
+                    int compareDue = Long.compare(a.getMinutesUntilDue(), b.getMinutesUntilDue());
+                    if (compareDue != 0) {
+                        return compareDue;
+                    }
+                    return a.getId().compareTo(b.getId());
+                })
+                .limit(query.getRiskLimit())
+                .toList();
+
+        return new PlanAnalytics(filtered.size(), design, scheduled, inProgress, completed, canceled, overdue, upcoming,
+                ownerLoads, riskPlans);
     }
 
     private boolean isOverdue(Plan plan, OffsetDateTime reference) {
@@ -76,5 +122,41 @@ public class InMemoryPlanAnalyticsRepository implements PlanAnalyticsRepository 
             return false;
         }
         return plan.getPlannedEndTime().isBefore(reference);
+    }
+
+    private PlanAnalytics.RiskPlan toRiskPlan(Plan plan, OffsetDateTime reference, OffsetDateTime dueSoonThreshold) {
+        OffsetDateTime plannedEnd = plan.getPlannedEndTime();
+        if (plannedEnd == null) {
+            return null;
+        }
+        if (plannedEnd.isBefore(reference)) {
+            long overdueMinutes = Math.max(0, reference.toEpochSecond() - plannedEnd.toEpochSecond()) / 60;
+            return new PlanAnalytics.RiskPlan(
+                    plan.getId(),
+                    plan.getTitle(),
+                    plan.getStatus(),
+                    plannedEnd,
+                    plan.getOwner(),
+                    plan.getCustomerId(),
+                    PlanAnalytics.RiskLevel.OVERDUE,
+                    0,
+                    overdueMinutes
+            );
+        }
+        if (plannedEnd.isBefore(dueSoonThreshold)) {
+            long minutesUntilDue = Math.max(0, plannedEnd.toEpochSecond() - reference.toEpochSecond()) / 60;
+            return new PlanAnalytics.RiskPlan(
+                    plan.getId(),
+                    plan.getTitle(),
+                    plan.getStatus(),
+                    plannedEnd,
+                    plan.getOwner(),
+                    plan.getCustomerId(),
+                    PlanAnalytics.RiskLevel.DUE_SOON,
+                    minutesUntilDue,
+                    0
+            );
+        }
+        return null;
     }
 }

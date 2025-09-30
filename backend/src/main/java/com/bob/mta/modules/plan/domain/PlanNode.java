@@ -11,12 +11,15 @@ public class PlanNode {
     private final String assignee;
     private final int order;
     private final Integer expectedDurationMinutes;
+    private final PlanNodeActionType actionType;
+    private final Integer completionThreshold;
     private final String actionRef;
     private final String description;
     private final List<PlanNode> children;
 
     public PlanNode(String id, String name, String type, String assignee, int order,
-                    Integer expectedDurationMinutes, String actionRef, String description,
+                    Integer expectedDurationMinutes, PlanNodeActionType actionType,
+                    Integer completionThreshold, String actionRef, String description,
                     List<PlanNode> children) {
         this.id = id;
         this.name = name;
@@ -24,6 +27,10 @@ public class PlanNode {
         this.assignee = assignee;
         this.order = order;
         this.expectedDurationMinutes = expectedDurationMinutes;
+        this.actionType = actionType == null ? PlanNodeActionType.NONE : actionType;
+        this.completionThreshold = completionThreshold == null
+                ? 100
+                : Math.max(0, Math.min(100, completionThreshold));
         this.actionRef = actionRef;
         this.description = description;
         this.children = children == null ? List.of() : List.copyOf(children);
@@ -53,6 +60,14 @@ public class PlanNode {
         return expectedDurationMinutes;
     }
 
+    public PlanNodeActionType getActionType() {
+        return actionType;
+    }
+
+    public Integer getCompletionThreshold() {
+        return completionThreshold;
+    }
+
     public String getActionRef() {
         return actionRef;
     }
@@ -63,5 +78,10 @@ public class PlanNode {
 
     public List<PlanNode> getChildren() {
         return Collections.unmodifiableList(children);
+    }
+
+    public PlanNode withAssignee(String newAssignee) {
+        return new PlanNode(id, name, type, newAssignee, order, expectedDurationMinutes, actionType,
+                completionThreshold, actionRef, description, children);
     }
 }
