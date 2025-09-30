@@ -68,4 +68,8 @@ public interface PlanAggregateMapper {
     long countOverduePlans(PlanAnalyticsQueryParameters parameters);
 
     List<PlanUpcomingPlanEntity> findUpcomingPlans(PlanAnalyticsQueryParameters parameters);
+
+    List<PlanOwnerLoadEntity> findOwnerLoads(PlanAnalyticsQueryParameters parameters);
+
+    List<PlanRiskPlanEntity> findRiskPlans(PlanAnalyticsQueryParameters parameters);
 }

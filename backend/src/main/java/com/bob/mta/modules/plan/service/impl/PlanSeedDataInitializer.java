@@ -2,6 +2,7 @@ package com.bob.mta.modules.plan.service.impl;
 
 import com.bob.mta.i18n.Localization;
 import com.bob.mta.i18n.LocalizationKeys;
+import com.bob.mta.modules.plan.domain.PlanNodeActionType;
 import com.bob.mta.modules.plan.repository.InMemoryPlanRepository;
 import com.bob.mta.modules.plan.repository.PlanRepository;
 import com.bob.mta.modules.plan.service.PlanService;
@@ -56,6 +57,8 @@ public class PlanSeedDataInitializer implements ApplicationRunner {
                                 "admin",
                                 1,
                                 60,
+                                PlanNodeActionType.REMOTE,
+                                100,
                                 "remote-template-1",
                                 Localization.text(LocalizationKeys.Seeds.PLAN_NODE_BACKUP_DESCRIPTION),
                                 List.of()
@@ -67,6 +70,8 @@ public class PlanSeedDataInitializer implements ApplicationRunner {
                                 "operator",
                                 2,
                                 15,
+                                PlanNodeActionType.EMAIL,
+                                100,
                                 "email-template-1",
                                 Localization.text(LocalizationKeys.Seeds.PLAN_NODE_NOTIFY_DESCRIPTION),
                                 List.of()
@@ -96,6 +101,8 @@ public class PlanSeedDataInitializer implements ApplicationRunner {
                                 "operator",
                                 1,
                                 180,
+                                PlanNodeActionType.NONE,
+                                100,
                                 null,
                                 Localization.text(LocalizationKeys.Seeds.PLAN_SECONDARY_NODE_DESCRIPTION),
                                 List.of()

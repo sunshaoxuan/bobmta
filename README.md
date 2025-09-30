@@ -87,6 +87,27 @@
   - 新增 `/api/v1/i18n/default-locale` 接口，返回当前默认语言与受支持语种列表，并强制管理员权限执行更新。
   - `LocalePreferenceService` 校验语种是否受支持、提供持久化写入，并在控制层与服务层单测中验证成功与失败分支。
 
+- 迭代 #15：扩展计划节点执行动作与阈值处理，支撑前端对可选任务的灵活控制。
+  - 为节点模型补充 `actionType` 与 `completionThreshold` 字段，覆盖远程/邮件/IM/链接/文件等动作类型并约束执行阈值范围。
+  - 完成节点时根据阈值自动补齐父节点完成并跳过剩余子节点，时间线记录 `plan.activity.nodeAutoCompleted` 与 `plan.activity.nodeSkipped` 事件。
+  - 更新控制层、服务层与持久化映射及单元测试，验证阈值触发后的执行状态、计划完结与多语言文案输出一致。
+- 迭代 #16：交付时间线事件字典接口，完善前端 F-002 的展示所需语义。
+  - 新增 `GET /api/v1/plans/activity-types`，汇总 `PlanActivityType` 支持的消息键及属性描述，响应随请求语言返回多语言文案。
+  - 梳理时间线事件产生的属性并补充中日双语说明，方便前端根据 `descriptionKey` 自定义渲染或筛选图标。
+  - 在《docs/backend-requests/plan-timeline-activities.md》记录事件与属性对照，单元测试覆盖字典接口。
+- 迭代 #17：输出提醒策略配置字典接口，支撑前端构建提醒策略编辑器。
+  - 提供 `GET /api/v1/plans/reminder-options` 返回触发时机、通知渠道、收件人群组及偏移范围，并带多语言说明。
+  - 在服务层抽象提醒配置描述符，统一维护触发枚举、渠道代号与默认偏移，方便后续扩展 SMS/IM 以外的渠道。
+  - 更新中日双语资源及控制层单元测试，确保字典接口按照请求语言返回正确文案，并在《docs/backend-requests/plan-reminder-options.md》记录契约。
+- 迭代 #18：交付计划列表筛选字典，为 F-001 的筛选面板提供动态多语言数据。
+  - 新增 `GET /api/v1/plans/filter-options`，返回计划状态、负责人、客户的候选项及当前数量，并附带预计时间窗建议。
+  - 服务层按照租户过滤计划数据，统一以多语言消息渲染标签，并在控制层单测校验中文环境下的标签与数量。
+  - 在《docs/backend-requests/plan-filter-options.md》记录契约，同时更新多语言资源，供前端替换静态筛选枚举。
+- 迭代 #19：扩展计划驾驶舱统计的负责人负载与风险洞察，支撑 F-004 的图表与提醒提示。
+  - `/api/v1/plans/analytics` 响应新增负责人负载与风险计划列表，按照多租户过滤聚合活跃/逾期数量，并限制返回数量。
+  - 内存与持久化分析仓储统一计算即将到期与已逾期计划，按照 24 小时窗口标记风险等级，并在控制层/服务层单测覆盖。
+  - 新增《docs/backend-requests/plan-analytics-dashboard.md》说明驾驶舱数据结构，便于前端联调图表与风险提示。
+
 ### 🔄 正在进行
 - 基于 `PlanSearchCriteria` 细化数据库层的字段映射与索引规划，评估多维组合筛选的 SQL 与分页策略。
 - 联调 MyBatis 映射与数据源配置，完善序列生成、分页与并发写入策略，确保切换数据库后仓储读写一致。
@@ -119,6 +140,7 @@
   - ✅ 已完成：交付计划节点树形概览，复用多语言标签标注顺序、执行人、时长与结果信息，并与提醒/时间线视图保持一致的错误与加载反馈。
   - ✅ 已完成：梳理节点执行与提醒配置的交互占位，新增详情分区通用组件、节点操作面板与提醒卡片交互，按钮行为以本地状态模拟并在需求清单登记后端接口诉求。
   - 📌 下一步：等待后端提供节点执行与提醒更新接口后对接真实调用，并补齐操作失败提示与权限校验的前端展现。
+  - 📌 新增：在 F-001 联调前，前端将接入筛选字典接口，替换静态状态/负责人列表并同步缓存策略。
 
 ### ⏭️ 下一步
 - 迭代 #2：设计前端状态管理与缓存方案，区分用户会话、计划查询缓存与多语言资源加载，完善 Mock 数据与单元测试基线。
@@ -198,12 +220,14 @@ mvn spring-boot:run
 | `DELETE /api/v1/plans/{id}` | 删除运维计划 | 仅 DESIGN 计划可删除，删除时写入审计日志 |
 | `POST /api/v1/plans/{id}/publish` | 发布运维计划 | 根据开始时间切换为 SCHEDULED/IN_PROGRESS，并记录审计 |
 | `POST /api/v1/plans/{id}/cancel` | 取消运维计划 | 写入取消原因/操作者并终止计划 |
-| `POST /api/v1/plans/{id}/nodes/{nodeId}/start` | 开始执行节点 | 切换节点状态为 IN_PROGRESS，驱动计划进入执行态 |
-| `POST /api/v1/plans/{id}/nodes/{nodeId}/complete` | 完成节点 | 校验已启动后方可完成，支持提交结果、日志与附件 |
+| `POST /api/v1/plans/{id}/nodes/{nodeId}/start` | 开始执行节点 | 切换节点状态为 IN_PROGRESS，返回最新计划详情 |
+| `POST /api/v1/plans/{id}/nodes/{nodeId}/complete` | 完成节点 | 校验已启动后方可完成，支持提交结果、日志与附件并返回计划详情 |
+| `POST /api/v1/plans/{id}/nodes/{nodeId}/handover` | 节点交接 | 指定新的执行人并写入审计与时间线 |
 | `GET /api/v1/plans/{id}` | 运维计划详情 | 展示流程节点树形结构及执行进度 |
 | `GET /api/v1/plans/{id}/timeline` | 运维计划时间线 | 返回计划与节点的关键活动轨迹 |
 | `GET /api/v1/plans/{id}/reminders` | 查看运维计划提醒策略 | 返回默认及自定义的提醒规则列表 |
 | `PUT /api/v1/plans/{id}/reminders` | 更新运维计划提醒策略 | 支持配置渠道、模板、触发时机并记录审计 |
+| `PUT /api/v1/plans/{id}/reminders/{reminderId}` | 更新单条提醒规则 | 启停提醒或调整偏移量，返回最新计划详情 |
 | `GET /api/v1/plans/{id}/reminders/preview` | 预览运维计划提醒触达计划 | 基于时间窗口计算未来触达时间点 |
 | `GET /api/v1/plans/{id}/ics` | 导出单计划 ICS | 生成 `text/calendar` 文件，可导入主流日历 |
 | `GET /api/v1/calendar/tenant/{tenant}.ics` | 租户计划订阅 | 输出租户可见计划的 ICS 订阅源 |

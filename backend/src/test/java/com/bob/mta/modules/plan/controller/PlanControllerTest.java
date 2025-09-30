@@ -9,20 +9,28 @@ import com.bob.mta.modules.audit.service.AuditRecorder;
 import com.bob.mta.modules.audit.service.impl.InMemoryAuditService;
 import com.bob.mta.modules.file.service.impl.InMemoryFileService;
 import com.bob.mta.modules.plan.domain.PlanActivityType;
+import com.bob.mta.modules.plan.domain.PlanAnalytics;
 import com.bob.mta.modules.plan.domain.PlanReminderTrigger;
+import com.bob.mta.modules.plan.domain.PlanNodeActionType;
 import com.bob.mta.modules.plan.dto.CancelPlanRequest;
 import com.bob.mta.modules.plan.dto.CompleteNodeRequest;
+import com.bob.mta.modules.plan.dto.PlanActivityResponse;
 import com.bob.mta.modules.plan.dto.PlanDetailResponse;
+import com.bob.mta.modules.plan.dto.PlanFilterOptionsResponse;
 import com.bob.mta.modules.plan.dto.PlanHandoverRequest;
 import com.bob.mta.modules.plan.dto.PlanNodeAttachmentResponse;
+import com.bob.mta.modules.plan.dto.PlanNodeHandoverRequest;
+import com.bob.mta.modules.plan.dto.PlanNodeStartRequest;
 import com.bob.mta.modules.plan.dto.PlanReminderPolicyRequest;
 import com.bob.mta.modules.plan.dto.PlanReminderRuleRequest;
+import com.bob.mta.modules.plan.dto.PlanReminderUpdateRequest;
 import com.bob.mta.modules.plan.dto.PlanSummaryResponse;
 import com.bob.mta.modules.plan.repository.InMemoryPlanAnalyticsRepository;
 import com.bob.mta.modules.plan.repository.InMemoryPlanRepository;
 import com.bob.mta.modules.plan.service.impl.InMemoryPlanService;
 import com.bob.mta.modules.plan.service.command.CreatePlanCommand;
 import com.bob.mta.modules.plan.service.command.PlanNodeCommand;
+import com.bob.mta.i18n.LocalizationKeys;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -85,7 +93,7 @@ class PlanControllerTest {
                 OffsetDateTime.now().plusDays(5).plusHours(3),
                 "Asia/Shanghai",
                 List.of("ops-lead"),
-                List.of(new PlanNodeCommand(null, "巡检准备", "CHECKLIST", "ops-lead", 1, 60, null, "", List.of()))
+                List.of(new PlanNodeCommand(null, "巡检准备", "CHECKLIST", "ops-lead", 1, 60, PlanNodeActionType.NONE, 100, null, "", List.of()))
         );
         planService.createPlan(command);
 
@@ -109,7 +117,7 @@ class PlanControllerTest {
                 OffsetDateTime.now().plusDays(3).plusHours(6),
                 "Asia/Tokyo",
                 List.of("tenant-owner"),
-                List.of(new PlanNodeCommand(null, "准备", "CHECKLIST", "tenant-owner", 1, 60, null, "", List.of()))
+                List.of(new PlanNodeCommand(null, "准备", "CHECKLIST", "tenant-owner", 1, 60, PlanNodeActionType.NONE, 100, null, "", List.of()))
         );
         planService.createPlan(tenantSpecific);
 
@@ -134,6 +142,63 @@ class PlanControllerTest {
 
         assertThat(analytics.getTotalPlans()).isGreaterThanOrEqualTo(2);
         assertThat(analytics.getUpcomingPlans()).isNotEmpty();
+        assertThat(analytics.getOwnerLoads()).isNotEmpty();
+        assertThat(analytics.getRiskPlans()).isNotNull();
+    }
+
+    @Test
+    void filterOptionsShouldExposeDictionaryMetadata() {
+        OffsetDateTime start = OffsetDateTime.now().plusDays(2);
+        OffsetDateTime end = start.plusHours(4);
+        planService.createPlan(new CreatePlanCommand(
+                "tenant-888",
+                "冬季巡检",
+                "冬季专项巡检计划",
+                "cust-888",
+                "winter-lead",
+                start,
+                end,
+                "Asia/Tokyo",
+                List.of("winter-lead", "observer"),
+                List.of(new PlanNodeCommand(null, "巡检准备", "CHECKLIST", "winter-lead", 1, 120,
+                        PlanNodeActionType.NONE, 100, null, "", List.of()))
+        ));
+
+        var options = controller.filterOptions(null).getData();
+
+        assertThat(options.getStatuses())
+                .anySatisfy(option -> {
+                    if ("DESIGN".equals(option.getValue())) {
+                        assertThat(option.getLabel()).contains("设计");
+                        assertThat(option.getCount()).isGreaterThanOrEqualTo(1);
+                    }
+                });
+        assertThat(options.getOwners())
+                .extracting(PlanFilterOptionsResponse.Option::getValue)
+                .contains("winter-lead");
+        assertThat(options.getCustomers())
+                .extracting(PlanFilterOptionsResponse.Option::getValue)
+                .contains("cust-888");
+        assertThat(options.getPlannedWindow()).isNotNull();
+        assertThat(options.getPlannedWindow().getLabel()).isNotBlank();
+        assertThat(options.getPlannedWindow().getStart()).isNotNull();
+        assertThat(options.getPlannedWindow().getEnd()).isNotNull();
+    }
+
+    @Test
+    void activityTypesShouldExposeDictionary() {
+        var descriptors = controller.activityTypes().getData();
+
+        assertThat(descriptors).isNotEmpty();
+        assertThat(descriptors)
+                .anySatisfy(entry -> {
+                    if (entry.getType() == PlanActivityType.NODE_COMPLETED) {
+                        assertThat(entry.getMessages()).isNotEmpty();
+                        assertThat(entry.getAttributes())
+                                .extracting(attr -> attr.getName())
+                                .contains("nodeName", "result");
+                    }
+                });
     }
 
     @Test
@@ -150,7 +215,7 @@ class PlanControllerTest {
                 end,
                 "Asia/Tokyo",
                 List.of("admin"),
-                List.of(new PlanNodeCommand(null, "快速检查", "CHECKLIST", "admin", 1, 15, null, "", List.of()))
+                List.of(new PlanNodeCommand(null, "快速检查", "CHECKLIST", "admin", 1, 15, PlanNodeActionType.NONE, 100, null, "", List.of()))
         );
         var created = planService.createPlan(command);
         planService.publishPlan(created.getId(), "admin");
@@ -158,6 +223,34 @@ class PlanControllerTest {
         var analytics = controller.analytics(null, null, null, null).getData();
 
         assertThat(analytics.getOverdueCount()).isGreaterThanOrEqualTo(1);
+        assertThat(analytics.getRiskPlans())
+                .anySatisfy(risk -> assertThat(risk.getRiskLevel()).isEqualTo(PlanAnalytics.RiskLevel.OVERDUE));
+    }
+
+    @Test
+    void analyticsShouldSurfaceDueSoonPlans() {
+        OffsetDateTime start = OffsetDateTime.now().plusHours(1);
+        OffsetDateTime end = start.plusHours(2);
+        CreatePlanCommand command = new CreatePlanCommand(
+                "tenant-001",
+                "即将到期巡检",
+                "即将到期巡检描述",
+                "cust-001",
+                "admin",
+                start,
+                end,
+                "Asia/Tokyo",
+                List.of("admin"),
+                List.of(new PlanNodeCommand(null, "到期检查", "CHECKLIST", "admin", 1, 60,
+                        PlanNodeActionType.NONE, 100, null, "", List.of()))
+        );
+        var created = planService.createPlan(command);
+        planService.publishPlan(created.getId(), "admin");
+
+        var analytics = controller.analytics(null, null, null, null).getData();
+
+        assertThat(analytics.getRiskPlans())
+                .anySatisfy(risk -> assertThat(risk.getRiskLevel()).isEqualTo(PlanAnalytics.RiskLevel.DUE_SOON));
     }
 
     @Test
@@ -175,18 +268,25 @@ class PlanControllerTest {
         String nodeId = planService.getPlan(planId).getExecutions().get(0).getNodeId();
         authenticate("admin");
         controller.publish(planId);
-        controller.startNode(planId, nodeId);
+        PlanNodeStartRequest startRequest = new PlanNodeStartRequest();
+        startRequest.setOperatorId("admin");
+        controller.startNode(planId, nodeId, startRequest);
         var file = fileService.register("evidence.log", "text/plain", 128, "plan-files", "PLAN_NODE", nodeId,
                 "admin");
         CompleteNodeRequest request = new CompleteNodeRequest();
-        request.setResult("完成");
+        request.setOperatorId("admin");
+        request.setResultSummary("完成");
         request.setLog("上传巡检记录");
         request.setFileIds(List.of(file.getId()));
 
-        controller.completeNode(planId, nodeId, request);
-
-        PlanDetailResponse response = controller.detail(planId).getData();
-        PlanNodeAttachmentResponse attachment = response.getNodes().get(0).getExecution().getAttachments().get(0);
+        PlanDetailResponse response = controller.completeNode(planId, nodeId, request).getData();
+        PlanNodeAttachmentResponse attachment = response.getNodes().stream()
+                .filter(node -> node.getId().equals(nodeId))
+                .findFirst()
+                .orElseThrow()
+                .getExecution()
+                .getAttachments()
+                .get(0);
         assertThat(attachment.getId()).isEqualTo(file.getId());
         assertThat(attachment.getDownloadUrl()).isEqualTo(fileService.buildDownloadUrl(file));
     }
@@ -223,6 +323,29 @@ class PlanControllerTest {
         var logs = auditService.query(new AuditQuery("Plan", planId, "UPDATE_PLAN_REMINDERS", "admin"));
         assertThat(logs).hasSize(1);
         assertThat(logs.get(0).getNewData()).contains("custom-template");
+    }
+
+    @Test
+    void reminderOptionsShouldReturnLocalizedDictionary() {
+        var options = controller.reminderOptions().getData();
+
+        assertThat(options.getTriggers())
+                .extracting(com.bob.mta.modules.plan.dto.PlanReminderOptionsResponse.Option::getId)
+                .contains("BEFORE_PLAN_START", "BEFORE_PLAN_END");
+
+        String expectedEmail = messageResolver.getMessage(LocalizationKeys.PlanReminder.CHANNEL_EMAIL);
+        assertThat(options.getChannels())
+                .anySatisfy(option -> {
+                    if ("EMAIL".equals(option.getId())) {
+                        assertThat(option.getLabel()).isEqualTo(expectedEmail);
+                        assertThat(option.getDescription())
+                                .isEqualTo(messageResolver.getMessage(LocalizationKeys.PlanReminder.CHANNEL_EMAIL_DESC));
+                    }
+                });
+
+        assertThat(options.getMinOffsetMinutes()).isZero();
+        assertThat(options.getMaxOffsetMinutes()).isEqualTo(1440);
+        assertThat(options.getDefaultOffsetMinutes()).isEqualTo(60);
     }
 
     @Test
@@ -304,7 +427,9 @@ class PlanControllerTest {
         authenticate("operator");
         controller.publish(planId);
 
-        controller.startNode(planId, nodeId);
+        PlanNodeStartRequest request = new PlanNodeStartRequest();
+        request.setOperatorId("operator");
+        controller.startNode(planId, nodeId, request);
 
         var logs = auditService.query(new AuditQuery("PlanNode", planId + "::" + nodeId, "START_NODE", "operator"));
         assertThat(logs).hasSize(1);
@@ -318,26 +443,92 @@ class PlanControllerTest {
         String nodeId = planService.getPlan(planId).getExecutions().get(0).getNodeId();
         authenticate("operator");
         controller.publish(planId);
-        controller.startNode(planId, nodeId);
+        PlanNodeStartRequest startRequest = new PlanNodeStartRequest();
+        startRequest.setOperatorId("operator");
+        controller.startNode(planId, nodeId, startRequest);
         var file = fileService.register("result.txt", "text/plain", 256, "plan-files", "PLAN_NODE", nodeId,
                 "operator");
         CompleteNodeRequest request = new CompleteNodeRequest();
-        request.setResult("巡检完成");
+        request.setOperatorId("operator");
+        request.setResultSummary("巡检完成");
         request.setLog("一切正常");
         request.setFileIds(List.of(file.getId()));
 
-        var response = controller.completeNode(planId, nodeId, request).getData();
+        PlanDetailResponse response = controller.completeNode(planId, nodeId, request).getData();
 
         var logs = auditService.query(new AuditQuery("PlanNode", planId + "::" + nodeId, "COMPLETE_NODE", "operator"));
         assertThat(logs).hasSize(1);
         AuditLog log = logs.get(0);
         assertThat(log.getOldData()).contains("\"status\":\"IN_PROGRESS\"");
         assertThat(log.getNewData()).contains("\"status\":\"DONE\"");
-        assertThat(response.getAttachments())
-                .extracting(PlanNodeAttachmentResponse::getId)
-                .contains(file.getId());
-        assertThat(response.getAttachments().get(0).getDownloadUrl())
+        PlanNodeAttachmentResponse attachment = response.getNodes().stream()
+                .filter(node -> node.getId().equals(nodeId))
+                .findFirst()
+                .orElseThrow()
+                .getExecution()
+                .getAttachments()
+                .get(0);
+        assertThat(attachment.getId()).isEqualTo(file.getId());
+        assertThat(attachment.getDownloadUrl())
                 .isEqualTo(fileService.buildDownloadUrl(file));
+    }
+
+    @Test
+    void handoverNodeShouldUpdateAssigneeAndTimeline() {
+        String planId = planService.listPlans(null, null, null, null, null, null, null, 0, 10).plans().get(0).getId();
+        String nodeId = planService.getPlan(planId).getExecutions().get(0).getNodeId();
+        authenticate("operator");
+        controller.publish(planId);
+
+        PlanNodeHandoverRequest request = new PlanNodeHandoverRequest();
+        request.setOperatorId("operator");
+        request.setAssigneeId("new-operator");
+        request.setComment("交接说明");
+
+        PlanDetailResponse response = controller.handoverNode(planId, nodeId, request).getData();
+
+        String updatedAssignee = response.getNodes().stream()
+                .filter(node -> node.getId().equals(nodeId))
+                .findFirst()
+                .orElseThrow()
+                .getAssignee();
+        assertThat(updatedAssignee).isEqualTo("new-operator");
+        assertThat(response.getTimeline())
+                .extracting(PlanActivityResponse::getType)
+                .contains(PlanActivityType.NODE_HANDOVER);
+
+        var logs = auditService.query(new AuditQuery("PlanNode", planId + "::" + nodeId, "HANDOVER_NODE", "operator"));
+        assertThat(logs).hasSize(1);
+        assertThat(logs.get(0).getNewData()).contains("new-operator");
+    }
+
+    @Test
+    void updateReminderRuleShouldToggleActiveAndOffset() {
+        String planId = planService.listPlans(null, null, null, null, null, null, null, 0, 10).plans().get(0).getId();
+        authenticate("admin");
+        PlanDetailResponse before = controller.detail(planId).getData();
+        String reminderId = before.getReminderPolicy().getRules().get(0).getId();
+
+        PlanReminderUpdateRequest request = new PlanReminderUpdateRequest();
+        request.setActive(false);
+        request.setOffsetMinutes(999);
+
+        PlanDetailResponse response = controller.updateReminderRule(planId, reminderId, request).getData();
+
+        var updatedRule = response.getReminderPolicy().getRules().stream()
+                .filter(rule -> reminderId.equals(rule.getId()))
+                .findFirst()
+                .orElseThrow();
+        assertThat(updatedRule.isActive()).isFalse();
+        assertThat(updatedRule.getOffsetMinutes()).isEqualTo(999);
+        assertThat(response.getTimeline())
+                .extracting(PlanActivityResponse::getType)
+                .contains(PlanActivityType.REMINDER_POLICY_UPDATED);
+
+        var logs = auditService.query(new AuditQuery("PlanReminder", planId + "::" + reminderId,
+                "UPDATE_REMINDER", "admin"));
+        assertThat(logs).hasSize(1);
+        assertThat(logs.get(0).getNewData()).contains("\"offsetMinutes\":999");
     }
 
     private void authenticate(String username) {
