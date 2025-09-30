@@ -1,6 +1,9 @@
 package com.bob.mta.modules.plan.repository;
 
+import com.bob.mta.modules.plan.domain.PlanStatus;
+
 import java.time.OffsetDateTime;
+import java.util.List;
 
 public final class PlanAnalyticsQuery {
 
@@ -14,11 +17,13 @@ public final class PlanAnalyticsQuery {
     private final int ownerLimit;
     private final int riskLimit;
     private final int dueSoonMinutes;
+    private final List<PlanStatus> statuses;
 
     private PlanAnalyticsQuery(String tenantId, String customerId, String ownerId,
                                OffsetDateTime from, OffsetDateTime to,
                                OffsetDateTime referenceTime, int upcomingLimit,
-                               int ownerLimit, int riskLimit, int dueSoonMinutes) {
+                               int ownerLimit, int riskLimit, int dueSoonMinutes,
+                               List<PlanStatus> statuses) {
         this.tenantId = tenantId;
         this.customerId = customerId;
         this.ownerId = ownerId;
@@ -29,6 +34,7 @@ public final class PlanAnalyticsQuery {
         this.ownerLimit = ownerLimit;
         this.riskLimit = riskLimit;
         this.dueSoonMinutes = dueSoonMinutes;
+        this.statuses = statuses == null ? List.of() : List.copyOf(statuses);
     }
 
     public String getTenantId() {
@@ -71,6 +77,10 @@ public final class PlanAnalyticsQuery {
         return dueSoonMinutes;
     }
 
+    public List<PlanStatus> getStatuses() {
+        return statuses;
+    }
+
     public static Builder builder() {
         return new Builder();
     }
@@ -86,6 +96,7 @@ public final class PlanAnalyticsQuery {
         private Integer ownerLimit;
         private Integer riskLimit;
         private Integer dueSoonMinutes;
+        private List<PlanStatus> statuses;
 
         private Builder() {
         }
@@ -140,13 +151,20 @@ public final class PlanAnalyticsQuery {
             return this;
         }
 
+        public Builder statuses(List<PlanStatus> statuses) {
+            this.statuses = statuses == null ? null : List.copyOf(statuses);
+            return this;
+        }
+
         public PlanAnalyticsQuery build() {
             OffsetDateTime reference = referenceTime == null ? OffsetDateTime.now() : referenceTime;
             int limit = upcomingLimit == null || upcomingLimit <= 0 ? 5 : upcomingLimit;
             int owner = ownerLimit == null || ownerLimit <= 0 ? 5 : ownerLimit;
             int risk = riskLimit == null || riskLimit <= 0 ? 5 : riskLimit;
             int dueSoon = dueSoonMinutes == null || dueSoonMinutes <= 0 ? 1440 : dueSoonMinutes;
-            return new PlanAnalyticsQuery(tenantId, customerId, ownerId, from, to, reference, limit, owner, risk, dueSoon);
+            List<PlanStatus> selectedStatuses = statuses == null ? List.of() : statuses;
+            return new PlanAnalyticsQuery(tenantId, customerId, ownerId, from, to, reference, limit, owner, risk,
+                    dueSoon, selectedStatuses);
         }
     }
 }

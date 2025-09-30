@@ -166,11 +166,20 @@
             <if test="status != null">
                 AND status = #{status}
             </if>
+            <if test="statuses != null and !statuses.isEmpty()">
+                AND status IN
+                <foreach collection="statuses" item="status" open="(" separator="," close=")">
+                    #{status}
+                </foreach>
+            </if>
             <if test="plannedStartFrom != null">
                 AND planned_end_time &gt;= #{plannedStartFrom}
             </if>
             <if test="plannedEndTo != null">
                 AND planned_start_time &lt;= #{plannedEndTo}
+            </if>
+            <if test="excludePlanId != null">
+                AND plan_id != #{excludePlanId}
             </if>
         </where>
         ORDER BY planned_start_time NULLS LAST, plan_id
@@ -204,11 +213,20 @@
             <if test="status != null">
                 AND status = #{status}
             </if>
+            <if test="statuses != null and !statuses.isEmpty()">
+                AND status IN
+                <foreach collection="statuses" item="status" open="(" separator="," close=")">
+                    #{status}
+                </foreach>
+            </if>
             <if test="plannedStartFrom != null">
                 AND planned_end_time &gt;= #{plannedStartFrom}
             </if>
             <if test="plannedEndTo != null">
                 AND planned_start_time &lt;= #{plannedEndTo}
+            </if>
+            <if test="excludePlanId != null">
+                AND plan_id != #{excludePlanId}
             </if>
         </where>
     </select>
@@ -234,6 +252,12 @@
             <if test="plannedEndTo != null">
                 AND planned_start_time &lt;= #{plannedEndTo}
             </if>
+            <if test="statuses != null and !statuses.isEmpty()">
+                AND status IN
+                <foreach collection="statuses" item="status" open="(" separator="," close=")">
+                    #{status}
+                </foreach>
+            </if>
         </where>
         GROUP BY status
     </select>
@@ -257,6 +281,12 @@
             </if>
             <if test="plannedEndTo != null">
                 AND planned_start_time &lt;= #{plannedEndTo}
+            </if>
+            <if test="statuses != null and !statuses.isEmpty()">
+                AND status IN
+                <foreach collection="statuses" item="status" open="(" separator="," close=")">
+                    #{status}
+                </foreach>
             </if>
             AND status IN ('SCHEDULED', 'IN_PROGRESS')
             AND planned_end_time IS NOT NULL
@@ -299,6 +329,12 @@
             <if test="plannedEndTo != null">
                 AND p.planned_start_time &lt;= #{plannedEndTo}
             </if>
+            <if test="statuses != null and !statuses.isEmpty()">
+                AND p.status IN
+                <foreach collection="statuses" item="status" open="(" separator="," close=")">
+                    #{status}
+                </foreach>
+            </if>
             AND p.status NOT IN ('CANCELED', 'COMPLETED')
             AND p.planned_start_time IS NOT NULL
             AND p.planned_start_time &gt;= #{referenceTime}
@@ -337,6 +373,12 @@
             </if>
             <if test="plannedEndTo != null">
                 AND planned_start_time &lt;= #{plannedEndTo}
+            </if>
+            <if test="statuses != null and !statuses.isEmpty()">
+                AND status IN
+                <foreach collection="statuses" item="status" open="(" separator="," close=")">
+                    #{status}
+                </foreach>
             </if>
         </where>
         GROUP BY owner_id
@@ -387,6 +429,12 @@
             </if>
             <if test="plannedEndTo != null">
                 AND p.planned_start_time &lt;= #{plannedEndTo}
+            </if>
+            <if test="statuses != null and !statuses.isEmpty()">
+                AND p.status IN
+                <foreach collection="statuses" item="status" open="(" separator="," close=")">
+                    #{status}
+                </foreach>
             </if>
             AND p.status IN ('SCHEDULED', 'IN_PROGRESS')
             AND p.planned_end_time IS NOT NULL

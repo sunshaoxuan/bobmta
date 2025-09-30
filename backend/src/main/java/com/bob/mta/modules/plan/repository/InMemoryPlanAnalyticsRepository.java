@@ -31,6 +31,7 @@ public class InMemoryPlanAnalyticsRepository implements PlanAnalyticsRepository 
                 .owner(query.getOwnerId())
                 .from(query.getFrom())
                 .to(query.getTo())
+                .statuses(query.getStatuses())
                 .build();
 
         List<Plan> filtered = planRepository.findByCriteria(criteria).stream()

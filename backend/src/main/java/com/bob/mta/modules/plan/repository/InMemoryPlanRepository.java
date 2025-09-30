@@ -102,12 +102,16 @@ public class InMemoryPlanRepository implements PlanRepository {
                 .filter(plan -> criteria == null || matchesKeyword(plan, criteria.getKeyword()))
                 .filter(plan -> criteria == null || criteria.getStatus() == null
                         || plan.getStatus() == criteria.getStatus())
+                .filter(plan -> criteria == null || criteria.getStatuses().isEmpty()
+                        || criteria.getStatuses().contains(plan.getStatus()))
                 .filter(plan -> criteria == null || criteria.getFrom() == null
                         || (plan.getPlannedEndTime() != null
                         && !plan.getPlannedEndTime().isBefore(criteria.getFrom())))
                 .filter(plan -> criteria == null || criteria.getTo() == null
                         || (plan.getPlannedStartTime() != null
                         && !plan.getPlannedStartTime().isAfter(criteria.getTo())))
+                .filter(plan -> criteria == null || criteria.getExcludePlanId() == null
+                        || !Objects.equals(plan.getId(), criteria.getExcludePlanId()))
                 .sorted(comparator)
                 .collect(Collectors.toList());
     }
