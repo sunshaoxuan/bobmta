@@ -106,6 +106,25 @@
         <result column="total_nodes" property="totalNodes"/>
     </resultMap>
 
+    <resultMap id="PlanOwnerLoadResult" type="com.bob.mta.modules.plan.persistence.PlanOwnerLoadEntity">
+        <result column="owner_id" property="ownerId"/>
+        <result column="total_plans" property="totalPlans"/>
+        <result column="active_plans" property="activePlans"/>
+        <result column="overdue_plans" property="overduePlans"/>
+    </resultMap>
+
+    <resultMap id="PlanRiskPlanResult" type="com.bob.mta.modules.plan.persistence.PlanRiskPlanEntity">
+        <id column="plan_id" property="planId"/>
+        <result column="title" property="title"/>
+        <result column="status" property="status" javaType="com.bob.mta.modules.plan.domain.PlanStatus"/>
+        <result column="planned_end_time" property="plannedEndTime"/>
+        <result column="owner_id" property="ownerId"/>
+        <result column="customer_id" property="customerId"/>
+        <result column="risk_level" property="riskLevel"/>
+        <result column="minutes_until_due" property="minutesUntilDue"/>
+        <result column="minutes_overdue" property="minutesOverdue"/>
+    </resultMap>
+
     <select id="findPlans" parameterType="com.bob.mta.modules.plan.persistence.PlanQueryParameters"
             resultMap="PlanEntityResult">
         SELECT plan_id,
@@ -278,6 +297,96 @@
         ORDER BY p.planned_start_time
         <if test="upcomingLimit != null">
             LIMIT #{upcomingLimit}
+        </if>
+    </select>
+
+    <select id="findOwnerLoads" parameterType="com.bob.mta.modules.plan.persistence.PlanAnalyticsQueryParameters"
+            resultMap="PlanOwnerLoadResult">
+        SELECT owner_id,
+               COUNT(1)                                                   AS total_plans,
+               SUM(CASE WHEN status IN ('SCHEDULED', 'IN_PROGRESS') THEN 1 ELSE 0 END) AS active_plans,
+               SUM(CASE
+                       WHEN status IN ('SCHEDULED', 'IN_PROGRESS')
+                           AND planned_end_time IS NOT NULL
+                           AND planned_end_time &lt; #{referenceTime}
+                           THEN 1
+                       ELSE 0 END)                                        AS overdue_plans
+        FROM mt_plan
+        <where>
+            owner_id IS NOT NULL
+            <if test="tenantId != null">
+                AND tenant_id = #{tenantId}
+            </if>
+            <if test="customerId != null">
+                AND customer_id = #{customerId}
+            </if>
+            <if test="plannedStartFrom != null">
+                AND planned_end_time &gt;= #{plannedStartFrom}
+            </if>
+            <if test="plannedEndTo != null">
+                AND planned_start_time &lt;= #{plannedEndTo}
+            </if>
+        </where>
+        GROUP BY owner_id
+        ORDER BY active_plans DESC, overdue_plans DESC, owner_id
+        <if test="ownerLimit != null">
+            LIMIT #{ownerLimit}
+        </if>
+    </select>
+
+    <select id="findRiskPlans" parameterType="com.bob.mta.modules.plan.persistence.PlanAnalyticsQueryParameters"
+            resultMap="PlanRiskPlanResult">
+        SELECT p.plan_id,
+               p.title,
+               p.status,
+               p.planned_end_time,
+               p.owner_id,
+               p.customer_id,
+               CASE
+                   WHEN p.planned_end_time &lt; #{referenceTime} THEN 'OVERDUE'
+                   WHEN p.planned_end_time &gt;= #{referenceTime}
+                       AND p.planned_end_time &lt; #{dueSoonThreshold} THEN 'DUE_SOON'
+                   ELSE NULL
+                   END AS risk_level,
+               CASE
+                   WHEN p.planned_end_time &gt;= #{referenceTime}
+                       AND p.planned_end_time &lt; #{dueSoonThreshold}
+                       THEN EXTRACT(EPOCH FROM (p.planned_end_time - #{referenceTime})) / 60
+                   ELSE NULL
+                   END AS minutes_until_due,
+               CASE
+                   WHEN p.planned_end_time &lt; #{referenceTime}
+                       THEN EXTRACT(EPOCH FROM (#{referenceTime} - p.planned_end_time)) / 60
+                   ELSE NULL
+                   END AS minutes_overdue
+        FROM mt_plan p
+        <where>
+            <if test="tenantId != null">
+                p.tenant_id = #{tenantId}
+            </if>
+            <if test="customerId != null">
+                AND p.customer_id = #{customerId}
+            </if>
+            <if test="plannedStartFrom != null">
+                AND p.planned_end_time &gt;= #{plannedStartFrom}
+            </if>
+            <if test="plannedEndTo != null">
+                AND p.planned_start_time &lt;= #{plannedEndTo}
+            </if>
+            AND p.status IN ('SCHEDULED', 'IN_PROGRESS')
+            AND p.planned_end_time IS NOT NULL
+            AND (
+                    p.planned_end_time &lt; #{referenceTime}
+                OR (p.planned_end_time &gt;= #{referenceTime} AND p.planned_end_time &lt; #{dueSoonThreshold})
+            )
+        </where>
+        ORDER BY CASE
+                     WHEN p.planned_end_time &lt; #{referenceTime} THEN 0
+                     ELSE 1 END,
+                 p.planned_end_time,
+                 p.plan_id
+        <if test="riskLimit != null">
+            LIMIT #{riskLimit}
         </if>
     </select>
 

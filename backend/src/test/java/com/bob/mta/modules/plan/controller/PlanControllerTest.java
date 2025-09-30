@@ -9,6 +9,7 @@ import com.bob.mta.modules.audit.service.AuditRecorder;
 import com.bob.mta.modules.audit.service.impl.InMemoryAuditService;
 import com.bob.mta.modules.file.service.impl.InMemoryFileService;
 import com.bob.mta.modules.plan.domain.PlanActivityType;
+import com.bob.mta.modules.plan.domain.PlanAnalytics;
 import com.bob.mta.modules.plan.domain.PlanReminderTrigger;
 import com.bob.mta.modules.plan.domain.PlanNodeActionType;
 import com.bob.mta.modules.plan.dto.CancelPlanRequest;
@@ -141,6 +142,63 @@ class PlanControllerTest {
 
         assertThat(analytics.getTotalPlans()).isGreaterThanOrEqualTo(2);
         assertThat(analytics.getUpcomingPlans()).isNotEmpty();
+        assertThat(analytics.getOwnerLoads()).isNotEmpty();
+        assertThat(analytics.getRiskPlans()).isNotNull();
+    }
+
+    @Test
+    void filterOptionsShouldExposeDictionaryMetadata() {
+        OffsetDateTime start = OffsetDateTime.now().plusDays(2);
+        OffsetDateTime end = start.plusHours(4);
+        planService.createPlan(new CreatePlanCommand(
+                "tenant-888",
+                "冬季巡检",
+                "冬季专项巡检计划",
+                "cust-888",
+                "winter-lead",
+                start,
+                end,
+                "Asia/Tokyo",
+                List.of("winter-lead", "observer"),
+                List.of(new PlanNodeCommand(null, "巡检准备", "CHECKLIST", "winter-lead", 1, 120,
+                        PlanNodeActionType.NONE, 100, null, "", List.of()))
+        ));
+
+        var options = controller.filterOptions(null).getData();
+
+        assertThat(options.getStatuses())
+                .anySatisfy(option -> {
+                    if ("DESIGN".equals(option.getValue())) {
+                        assertThat(option.getLabel()).contains("设计");
+                        assertThat(option.getCount()).isGreaterThanOrEqualTo(1);
+                    }
+                });
+        assertThat(options.getOwners())
+                .extracting(PlanFilterOptionsResponse.Option::getValue)
+                .contains("winter-lead");
+        assertThat(options.getCustomers())
+                .extracting(PlanFilterOptionsResponse.Option::getValue)
+                .contains("cust-888");
+        assertThat(options.getPlannedWindow()).isNotNull();
+        assertThat(options.getPlannedWindow().getLabel()).isNotBlank();
+        assertThat(options.getPlannedWindow().getStart()).isNotNull();
+        assertThat(options.getPlannedWindow().getEnd()).isNotNull();
+    }
+
+    @Test
+    void activityTypesShouldExposeDictionary() {
+        var descriptors = controller.activityTypes().getData();
+
+        assertThat(descriptors).isNotEmpty();
+        assertThat(descriptors)
+                .anySatisfy(entry -> {
+                    if (entry.getType() == PlanActivityType.NODE_COMPLETED) {
+                        assertThat(entry.getMessages()).isNotEmpty();
+                        assertThat(entry.getAttributes())
+                                .extracting(attr -> attr.getName())
+                                .contains("nodeName", "result");
+                    }
+                });
     }
 
     @Test
@@ -220,6 +278,34 @@ class PlanControllerTest {
         var analytics = controller.analytics(null, null, null, null).getData();
 
         assertThat(analytics.getOverdueCount()).isGreaterThanOrEqualTo(1);
+        assertThat(analytics.getRiskPlans())
+                .anySatisfy(risk -> assertThat(risk.getRiskLevel()).isEqualTo(PlanAnalytics.RiskLevel.OVERDUE));
+    }
+
+    @Test
+    void analyticsShouldSurfaceDueSoonPlans() {
+        OffsetDateTime start = OffsetDateTime.now().plusHours(1);
+        OffsetDateTime end = start.plusHours(2);
+        CreatePlanCommand command = new CreatePlanCommand(
+                "tenant-001",
+                "即将到期巡检",
+                "即将到期巡检描述",
+                "cust-001",
+                "admin",
+                start,
+                end,
+                "Asia/Tokyo",
+                List.of("admin"),
+                List.of(new PlanNodeCommand(null, "到期检查", "CHECKLIST", "admin", 1, 60,
+                        PlanNodeActionType.NONE, 100, null, "", List.of()))
+        );
+        var created = planService.createPlan(command);
+        planService.publishPlan(created.getId(), "admin");
+
+        var analytics = controller.analytics(null, null, null, null).getData();
+
+        assertThat(analytics.getRiskPlans())
+                .anySatisfy(risk -> assertThat(risk.getRiskLevel()).isEqualTo(PlanAnalytics.RiskLevel.DUE_SOON));
     }
 
     @Test

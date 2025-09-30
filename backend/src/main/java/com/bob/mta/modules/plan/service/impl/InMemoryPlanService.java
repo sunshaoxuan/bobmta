@@ -552,6 +552,9 @@ public class InMemoryPlanService implements PlanService {
                 .to(to)
                 .referenceTime(reference)
                 .upcomingLimit(5)
+                .ownerLimit(5)
+                .riskLimit(5)
+                .dueSoonMinutes(1440)
                 .build();
         return planAnalyticsRepository.summarize(query);
     }

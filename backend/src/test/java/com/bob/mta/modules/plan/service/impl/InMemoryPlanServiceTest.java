@@ -388,6 +388,9 @@ class InMemoryPlanServiceTest {
         assertThat(analytics.getCanceledCount()).isGreaterThanOrEqualTo(1);
         assertThat(analytics.getOverdueCount()).isGreaterThanOrEqualTo(1);
         assertThat(analytics.getUpcomingPlans()).isNotEmpty();
+        assertThat(analytics.getOwnerLoads()).isNotEmpty();
+        assertThat(analytics.getRiskPlans())
+                .anySatisfy(risk -> assertThat(risk.getRiskLevel()).isEqualTo(PlanAnalytics.RiskLevel.OVERDUE));
     }
 
     @Test
@@ -430,5 +433,7 @@ class InMemoryPlanServiceTest {
         assertThat(analytics.getDesignCount() + analytics.getScheduledCount() + analytics.getInProgressCount()
                 + analytics.getCompletedCount() + analytics.getCanceledCount())
                 .isEqualTo(analytics.getTotalPlans());
+        assertThat(analytics.getOwnerLoads())
+                .allSatisfy(load -> assertThat(load.getOwnerId()).isNotBlank());
     }
 }
