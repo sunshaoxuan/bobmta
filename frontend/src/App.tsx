@@ -35,6 +35,8 @@ import {
   usePlanListController,
   type PlanListController,
   arePlanListFiltersEqual,
+  type PlanListViewMode,
+  DEFAULT_PLAN_LIST_VIEW_MODE,
 } from './state/planList';
 import {
   usePlanDetailController,
@@ -42,6 +44,8 @@ import {
 } from './state/planDetail';
 import { PLAN_STATUS_COLOR, PLAN_STATUS_LABEL } from './constants/planStatus';
 import { PlanListBoard } from './components/PlanListBoard';
+import { PlanByCustomerView } from './components/PlanByCustomerView';
+import { PlanCalendarView } from './components/PlanCalendarView';
 import {
   useSessionController,
   type SessionController,
@@ -105,6 +109,9 @@ function AppView({ client, localization, session, navigation, planList, planDeta
   const planListUrlState = useMemo(() => parsePlanListUrlState(location.search), [location.search]);
   const previewPlanId = planRoute.type === 'detail' ? planRoute.planId : null;
   const [lastVisitedPlanId, setLastVisitedPlanId] = useState<string | null>(initialUrlState.planId);
+  const [viewMode, setViewMode] = useState<PlanListViewMode>(
+    planListUrlState.view ?? DEFAULT_PLAN_LIST_VIEW_MODE
+  );
   const pendingTimelineCategoryRef = useRef<{ value: string | null; pending: boolean }>({
     value: initialUrlState.timelineCategory,
     pending: initialUrlState.hasTimelineCategory,
@@ -206,6 +213,7 @@ function AppView({ client, localization, session, navigation, planList, planDeta
       filters: planState.filters,
       page: planState.pagination.page,
       pageSize: planState.pagination.pageSize,
+      view: viewMode,
     });
     if (nextSearch === location.search) {
       lastPlanListSearchRef.current = nextSearch;
@@ -222,8 +230,24 @@ function AppView({ client, localization, session, navigation, planList, planDeta
     planState.pagination.page,
     planState.pagination.pageSize,
     location.search,
+    viewMode,
     navigate,
   ]);
+
+  useEffect(() => {
+    setViewMode((current) => (current === planListUrlState.view ? current : planListUrlState.view));
+  }, [planListUrlState.view]);
+
+  useEffect(() => {
+    if (sessionState.session) {
+      return;
+    }
+    const nextSearch = buildPlanListSearch(location.search, { view: viewMode });
+    if (nextSearch === location.search) {
+      return;
+    }
+    navigate({ search: nextSearch }, { replace: true, preserveHash: true });
+  }, [sessionState.session, location.search, viewMode, navigate]);
 
   useEffect(() => {
     if (!previewPlanId) {
@@ -446,6 +470,16 @@ function AppView({ client, localization, session, navigation, planList, planDeta
     });
     return map;
   }, [navigationState.items, normalizePathname]);
+
+  const planViewOptions = useMemo(
+    () =>
+      [
+        { value: 'table' as PlanListViewMode, label: translate('planSectionTitle') },
+        { value: 'customer' as PlanListViewMode, label: translate('planDetailCustomerLabel') },
+        { value: 'calendar' as PlanListViewMode, label: translate('planDetailTimelineTitle') },
+      ] satisfies Array<{ value: PlanListViewMode; label: string }>,
+    [translate]
+  );
 
   const navigationMenuItems = useMemo(
     () =>
@@ -724,54 +758,75 @@ function AppView({ client, localization, session, navigation, planList, planDeta
             )}
           </Card>
 
-          <PlanListBoard
-            translate={translate}
-            locale={locale}
-            sessionActive={Boolean(sessionState.session)}
-            planState={planState}
-            planColumns={planColumns}
-            planErrorDetail={planErrorDetail}
-            lastUpdatedLabel={lastUpdatedLabel}
-            onRefreshList={() => {
-              void refresh();
-            }}
-            isRefreshDisabled={!sessionState.session}
-            onApplyFilters={(filters) => {
-              void planList.applyFilters(filters);
-            }}
-            onResetFilters={() => {
-              void planList.resetFilters();
-            }}
-            onChangePage={(page) => {
-              void changePage(page);
-            }}
-            onChangePageSize={(size) => {
-              void changePageSize(size);
-            }}
-            selectedPlanId={previewPlanId}
-            previewPlan={previewPlan}
-            planDetailState={planDetailState}
-            planDetailErrorDetail={planDetailErrorDetail}
-            onRefreshDetail={() => {
-              void refreshPlanDetail();
-            }}
-            onClosePreview={() => {
-              suppressedAutoOpenRef.current = true;
-              navigate({ pathname: '/' }, { preserveSearch: true, preserveHash: true });
-            }}
-            onSelectPlan={(planId) => {
-              suppressedAutoOpenRef.current = false;
-              setLastVisitedPlanId(planId);
-              navigate(
-                { pathname: buildPlanDetailPath(planId) },
-                { preserveSearch: true, preserveHash: true }
-              );
-            }}
-            onExecuteNodeAction={executeNodeAction}
-            onUpdateReminder={updatePlanReminder}
-            currentUserName={sessionState.session?.displayName ?? null}
-            onTimelineCategoryChange={setTimelineCategoryFilter}
-          />
+          <Space size="small" className="plan-view-toggle" wrap>
+            {planViewOptions.map((option) => (
+              <Button
+                key={option.value}
+                type={viewMode === option.value ? 'primary' : 'default'}
+                size="small"
+                onClick={() => setViewMode(option.value)}
+              >
+                {option.label}
+              </Button>
+            ))}
+          </Space>
+
+          {viewMode === 'table' && (
+            <PlanListBoard
+              translate={translate}
+              locale={locale}
+              sessionActive={Boolean(sessionState.session)}
+              planState={planState}
+              planColumns={planColumns}
+              planErrorDetail={planErrorDetail}
+              lastUpdatedLabel={lastUpdatedLabel}
+              onRefreshList={() => {
+                void refresh();
+              }}
+              isRefreshDisabled={!sessionState.session}
+              onApplyFilters={(filters) => {
+                void planList.applyFilters(filters);
+              }}
+              onResetFilters={() => {
+                void planList.resetFilters();
+              }}
+              onChangePage={(page) => {
+                void changePage(page);
+              }}
+              onChangePageSize={(size) => {
+                void changePageSize(size);
+              }}
+              selectedPlanId={previewPlanId}
+              previewPlan={previewPlan}
+              planDetailState={planDetailState}
+              planDetailErrorDetail={planDetailErrorDetail}
+              onRefreshDetail={() => {
+                void refreshPlanDetail();
+              }}
+              onClosePreview={() => {
+                suppressedAutoOpenRef.current = true;
+                navigate({ pathname: '/' }, { preserveSearch: true, preserveHash: true });
+              }}
+              onSelectPlan={(planId) => {
+                suppressedAutoOpenRef.current = false;
+                setLastVisitedPlanId(planId);
+                navigate(
+                  { pathname: buildPlanDetailPath(planId) },
+                  { preserveSearch: true, preserveHash: true }
+                );
+              }}
+              onExecuteNodeAction={executeNodeAction}
+              onUpdateReminder={updatePlanReminder}
+              currentUserName={sessionState.session?.displayName ?? null}
+              onTimelineCategoryChange={setTimelineCategoryFilter}
+            />
+          )}
+          {viewMode === 'customer' && (
+            <PlanByCustomerView plans={planState.records} translate={translate} />
+          )}
+          {viewMode === 'calendar' && (
+            <PlanCalendarView plans={planState.records} translate={translate} />
+          )}
         </Space>
       </Content>
     </Layout>

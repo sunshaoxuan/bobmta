@@ -21,6 +21,7 @@ test('parsePlanListUrlState normalizes filters and pagination', () => {
   });
   assert.equal(state.page, 2);
   assert.equal(state.pageSize, 20);
+  assert.equal(state.view, 'table');
 });
 
 test('parsePlanListUrlState falls back to defaults when params missing', () => {
@@ -34,6 +35,7 @@ test('parsePlanListUrlState falls back to defaults when params missing', () => {
   });
   assert.equal(state.page, 0);
   assert.equal(state.pageSize, DEFAULT_PAGE_SIZE);
+  assert.equal(state.view, 'table');
 });
 
 test('buildPlanListSearch updates filter and pagination params', () => {
@@ -47,8 +49,9 @@ test('buildPlanListSearch updates filter and pagination params', () => {
     },
     page: 3,
     pageSize: 20,
+    view: 'customer',
   });
-  assert.equal(next, '?foo=bar&owner=alice&size=20&status=ACTIVE&page=3');
+  assert.equal(next, '?foo=bar&owner=alice&size=20&status=ACTIVE&page=3&view=customer');
 });
 
 test('buildPlanListSearch removes empty and default params', () => {
@@ -62,6 +65,20 @@ test('buildPlanListSearch removes empty and default params', () => {
     },
     page: 0,
     pageSize: DEFAULT_PAGE_SIZE,
+    view: 'table',
   });
   assert.equal(next, '?foo=bar');
+});
+
+test('parsePlanListUrlState reads custom view when present', () => {
+  const state = parsePlanListUrlState('?view=calendar&owner=alice');
+  assert.equal(state.view, 'calendar');
+  assert.equal(state.filters.owner, 'alice');
+});
+
+test('buildPlanListSearch removes invalid view values', () => {
+  const next = buildPlanListSearch('?view=calendar', {
+    view: 'table',
+  });
+  assert.equal(next, '');
 });
