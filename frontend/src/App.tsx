@@ -12,14 +12,11 @@ import {
   Button,
   Card,
   ConfigProvider,
-  Empty,
   Input,
   Layout,
-  Pagination,
   Progress,
   Select,
   Space,
-  Table,
   Tag,
   Typography,
 } from '../vendor/antd/index.js';
@@ -42,9 +39,7 @@ import {
   type PlanDetailController,
 } from './state/planDetail';
 import { PLAN_STATUS_COLOR, PLAN_STATUS_LABEL } from './constants/planStatus';
-import { RemoteState } from './components/RemoteState';
-import { PlanFilters } from './components/PlanFilters';
-import { PlanPreview } from './components/PlanPreview';
+import { PlanListBoard } from './components/PlanListBoard';
 import {
   useSessionController,
   type SessionController,
@@ -415,18 +410,6 @@ function AppView({ client, localization, session, planList, planDetail, router }
     navigate,
   ]);
 
-  const availableOwners = useMemo(() => {
-    const ownerSet = new Set<string>();
-    planState.records.forEach((plan) => {
-      if (plan.owner) {
-        ownerSet.add(plan.owner);
-      }
-    });
-    return Array.from(ownerSet).sort((a, b) =>
-      a.localeCompare(b, locale ?? 'ja-JP', { sensitivity: 'base' })
-    );
-  }, [planState.records, locale]);
-
   const authButtonDisabled =
     sessionState.status === 'loading' ||
     credentials.username.trim().length === 0 ||
@@ -568,133 +551,54 @@ function AppView({ client, localization, session, planList, planDetail, router }
             )}
           </Card>
 
-          <Card
-            title={translate('planSectionTitle')}
-            bordered={false}
-            className="card-block"
-            extra={
-              <Space size="middle" className="plan-card-extra">
-                {planState.origin === 'cache' && (
-                  <Tag color="gold" className="cache-indicator">
-                    {translate('planCacheHit')}
-                  </Tag>
-                )}
-                {lastUpdatedLabel && (
-                  <Text type="secondary" className="plan-last-updated">
-                    {lastUpdatedLabel}
-                  </Text>
-                )}
-                <Button
-                  type="link"
-                  onClick={refresh}
-                  disabled={!sessionState.session}
-                  loading={planState.status === 'loading'}
-                >
-                  {translate('planRefresh')}
-                </Button>
-              </Space>
-            }
-          >
-            {!sessionState.session && <Empty description={translate('planLoginRequired')} />}
-            {sessionState.session && (
-              <Space direction="vertical" size="large" style={{ width: '100%' }}>
-                <PlanFilters
-                  filters={planState.filters}
-                  translate={translate}
-                  owners={availableOwners}
-                  onApply={(filters) => {
-                    void planList.applyFilters(filters);
-                  }}
-                  onReset={() => {
-                    void planList.resetFilters();
-                  }}
-                />
-                <RemoteState
-                  status={planState.status}
-                  error={planState.error}
-                  translate={translate}
-                  empty={planState.records.length === 0}
-                  onRetry={planList.refresh}
-                  errorDetail={
-                    planErrorDetail
-                      ? translate('planError', { error: planErrorDetail })
-                      : null
-                  }
-                  emptyHint={<Text type="secondary">{translate('planEmptyFiltered')}</Text>}
-                >
-                  <Table<PlanSummary>
-                    rowKey="id"
-                    dataSource={planState.records}
-                    columns={planColumns}
-                    pagination={false}
-                    rowClassName={(record: PlanSummary) =>
-                      ['plan-table-row', previewPlanId === record.id ? 'plan-table-row-active' : '']
-                        .filter(Boolean)
-                        .join(' ')
-                    }
-                    onRow={(record: PlanSummary) => ({
-                      onClick: () => {
-                        suppressedAutoOpenRef.current = false;
-                        setLastVisitedPlanId(record.id);
-                        navigate(
-                          { pathname: buildPlanDetailPath(record.id) },
-                          { preserveSearch: true, preserveHash: true }
-                        );
-                      },
-                    })}
-                    loading={{
-                      spinning: planState.status === 'loading',
-                      tip: translate('planLoading'),
-                    }}
-                    locale={{ emptyText: translate('planEmpty') }}
-                    scroll={{ x: true }}
-                  />
-                  {planState.pagination.total > 0 && (
-                    <div className="plan-pagination">
-                      <Text type="secondary">
-                        {translate('planPaginationTotal', {
-                          total: planState.pagination.total,
-                        })}
-                      </Text>
-                      <Pagination
-                        current={planState.pagination.page + 1}
-                        pageSize={planState.pagination.pageSize}
-                        total={planState.pagination.total}
-                        showSizeChanger
-                        pageSizeOptions={['10', '20', '50']}
-                        onChange={(page) => {
-                          void changePage(page - 1);
-                        }}
-                        onShowSizeChange={(_, size) => {
-                          void changePageSize(size);
-                        }}
-                      />
-                    </div>
-                  )}
-                  {planState.records.length > 0 && (
-                    <PlanPreview
-                      plan={previewPlan}
-                      translate={translate}
-                      locale={locale}
-                      onClose={() => {
-                        suppressedAutoOpenRef.current = true;
-                        navigate({ pathname: '/' }, { preserveSearch: true, preserveHash: true });
-                      }}
-                      detailState={planDetailState}
-                      onRefreshDetail={() => {
-                        void refreshPlanDetail();
-                      }}
-                      detailErrorDetail={planDetailErrorDetail}
-                      onExecuteNodeAction={executeNodeAction}
-                      onUpdateReminder={updatePlanReminder}
-                      currentUserName={sessionState.session?.displayName ?? null}
-                      onTimelineCategoryChange={setTimelineCategoryFilter}
-                    />
-                  )}
-                </RemoteState>
-              </Space>
-            )}
-          </Card>
+          <PlanListBoard
+            translate={translate}
+            locale={locale}
+            sessionActive={Boolean(sessionState.session)}
+            planState={planState}
+            planColumns={planColumns}
+            planErrorDetail={planErrorDetail}
+            lastUpdatedLabel={lastUpdatedLabel}
+            onRefreshList={() => {
+              void refresh();
+            }}
+            isRefreshDisabled={!sessionState.session}
+            onApplyFilters={(filters) => {
+              void planList.applyFilters(filters);
+            }}
+            onResetFilters={() => {
+              void planList.resetFilters();
+            }}
+            onChangePage={(page) => {
+              void changePage(page);
+            }}
+            onChangePageSize={(size) => {
+              void changePageSize(size);
+            }}
+            selectedPlanId={previewPlanId}
+            previewPlan={previewPlan}
+            planDetailState={planDetailState}
+            planDetailErrorDetail={planDetailErrorDetail}
+            onRefreshDetail={() => {
+              void refreshPlanDetail();
+            }}
+            onClosePreview={() => {
+              suppressedAutoOpenRef.current = true;
+              navigate({ pathname: '/' }, { preserveSearch: true, preserveHash: true });
+            }}
+            onSelectPlan={(planId) => {
+              suppressedAutoOpenRef.current = false;
+              setLastVisitedPlanId(planId);
+              navigate(
+                { pathname: buildPlanDetailPath(planId) },
+                { preserveSearch: true, preserveHash: true }
+              );
+            }}
+            onExecuteNodeAction={executeNodeAction}
+            onUpdateReminder={updatePlanReminder}
+            currentUserName={sessionState.session?.displayName ?? null}
+            onTimelineCategoryChange={setTimelineCategoryFilter}
+          />
         </Space>
       </Content>
     </Layout>
