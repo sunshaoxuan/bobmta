@@ -5,11 +5,18 @@ import {
   useRef,
   useState,
 } from '../../vendor/react/index.js';
-import { fetchPlanDetail } from '../api/plans';
+import {
+  executePlanNodeAction,
+  fetchPlanDetail,
+  updatePlanReminder,
+  type PlanNodeActionKind,
+  type PlanNodeActionRequest,
+} from '../api/plans';
 import type { ApiClient, ApiError } from '../api/client';
 import type {
   LoginResponse,
   PlanDetail,
+  PlanDetailPayload,
   PlanReminderSummary,
   PlanTimelineEntry,
 } from '../api/types';
@@ -22,6 +29,13 @@ import {
   prunePlanDetailCache,
 } from './planDetailCache';
 import { normalizePlanDetailPayload } from './planDetailNormalizer';
+import {
+  applyTimelineCategorySelection,
+  derivePlanDetailFilters,
+  INITIAL_PLAN_DETAIL_FILTERS,
+  type PlanDetailFilterSnapshot,
+  type PlanDetailFilters,
+} from './planDetailFilters';
 
 export type PlanDetailState = {
   activePlanId: string | null;
@@ -32,6 +46,8 @@ export type PlanDetailState = {
   error: ApiError | null;
   lastUpdated: string | null;
   origin: 'cache' | 'network' | null;
+  mutation: PlanDetailMutationState;
+  filters: PlanDetailFilters;
 };
 
 export type PlanDetailController = {
@@ -40,6 +56,67 @@ export type PlanDetailController = {
   refresh: () => Promise<void>;
   clear: () => void;
   retain: (planIds: readonly string[]) => void;
+  executeNodeAction: (input: PlanNodeActionInput) => Promise<void>;
+  updateReminder: (input: PlanReminderUpdateInput) => Promise<void>;
+  setTimelineCategoryFilter: (category: string | null) => void;
+};
+
+export type PlanNodeActionInput =
+  | {
+      planId: string;
+      nodeId: string;
+      type: 'start';
+      operatorId: string;
+    }
+  | {
+      planId: string;
+      nodeId: string;
+      type: 'complete';
+      operatorId: string;
+      resultSummary?: string | null;
+    }
+  | {
+      planId: string;
+      nodeId: string;
+      type: 'handover';
+      operatorId: string;
+      assigneeId: string;
+      comment?: string | null;
+    };
+
+export type PlanReminderUpdateInput = {
+  planId: string;
+  reminderId: string;
+  active: boolean;
+  offsetMinutes?: number | null;
+};
+
+export type PlanDetailMutationContext =
+  | {
+      type: 'node';
+      nodeId: string;
+      action: PlanNodeActionKind;
+      input: PlanNodeActionInput;
+    }
+  | {
+      type: 'reminder';
+      reminderId: string;
+      action: 'toggle' | 'edit';
+      input: PlanReminderUpdateInput;
+    };
+
+export type PlanDetailMutationState = {
+  status: 'idle' | 'loading' | 'success' | 'error';
+  context: PlanDetailMutationContext | null;
+  error: ApiError | null;
+  completedAt: string | null;
+};
+
+const INITIAL_MUTATION_STATE: PlanDetailMutationState = {
+  status: 'idle',
+  context: null,
+  error: null,
+  completedAt: null,
 };
 
 const INITIAL_STATE: PlanDetailState = {
@@ -51,6 +128,8 @@ const INITIAL_STATE: PlanDetailState = {
   error: null,
   lastUpdated: null,
   origin: null,
+  mutation: INITIAL_MUTATION_STATE,
+  filters: INITIAL_PLAN_DETAIL_FILTERS,
 };
 
 export function usePlanDetailController(
@@ -59,11 +138,13 @@ export function usePlanDetailController(
 ): PlanDetailController {
   const [state, setState] = useState<PlanDetailState>(INITIAL_STATE);
   const cacheRef = useRef<Map<string, PlanDetailCacheEntry> | null>(new Map());
+  const filterSnapshotRef = useRef<Map<string, PlanDetailFilterSnapshot> | null>(new Map());
   const abortRef = useRef<AbortController | null>(null);
 
   const resetState = useCallback(() => {
     abortCurrentRequest(abortRef);
     ensurePlanDetailCache(cacheRef).clear();
+    ensurePlanDetailFilterSnapshots(filterSnapshotRef).clear();
     setState(INITIAL_STATE);
   }, []);
 
@@ -73,18 +154,45 @@ export function usePlanDetailController(
     }
   }, [session, resetState]);
 
-  const writeStateFromCache = useCallback((planId: string, cacheEntry: PlanDetailCacheEntry) => {
-    setState({
-      activePlanId: planId,
-      detail: cacheEntry.payload.detail,
-      timeline: cacheEntry.payload.timeline,
-      reminders: cacheEntry.payload.reminders,
-      status: 'success',
-      error: null,
-      lastUpdated: new Date(cacheEntry.fetchedAt).toISOString(),
-      origin: 'cache',
-    });
-  }, []);
+  const commitPlanDetail = useCallback(
+    (planId: string, payload: PlanDetailPayload, origin: 'cache' | 'network', fetchedAt: number) => {
+      const snapshotStore = ensurePlanDetailFilterSnapshots(filterSnapshotRef);
+      const previousSnapshot = snapshotStore.get(planId) ?? null;
+      const { filters, snapshot } = derivePlanDetailFilters(payload, previousSnapshot);
+      snapshotStore.set(planId, snapshot);
+
+      setState((current) => ({
+        ...current,
+        activePlanId: planId,
+        detail: payload.detail,
+        timeline: payload.timeline,
+        reminders: payload.reminders,
+        status: 'success',
+        error: null,
+        lastUpdated: new Date(fetchedAt).toISOString(),
+        origin,
+        filters,
+      }));
+    },
+    []
+  );
+
+  const writeStateFromCache = useCallback(
+    (planId: string, cacheEntry: PlanDetailCacheEntry) => {
+      commitPlanDetail(planId, cacheEntry.payload, 'cache', cacheEntry.fetchedAt);
+    },
+    [commitPlanDetail]
+  );
+
+  const persistPlanDetail = useCallback(
+    (planId: string, payload: PlanDetailPayload, fetchedAt: number) => {
+      const cache = ensurePlanDetailCache(cacheRef);
+      const entry: PlanDetailCacheEntry = { payload, fetchedAt };
+      cache.set(planId, entry);
+      evictPlanDetailCacheEntries(cache, PLAN_DETAIL_CACHE_LIMIT);
+    },
+    [cacheRef]
+  );
 
   const loadPlan = useCallback(
     async (planId: string, options: { force?: boolean } = {}) => {
@@ -119,19 +227,8 @@ export function usePlanDetailController(
         });
         const payload = normalizePlanDetailPayload(payloadRaw);
         const fetchedAt = Date.now();
-        const entry: PlanDetailCacheEntry = { payload, fetchedAt };
-        cache.set(planId, entry);
-        evictPlanDetailCacheEntries(cache, PLAN_DETAIL_CACHE_LIMIT);
-        setState({
-          activePlanId: planId,
-          detail: payload.detail,
-          timeline: payload.timeline,
-          reminders: payload.reminders,
-          status: 'success',
-          error: null,
-          lastUpdated: new Date(fetchedAt).toISOString(),
-          origin: 'network',
-        });
+        persistPlanDetail(planId, payload, fetchedAt);
+        commitPlanDetail(planId, payload, 'network', fetchedAt);
       } catch (error) {
         if (error instanceof DOMException && error.name === 'AbortError') {
           return;
@@ -149,7 +246,7 @@ export function usePlanDetailController(
         }));
       }
     },
-    [client, session, writeStateFromCache]
+    [client, commitPlanDetail, persistPlanDetail, session, writeStateFromCache]
   );
 
   const selectPlan = useCallback(
@@ -168,17 +265,17 @@ export function usePlanDetailController(
       const cache = ensurePlanDetailCache(cacheRef);
       const cached = cache.get(planId);
       if (cached) {
+        setState((current) => ({
+          ...current,
+          mutation: INITIAL_MUTATION_STATE,
+        }));
         writeStateFromCache(planId, cached);
       } else {
         setState((current) => ({
-          ...current,
+          ...INITIAL_STATE,
           activePlanId: planId,
-          detail: null,
-          timeline: [],
-          reminders: [],
           status: 'loading',
-          error: null,
-          origin: null,
+          mutation: INITIAL_MUTATION_STATE,
         }));
       }
       await loadPlan(planId, { force: false });
@@ -195,13 +292,182 @@ export function usePlanDetailController(
 
   const retain = useCallback((planIds: readonly string[]) => {
     const cache = ensurePlanDetailCache(cacheRef);
-    const allowed = new Set(planIds);
-    for (const key of Array.from(cache.keys())) {
-      if (!allowed.has(key)) {
-        cache.delete(key);
+    prunePlanDetailCache(cache, planIds, PLAN_DETAIL_CACHE_LIMIT);
+
+    const cacheKeys = new Set(cache.keys());
+    const snapshotStore = ensurePlanDetailFilterSnapshots(filterSnapshotRef);
+    for (const planId of Array.from(snapshotStore.keys())) {
+      if (!cacheKeys.has(planId)) {
+        snapshotStore.delete(planId);
       }
     }
-    prunePlanDetailCache(cache, planIds, PLAN_DETAIL_CACHE_LIMIT);
+  }, []);
+
+  const executeNodeAction = useCallback(
+    async (input: PlanNodeActionInput) => {
+      if (!session) {
+        return;
+      }
+      const mutationContext: PlanDetailMutationContext = {
+        type: 'node',
+        nodeId: input.nodeId,
+        action: input.type,
+        input,
+      };
+      setState((current) => ({
+        ...current,
+        mutation: { status: 'loading', context: mutationContext, error: null, completedAt: null },
+      }));
+      try {
+        const request: PlanNodeActionRequest = (() => {
+          switch (input.type) {
+            case 'start':
+              return { type: 'start', operatorId: input.operatorId } as const;
+            case 'complete':
+              return {
+                type: 'complete',
+                operatorId: input.operatorId,
+                resultSummary: input.resultSummary ?? null,
+              } as const;
+            case 'handover':
+              return {
+                type: 'handover',
+                operatorId: input.operatorId,
+                assigneeId: input.assigneeId,
+                comment: input.comment ?? null,
+              } as const;
+          }
+        })();
+        const payloadRaw = await executePlanNodeAction(
+          client,
+          session.token,
+          input.planId,
+          input.nodeId,
+          request
+        );
+        const payload = normalizePlanDetailPayload(payloadRaw);
+        const fetchedAt = Date.now();
+        persistPlanDetail(input.planId, payload, fetchedAt);
+        commitPlanDetail(input.planId, payload, 'network', fetchedAt);
+        setState((current) => ({
+          ...current,
+          mutation: {
+            status: 'success',
+            context: mutationContext,
+            error: null,
+            completedAt: new Date(fetchedAt).toISOString(),
+          },
+        }));
+      } catch (error) {
+        if (error instanceof DOMException && error.name === 'AbortError') {
+          setState((current) => ({
+            ...current,
+            mutation: INITIAL_MUTATION_STATE,
+          }));
+          return;
+        }
+        const apiError: ApiError =
+          (error as ApiError)?.type === 'status' || (error as ApiError)?.type === 'network'
+            ? (error as ApiError)
+            : ({ type: 'network' } as ApiError);
+        setState((current) => ({
+          ...current,
+          mutation: {
+            status: 'error',
+            context: mutationContext,
+            error: apiError,
+            completedAt: new Date().toISOString(),
+          },
+        }));
+        throw apiError;
+      }
+    },
+    [client, commitPlanDetail, persistPlanDetail, session]
+  );
+
+  const updateReminder = useCallback(
+    async (input: PlanReminderUpdateInput) => {
+      if (!session) {
+        return;
+      }
+      const mutationContext: PlanDetailMutationContext = {
+        type: 'reminder',
+        reminderId: input.reminderId,
+        action: typeof input.offsetMinutes === 'number' ? 'edit' : 'toggle',
+        input,
+      };
+      setState((current) => ({
+        ...current,
+        mutation: { status: 'loading', context: mutationContext, error: null, completedAt: null },
+      }));
+      try {
+        const request = {
+          active: input.active,
+          offsetMinutes: input.offsetMinutes,
+        };
+        const payloadRaw = await updatePlanReminder(
+          client,
+          session.token,
+          input.planId,
+          input.reminderId,
+          request
+        );
+        const payload = normalizePlanDetailPayload(payloadRaw);
+        const fetchedAt = Date.now();
+        persistPlanDetail(input.planId, payload, fetchedAt);
+        commitPlanDetail(input.planId, payload, 'network', fetchedAt);
+        setState((current) => ({
+          ...current,
+          mutation: {
+            status: 'success',
+            context: mutationContext,
+            error: null,
+            completedAt: new Date(fetchedAt).toISOString(),
+          },
+        }));
+      } catch (error) {
+        if (error instanceof DOMException && error.name === 'AbortError') {
+          setState((current) => ({
+            ...current,
+            mutation: INITIAL_MUTATION_STATE,
+          }));
+          return;
+        }
+        const apiError: ApiError =
+          (error as ApiError)?.type === 'status' || (error as ApiError)?.type === 'network'
+            ? (error as ApiError)
+            : ({ type: 'network' } as ApiError);
+        setState((current) => ({
+          ...current,
+          mutation: {
+            status: 'error',
+            context: mutationContext,
+            error: apiError,
+            completedAt: new Date().toISOString(),
+          },
+        }));
+        throw apiError;
+      }
+    },
+    [client, commitPlanDetail, persistPlanDetail, session]
+  );
+
+  const setTimelineCategoryFilter = useCallback((category: string | null) => {
+    setState((current) => {
+      if (!current.activePlanId) {
+        return current;
+      }
+      const { filters, snapshot } = applyTimelineCategorySelection(current.filters, category);
+      const snapshotStore = ensurePlanDetailFilterSnapshots(filterSnapshotRef);
+      snapshotStore.set(current.activePlanId, snapshot);
+      if (filters.timeline.activeCategory === current.filters.timeline.activeCategory) {
+        return current;
+      }
+      return {
+        ...current,
+        filters,
+      };
+    });
   }, []);
 
   const controllerValue = useMemo<PlanDetailController>(() => ({
@@ -210,7 +476,19 @@ export function usePlanDetailController(
     refresh,
     clear: resetState,
     retain,
-  }), [refresh, retain, resetState, selectPlan, state]);
+    executeNodeAction,
+    updateReminder,
+    setTimelineCategoryFilter,
+  }), [
+    executeNodeAction,
+    refresh,
+    retain,
+    resetState,
+    selectPlan,
+    setTimelineCategoryFilter,
+    state,
+    updateReminder,
+  ]);
 
   return controllerValue;
 }
@@ -218,6 +496,15 @@ export function usePlanDetailController(
 function ensurePlanDetailCache(
   ref: { current: Map<string, PlanDetailCacheEntry> | null }
 ): Map<string, PlanDetailCacheEntry> {
+  if (!ref.current) {
+    ref.current = new Map();
+  }
+  return ref.current;
+}
+
+function ensurePlanDetailFilterSnapshots(
+  ref: { current: Map<string, PlanDetailFilterSnapshot> | null }
+): Map<string, PlanDetailFilterSnapshot> {
   if (!ref.current) {
     ref.current = new Map();
   }

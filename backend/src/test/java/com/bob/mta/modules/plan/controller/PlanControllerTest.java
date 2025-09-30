@@ -202,6 +202,61 @@ class PlanControllerTest {
     }
 
     @Test
+    void filterOptionsShouldExposeDictionaryMetadata() {
+        OffsetDateTime start = OffsetDateTime.now().plusDays(2);
+        OffsetDateTime end = start.plusHours(4);
+        planService.createPlan(new CreatePlanCommand(
+                "tenant-888",
+                "冬季巡检",
+                "冬季专项巡检计划",
+                "cust-888",
+                "winter-lead",
+                start,
+                end,
+                "Asia/Tokyo",
+                List.of("winter-lead", "observer"),
+                List.of(new PlanNodeCommand(null, "巡检准备", "CHECKLIST", "winter-lead", 1, 120,
+                        PlanNodeActionType.NONE, 100, null, "", List.of()))
+        ));
+
+        var options = controller.filterOptions(null).getData();
+
+        assertThat(options.getStatuses())
+                .anySatisfy(option -> {
+                    if ("DESIGN".equals(option.getValue())) {
+                        assertThat(option.getLabel()).contains("设计");
+                        assertThat(option.getCount()).isGreaterThanOrEqualTo(1);
+                    }
+                });
+        assertThat(options.getOwners())
+                .extracting(PlanFilterOptionsResponse.Option::getValue)
+                .contains("winter-lead");
+        assertThat(options.getCustomers())
+                .extracting(PlanFilterOptionsResponse.Option::getValue)
+                .contains("cust-888");
+        assertThat(options.getPlannedWindow()).isNotNull();
+        assertThat(options.getPlannedWindow().getLabel()).isNotBlank();
+        assertThat(options.getPlannedWindow().getStart()).isNotNull();
+        assertThat(options.getPlannedWindow().getEnd()).isNotNull();
+    }
+
+    @Test
+    void activityTypesShouldExposeDictionary() {
+        var descriptors = controller.activityTypes().getData();
+
+        assertThat(descriptors).isNotEmpty();
+        assertThat(descriptors)
+                .anySatisfy(entry -> {
+                    if (entry.getType() == PlanActivityType.NODE_COMPLETED) {
+                        assertThat(entry.getMessages()).isNotEmpty();
+                        assertThat(entry.getAttributes())
+                                .extracting(attr -> attr.getName())
+                                .contains("nodeName", "result");
+                    }
+                });
+    }
+
+    @Test
     void analyticsShouldHighlightOverduePlans() {
         OffsetDateTime start = OffsetDateTime.now().minusHours(2);
         OffsetDateTime end = OffsetDateTime.now().minusHours(1);

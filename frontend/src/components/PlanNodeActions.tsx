@@ -15,11 +15,17 @@ export type PlanNodeActionIntent = {
   action: PlanNodeActionType;
 };
 
+export type PendingNodeAction = {
+  nodeId: string;
+  action: PlanNodeActionType;
+} | null;
+
 type PlanNodeActionsProps = {
   candidates: PlanNodeWithPath[];
   translate: LocalizationState['translate'];
   onAction: (intent: PlanNodeActionIntent) => void;
-  pendingAction: PlanNodeActionIntent | null;
+  pendingAction: PendingNodeAction;
+  pendingStatus: 'idle' | 'loading';
 };
 
 const ACTION_LABEL_KEY: Record<PlanNodeActionType, UiMessageKey> = {
@@ -33,6 +39,7 @@ export function PlanNodeActions({
   translate,
   onAction,
   pendingAction,
+  pendingStatus,
 }: PlanNodeActionsProps) {
   if (!candidates || candidates.length === 0) {
     return null;
@@ -44,6 +51,7 @@ export function PlanNodeActions({
         const primaryAction = getPrimaryActionForStatus(node.status);
         const breadcrumb = path.join(' / ');
         const isPending = pendingAction?.nodeId === node.id;
+        const isLoading = isPending && pendingStatus === 'loading';
         return (
           <article
             key={node.id}
@@ -65,6 +73,7 @@ export function PlanNodeActions({
                 type="primary"
                 size="small"
                 disabled={!primaryAction}
+                loading={isLoading && primaryAction === pendingAction?.action}
                 onClick={() => {
                   if (!primaryAction) {
                     return;
@@ -82,6 +91,7 @@ export function PlanNodeActions({
               <Button
                 type="default"
                 size="small"
+                loading={isLoading && pendingAction?.action === 'handover'}
                 onClick={() =>
                   onAction({ nodeId: node.id, nodeName: node.name, path, action: 'handover' })
                 }
