@@ -1,4 +1,4 @@
-import type { PlanListFilters } from '../state/planList';
+import type { PlanListFilters, PlanListViewMode } from '../state/planList';
 import {
   clampPage,
   clampPageSize,
@@ -9,6 +9,7 @@ export type PlanListUrlState = {
   filters: PlanListFilters;
   page: number;
   pageSize: number;
+  view: PlanListViewMode;
 };
 
 const OWNER_PARAM_KEY = 'owner';
@@ -18,7 +19,9 @@ const FROM_PARAM_KEY = 'from';
 const TO_PARAM_KEY = 'to';
 const PAGE_PARAM_KEY = 'page';
 const PAGE_SIZE_PARAM_KEY = 'size';
+const VIEW_PARAM_KEY = 'view';
 const DEFAULT_PAGE_SIZE = 10;
+const DEFAULT_VIEW: PlanListViewMode = 'table';
 
 export function parsePlanListUrlState(search: string): PlanListUrlState {
   const params = new URLSearchParams(search);
@@ -32,7 +35,9 @@ export function parsePlanListUrlState(search: string): PlanListUrlState {
   });
   const page = clampPage(readNumber(params.get(PAGE_PARAM_KEY), 0));
   const pageSize = clampPageSize(readNumber(params.get(PAGE_SIZE_PARAM_KEY), DEFAULT_PAGE_SIZE));
-  return { filters, page, pageSize };
+  const viewParam = params.get(VIEW_PARAM_KEY);
+  const view = isViewMode(viewParam) ? (viewParam as PlanListViewMode) : DEFAULT_VIEW;
+  return { filters, page, pageSize, view };
 }
 
 export function buildPlanListSearch(
@@ -41,6 +46,7 @@ export function buildPlanListSearch(
     filters?: PlanListFilters;
     page?: number;
     pageSize?: number;
+    view?: PlanListViewMode;
   }
 ): string {
   const params = new URLSearchParams(search);
@@ -56,6 +62,9 @@ export function buildPlanListSearch(
   }
   if (typeof state.pageSize === 'number') {
     applyPageSizeParam(params, PAGE_SIZE_PARAM_KEY, state.pageSize);
+  }
+  if (state.view) {
+    applyViewParam(params, VIEW_PARAM_KEY, state.view);
   }
   const next = params.toString();
   return next ? `?${next}` : '';
@@ -91,10 +100,26 @@ function applyPageSizeParam(params: URLSearchParams, key: string, value: number)
   params.set(key, String(normalized));
 }
 
+function applyViewParam(params: URLSearchParams, key: string, value: PlanListViewMode) {
+  const normalized = isViewMode(value) ? value : DEFAULT_VIEW;
+  if (normalized === DEFAULT_VIEW) {
+    params.delete(key);
+    return;
+  }
+  params.set(key, normalized);
+}
+
 function readNumber(value: string | null, fallback: number): number {
   if (!value) {
     return fallback;
   }
   const parsed = Number(value);
   return Number.isFinite(parsed) ? parsed : fallback;
+}
+
+function isViewMode(value: string | null | undefined): value is PlanListViewMode {
+  if (!value) {
+    return false;
+  }
+  return value === 'table' || value === 'customer' || value === 'calendar';
 }
