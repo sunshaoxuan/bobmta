@@ -40,10 +40,12 @@ import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -55,12 +57,20 @@ public class InMemoryPlanService implements PlanService {
     private static final DateTimeFormatter ICS_FORMATTER = DateTimeFormatter.ofPattern("yyyyMMdd'T'HHmmss'Z'", Locale.US)
             .withZone(ZoneOffset.UTC);
 
+    private static final DateTimeFormatter CONFLICT_WINDOW_FORMATTER =
+            DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm", Locale.US);
+
     private static final List<PlanStatus> STATUS_ORDER = List.of(
             PlanStatus.DESIGN,
             PlanStatus.SCHEDULED,
             PlanStatus.IN_PROGRESS,
             PlanStatus.COMPLETED,
             PlanStatus.CANCELED
+    );
+
+    private static final List<PlanStatus> CONFLICT_STATUSES = List.of(
+            PlanStatus.SCHEDULED,
+            PlanStatus.IN_PROGRESS
     );
 
     private static final List<PlanActivityDescriptor> ACTIVITY_DESCRIPTORS = List.of(
@@ -188,6 +198,7 @@ public class InMemoryPlanService implements PlanService {
     @Override
     @Transactional
     public Plan createPlan(CreatePlanCommand command) {
+        ensureNoConflictsForCreation(command);
         String id = planRepository.nextPlanId();
         OffsetDateTime now = OffsetDateTime.now();
         Plan plan = buildPlan(id, command, now);
@@ -241,6 +252,7 @@ public class InMemoryPlanService implements PlanService {
         if (current.getStatus() != PlanStatus.DESIGN) {
             throw new BusinessException(ErrorCode.BAD_REQUEST, message("plan.error.planPublished"));
         }
+        ensureNoConflictsForPublication(current);
         OffsetDateTime now = OffsetDateTime.now();
         PlanStatus nextStatus = current.getPlannedStartTime().isAfter(now) ? PlanStatus.SCHEDULED : PlanStatus.IN_PROGRESS;
         OffsetDateTime actualStart = nextStatus == PlanStatus.IN_PROGRESS ? now : current.getActualStartTime();
@@ -543,6 +555,44 @@ public class InMemoryPlanService implements PlanService {
     }
 
     @Override
+    public List<Plan> findConflictingPlans(String tenantId, String customerId, String ownerId,
+                                           OffsetDateTime start, OffsetDateTime end, String excludePlanId) {
+        if (!StringUtils.hasText(tenantId)) {
+            return List.of();
+        }
+        if (!StringUtils.hasText(customerId) && !StringUtils.hasText(ownerId)) {
+            return List.of();
+        }
+        TimeWindow targetWindow = toWindow(start, end);
+        if (targetWindow == null) {
+            return List.of();
+        }
+        Set<String> seen = new LinkedHashSet<>();
+        List<Plan> conflicts = new ArrayList<>();
+        if (StringUtils.hasText(customerId)) {
+            collectConflicts(conflicts, seen, PlanSearchCriteria.builder()
+                    .tenantId(tenantId)
+                    .customerId(customerId)
+                    .from(targetWindow.start())
+                    .to(targetWindow.end())
+                    .excludePlanId(excludePlanId)
+                    .statuses(CONFLICT_STATUSES)
+                    .build(), targetWindow);
+        }
+        if (StringUtils.hasText(ownerId)) {
+            collectConflicts(conflicts, seen, PlanSearchCriteria.builder()
+                    .tenantId(tenantId)
+                    .owner(ownerId)
+                    .from(targetWindow.start())
+                    .to(targetWindow.end())
+                    .excludePlanId(excludePlanId)
+                    .statuses(CONFLICT_STATUSES)
+                    .build(), targetWindow);
+        }
+        return List.copyOf(conflicts);
+    }
+
+    @Override
     public PlanAnalytics getAnalytics(String tenantId, String customerId, String ownerId,
                                       OffsetDateTime from, OffsetDateTime to) {
         OffsetDateTime reference = OffsetDateTime.now();
@@ -565,6 +615,107 @@ public class InMemoryPlanService implements PlanService {
     public List<PlanActivityDescriptor> describeActivities() {
         return ACTIVITY_DESCRIPTORS;
     }
+
+    private void ensureNoConflictsForCreation(CreatePlanCommand command) {
+        if (command == null) {
+            return;
+        }
+        List<Plan> conflicts = findConflictingPlans(command.getTenantId(), command.getCustomerId(),
+                command.getOwner(), command.getStartTime(), command.getEndTime(), null);
+        if (!conflicts.isEmpty()) {
+            throw new BusinessException(ErrorCode.CONFLICT,
+                    message("plan.error.scheduleConflict", summarizeConflicts(conflicts)));
+        }
+    }
+
+    private void ensureNoConflictsForPublication(Plan plan) {
+        if (plan == null) {
+            return;
+        }
+        List<Plan> conflicts = findConflictingPlans(plan.getTenantId(), plan.getCustomerId(), plan.getOwner(),
+                plan.getPlannedStartTime(), plan.getPlannedEndTime(), plan.getId());
+        if (!conflicts.isEmpty()) {
+            throw new BusinessException(ErrorCode.CONFLICT,
+                    message("plan.warning.scheduleConflict", summarizeConflicts(conflicts)));
+        }
+    }
+
+    private void collectConflicts(List<Plan> sink, Set<String> seen, PlanSearchCriteria criteria, TimeWindow target) {
+        if (criteria == null) {
+            return;
+        }
+        for (Plan plan : planRepository.findByCriteria(criteria)) {
+            if (seen.contains(plan.getId())) {
+                continue;
+            }
+            if (!CONFLICT_STATUSES.contains(plan.getStatus())) {
+                continue;
+            }
+            TimeWindow candidateWindow = toWindow(plan.getPlannedStartTime(), plan.getPlannedEndTime());
+            if (candidateWindow == null) {
+                continue;
+            }
+            if (!overlaps(target, candidateWindow)) {
+                continue;
+            }
+            if (seen.add(plan.getId())) {
+                sink.add(plan);
+            }
+        }
+    }
+
+    private boolean overlaps(TimeWindow first, TimeWindow second) {
+        if (first == null || second == null) {
+            return false;
+        }
+        return !first.end().isBefore(second.start()) && !second.end().isBefore(first.start());
+    }
+
+    private TimeWindow toWindow(OffsetDateTime start, OffsetDateTime end) {
+        OffsetDateTime effectiveStart = start;
+        OffsetDateTime effectiveEnd = end;
+        if (effectiveStart == null && effectiveEnd == null) {
+            return null;
+        }
+        if (effectiveStart == null) {
+            effectiveStart = effectiveEnd;
+        }
+        if (effectiveEnd == null) {
+            effectiveEnd = effectiveStart;
+        }
+        if (effectiveEnd.isBefore(effectiveStart)) {
+            OffsetDateTime tmp = effectiveStart;
+            effectiveStart = effectiveEnd;
+            effectiveEnd = tmp;
+        }
+        return new TimeWindow(effectiveStart, effectiveEnd);
+    }
+
+    private String summarizeConflicts(List<Plan> conflicts) {
+        return conflicts.stream()
+                .map(this::describeConflict)
+                .collect(Collectors.joining(", "));
+    }
+
+    private String describeConflict(Plan plan) {
+        String title = StringUtils.hasText(plan.getTitle()) ? plan.getTitle() : plan.getId();
+        TimeWindow window = toWindow(plan.getPlannedStartTime(), plan.getPlannedEndTime());
+        if (window == null) {
+            return title;
+        }
+        return title + " [" + formatWindow(window) + "]";
+    }
+
+    private String formatWindow(TimeWindow window) {
+        String start = CONFLICT_WINDOW_FORMATTER.format(window.start());
+        String end = CONFLICT_WINDOW_FORMATTER.format(window.end());
+        if (start.equals(end)) {
+            return start;
+        }
+        return start + " - " + end;
+    }
+
+    private record TimeWindow(OffsetDateTime start, OffsetDateTime end) { }
 
     @Override
     public PlanFilterDescriptor describePlanFilters(String tenantId) {

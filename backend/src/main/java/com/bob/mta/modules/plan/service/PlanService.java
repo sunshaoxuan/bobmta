@@ -54,6 +54,9 @@ public interface PlanService {
     PlanAnalytics getAnalytics(String tenantId, String customerId, String ownerId,
                                OffsetDateTime from, OffsetDateTime to);
 
+    List<Plan> findConflictingPlans(String tenantId, String customerId, String ownerId,
+                                    OffsetDateTime start, OffsetDateTime end, String excludePlanId);
+
     List<PlanActivityDescriptor> describeActivities();
 
     PlanReminderConfigurationDescriptor describeReminderOptions();

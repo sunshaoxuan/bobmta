@@ -2,7 +2,10 @@ package com.bob.mta.modules.plan.persistence;
 
 import com.bob.mta.modules.plan.repository.PlanAnalyticsQuery;
 
+import com.bob.mta.modules.plan.domain.PlanStatus;
+
 import java.time.OffsetDateTime;
+import java.util.List;
 
 public record PlanAnalyticsQueryParameters(
         String tenantId,
@@ -10,6 +13,7 @@ public record PlanAnalyticsQueryParameters(
         String ownerId,
         OffsetDateTime plannedStartFrom,
         OffsetDateTime plannedEndTo,
+        List<PlanStatus> statuses,
         OffsetDateTime referenceTime,
         Integer upcomingLimit,
         Integer ownerLimit,
@@ -20,7 +24,7 @@ public record PlanAnalyticsQueryParameters(
     public static PlanAnalyticsQueryParameters fromQuery(PlanAnalyticsQuery query) {
         if (query == null) {
             OffsetDateTime reference = OffsetDateTime.now();
-            return new PlanAnalyticsQueryParameters(null, null, null, null, null, reference, 5, 5, 5,
+            return new PlanAnalyticsQueryParameters(null, null, null, null, null, List.of(), reference, 5, 5, 5,
                     reference.plusMinutes(1440));
         }
         OffsetDateTime reference = query.getReferenceTime();
@@ -31,6 +35,7 @@ public record PlanAnalyticsQueryParameters(
                 query.getOwnerId(),
                 query.getFrom(),
                 query.getTo(),
+                query.getStatuses(),
                 reference,
                 query.getUpcomingLimit(),
                 query.getOwnerLimit(),

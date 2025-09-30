@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.bob.mta.common.exception.BusinessException;
+import com.bob.mta.common.exception.ErrorCode;
 import com.bob.mta.common.i18n.MessageResolver;
 import com.bob.mta.common.i18n.TestMessageResolverFactory;
 import com.bob.mta.modules.file.service.impl.InMemoryFileService;
@@ -51,6 +52,110 @@ class InMemoryPlanServiceTest {
     @AfterEach
     void resetLocale() {
         LocaleContextHolder.resetLocaleContext();
+    }
+
+    @Test
+    void shouldRejectPlanCreationWhenTimeConflicts() {
+        OffsetDateTime start = OffsetDateTime.now().plusDays(1);
+        CreatePlanCommand existing = new CreatePlanCommand(
+                "tenant-conflict",
+                "原计划",
+                "原计划描述",
+                "cust-conflict",
+                "owner-conflict",
+                start,
+                start.plusHours(2),
+                "Asia/Shanghai",
+                List.of("owner-conflict"),
+                List.of(new PlanNodeCommand(null, "节点A", "CHECKLIST", "owner-conflict", 1, 30,
+                        PlanNodeActionType.NONE, 100, null, "", List.of()))
+        );
+        Plan created = service.createPlan(existing);
+        service.publishPlan(created.getId(), "admin");
+
+        CreatePlanCommand conflicting = new CreatePlanCommand(
+                "tenant-conflict",
+                "冲突计划",
+                "冲突描述",
+                "cust-conflict",
+                "owner-conflict",
+                start.plusMinutes(30),
+                start.plusHours(3),
+                "Asia/Shanghai",
+                List.of("owner-conflict"),
+                List.of(new PlanNodeCommand(null, "节点B", "CHECKLIST", "owner-conflict", 1, 45,
+                        PlanNodeActionType.NONE, 100, null, "", List.of()))
+        );
+
+        assertThatThrownBy(() -> service.createPlan(conflicting))
+                .isInstanceOf(BusinessException.class)
+                .satisfies(ex -> assertThat(((BusinessException) ex).getErrorCode()).isEqualTo(ErrorCode.CONFLICT));
+    }
+
+    @Test
+    void shouldDetectConflictsForOwnerWindow() {
+        OffsetDateTime start = OffsetDateTime.now().plusDays(2);
+        CreatePlanCommand existing = new CreatePlanCommand(
+                "tenant-conflict",
+                "计划一",
+                "计划一描述",
+                "cust-conflict",
+                "owner-conflict",
+                start,
+                start.plusHours(2),
+                "Asia/Shanghai",
+                List.of("owner-conflict"),
+                List.of(new PlanNodeCommand(null, "节点A", "CHECKLIST", "owner-conflict", 1, 30,
+                        PlanNodeActionType.NONE, 100, null, "", List.of()))
+        );
+        Plan created = service.createPlan(existing);
+        service.publishPlan(created.getId(), "admin");
+
+        List<Plan> conflicts = service.findConflictingPlans("tenant-conflict", null, "owner-conflict",
+                start.plusMinutes(15), start.plusHours(1), null);
+
+        assertThat(conflicts).isNotEmpty();
+        assertThat(conflicts).extracting(Plan::getId).contains(created.getId());
+    }
+
+    @Test
+    void shouldRejectPublishWhenConflictsDetected() {
+        OffsetDateTime start = OffsetDateTime.now().plusDays(3);
+        CreatePlanCommand planA = new CreatePlanCommand(
+                "tenant-conflict",
+                "计划A",
+                "计划A描述",
+                "cust-conflict",
+                "owner-conflict",
+                start,
+                start.plusHours(2),
+                "Asia/Shanghai",
+                List.of("owner-conflict"),
+                List.of(new PlanNodeCommand(null, "节点A", "CHECKLIST", "owner-conflict", 1, 30,
+                        PlanNodeActionType.NONE, 100, null, "", List.of()))
+        );
+        CreatePlanCommand planB = new CreatePlanCommand(
+                "tenant-conflict",
+                "计划B",
+                "计划B描述",
+                "cust-conflict",
+                "owner-conflict",
+                start.plusMinutes(30),
+                start.plusHours(3),
+                "Asia/Shanghai",
+                List.of("owner-conflict"),
+                List.of(new PlanNodeCommand(null, "节点B", "CHECKLIST", "owner-conflict", 1, 45,
+                        PlanNodeActionType.NONE, 100, null, "", List.of()))
+        );
+
+        Plan firstPlan = service.createPlan(planA);
+        Plan secondPlan = service.createPlan(planB);
+
+        service.publishPlan(firstPlan.getId(), "admin");
+
+        assertThatThrownBy(() -> service.publishPlan(secondPlan.getId(), "admin"))
+                .isInstanceOf(BusinessException.class)
+                .satisfies(ex -> assertThat(((BusinessException) ex).getErrorCode()).isEqualTo(ErrorCode.CONFLICT));
     }
 
     @Test

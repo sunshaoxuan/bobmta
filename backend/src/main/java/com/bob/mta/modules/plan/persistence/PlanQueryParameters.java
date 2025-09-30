@@ -4,6 +4,7 @@ import com.bob.mta.modules.plan.domain.PlanStatus;
 import com.bob.mta.modules.plan.repository.PlanSearchCriteria;
 
 import java.time.OffsetDateTime;
+import java.util.List;
 
 public record PlanQueryParameters(
         String tenantId,
@@ -11,14 +12,16 @@ public record PlanQueryParameters(
         String owner,
         String keyword,
         PlanStatus status,
+        List<PlanStatus> statuses,
         OffsetDateTime plannedStartFrom,
         OffsetDateTime plannedEndTo,
         Integer limit,
-        Integer offset
+        Integer offset,
+        String excludePlanId
 ) {
 
     public static PlanQueryParameters empty() {
-        return new PlanQueryParameters(null, null, null, null, null, null, null, null, null);
+        return new PlanQueryParameters(null, null, null, null, null, List.of(), null, null, null, null, null);
     }
 
     public static PlanQueryParameters fromCriteria(PlanSearchCriteria criteria) {
@@ -31,10 +34,12 @@ public record PlanQueryParameters(
                 criteria.getOwner(),
                 criteria.getKeyword(),
                 criteria.getStatus(),
+                criteria.getStatuses(),
                 criteria.getFrom(),
                 criteria.getTo(),
                 criteria.getLimit(),
-                criteria.getOffset()
+                criteria.getOffset(),
+                criteria.getExcludePlanId()
         );
     }
 }
