@@ -37,6 +37,51 @@ test('api client maps network failures to ApiError', async () => {
     const client = createApiClient({ getLocale: () => 'ja-JP' });
     await assert.rejects(client.get('/fail'), (error) => {
       assert.equal(error.type, 'network');
+      assert.equal(error.message, 'offline');
+      return true;
+    });
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test('api client surfaces status error message and code when available', async () => {
+  globalThis.fetch = async () =>
+    new Response(
+      JSON.stringify({ code: 'PLAN-403', message: 'operation not allowed' }),
+      {
+        status: 403,
+        headers: { 'Content-Type': 'application/json' },
+      }
+    );
+
+  try {
+    const client = createApiClient({ getLocale: () => 'ja-JP' });
+    await assert.rejects(client.get('/forbidden'), (error) => {
+      assert.equal(error.type, 'status');
+      assert.equal(error.status, 403);
+      assert.equal(error.code, 'PLAN-403');
+      assert.equal(error.message, 'operation not allowed');
+      return true;
+    });
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test('api client falls back to raw text errors when json parsing fails', async () => {
+  globalThis.fetch = async () =>
+    new Response('permission denied', {
+      status: 403,
+      headers: { 'Content-Type': 'text/plain' },
+    });
+
+  try {
+    const client = createApiClient({ getLocale: () => 'ja-JP' });
+    await assert.rejects(client.get('/text-error'), (error) => {
+      assert.equal(error.type, 'status');
+      assert.equal(error.status, 403);
+      assert.equal(error.message, 'permission denied');
       return true;
     });
   } finally {

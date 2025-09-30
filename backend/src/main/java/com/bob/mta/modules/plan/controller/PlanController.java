@@ -127,6 +127,30 @@ public class PlanController {
     }
 
     @PreAuthorize("hasAnyRole('ADMIN','OPERATOR')")
+    @GetMapping("/filter-options")
+    public ApiResponse<PlanFilterOptionsResponse> filterOptions(
+            @RequestParam(required = false) String tenantId) {
+        return ApiResponse.success(PlanFilterOptionsResponse.from(
+                planService.describePlanFilters(tenantId)));
+    }
+
+    @PreAuthorize("hasAnyRole('ADMIN','OPERATOR')")
+    @GetMapping("/activity-types")
+    public ApiResponse<List<PlanActivityTypeMetadataResponse>> activityTypes() {
+        List<PlanActivityTypeMetadataResponse> descriptors = planService.describeActivities().stream()
+                .map(descriptor -> PlanActivityTypeMetadataResponse.from(descriptor, messageResolver))
+                .toList();
+        return ApiResponse.success(descriptors);
+    }
+
+    @PreAuthorize("hasAnyRole('ADMIN','OPERATOR')")
+    @GetMapping("/reminder-options")
+    public ApiResponse<PlanReminderOptionsResponse> reminderOptions() {
+        return ApiResponse.success(PlanReminderOptionsResponse.from(
+                planService.describeReminderOptions(), messageResolver));
+    }
+
+    @PreAuthorize("hasAnyRole('ADMIN','OPERATOR')")
     @GetMapping("/{id}")
     public ApiResponse<PlanDetailResponse> detail(@PathVariable String id) {
         return ApiResponse.success(toDetailResponse(planService.getPlan(id)));
