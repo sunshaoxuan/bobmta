@@ -4,7 +4,6 @@ import com.bob.mta.common.exception.BusinessException;
 import com.bob.mta.common.exception.ErrorCode;
 import com.bob.mta.modules.file.domain.FileMetadata;
 import com.bob.mta.modules.file.service.FileService;
-import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
 import java.time.OffsetDateTime;
@@ -13,7 +12,6 @@ import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 
-@Service
 public class InMemoryFileService implements FileService {
 
     private final Map<String, FileMetadata> storage = new ConcurrentHashMap<>();

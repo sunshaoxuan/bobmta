@@ -13,6 +13,7 @@ public enum ErrorCode {
     USER_INACTIVE(4032, "user.inactive"),
     NOT_FOUND(4040, "resource.not_found"),
     USER_NOT_FOUND(4041, "user.not_found"),
+    FILE_NOT_FOUND(4045, "file.not_found"),
     CONFLICT(4090, "operation.conflict"),
     USERNAME_EXISTS(4091, "user.username_exists"),
     EMAIL_EXISTS(4092, "user.email_exists"),

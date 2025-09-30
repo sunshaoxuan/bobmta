@@ -42,3 +42,11 @@ logging:
     com.bob.mta: DEBUG
   pattern:
     console: '{"timestamp":"%d{yyyy-MM-dd''T''HH:mm:ss.SSSZ}","level":"%p","logger":"%c{1}","thread":"%t","message":%msg,"trace":%ex}'
+app:
+  file:
+    storage: IN_MEMORY
+    minio:
+      endpoint: http://localhost:9000
+      access-key: minioadmin
+      secret-key: minioadmin
+      download-expiry-seconds: 900
