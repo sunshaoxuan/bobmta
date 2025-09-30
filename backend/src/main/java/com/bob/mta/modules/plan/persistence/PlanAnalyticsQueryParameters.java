@@ -7,23 +7,35 @@ import java.time.OffsetDateTime;
 public record PlanAnalyticsQueryParameters(
         String tenantId,
         String customerId,
+        String ownerId,
         OffsetDateTime plannedStartFrom,
         OffsetDateTime plannedEndTo,
         OffsetDateTime referenceTime,
-        Integer upcomingLimit
+        Integer upcomingLimit,
+        Integer ownerLimit,
+        Integer riskLimit,
+        OffsetDateTime dueSoonThreshold
 ) {
 
     public static PlanAnalyticsQueryParameters fromQuery(PlanAnalyticsQuery query) {
         if (query == null) {
-            return new PlanAnalyticsQueryParameters(null, null, null, null, OffsetDateTime.now(), 5);
+            OffsetDateTime reference = OffsetDateTime.now();
+            return new PlanAnalyticsQueryParameters(null, null, null, null, null, reference, 5, 5, 5,
+                    reference.plusMinutes(1440));
         }
+        OffsetDateTime reference = query.getReferenceTime();
+        OffsetDateTime dueSoonThreshold = reference.plusMinutes(query.getDueSoonMinutes());
         return new PlanAnalyticsQueryParameters(
                 query.getTenantId(),
                 query.getCustomerId(),
+                query.getOwnerId(),
                 query.getFrom(),
                 query.getTo(),
-                query.getReferenceTime(),
-                query.getUpcomingLimit()
+                reference,
+                query.getUpcomingLimit(),
+                query.getOwnerLimit(),
+                query.getRiskLimit(),
+                dueSoonThreshold
         );
     }
 }

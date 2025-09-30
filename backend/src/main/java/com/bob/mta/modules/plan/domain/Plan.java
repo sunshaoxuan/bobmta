@@ -181,6 +181,14 @@ public class Plan {
                 newActivities, reminderPolicy);
     }
 
+    public Plan withNodes(List<PlanNode> newNodes, List<PlanNodeExecution> newExecutions,
+                          OffsetDateTime updatedAt, List<PlanActivity> newActivities) {
+        return new Plan(id, tenantId, title, description, customerId, owner, participants, status,
+                plannedStartTime, plannedEndTime, actualStartTime, actualEndTime,
+                cancelReason, canceledBy, canceledAt, timezone, newNodes, newExecutions, createdAt, updatedAt,
+                newActivities, reminderPolicy);
+    }
+
     public Plan withReminderPolicy(PlanReminderPolicy newPolicy, OffsetDateTime updatedAt,
                                    List<PlanActivity> newActivities) {
         return new Plan(id, tenantId, title, description, customerId, owner, participants, status,
