@@ -18,6 +18,7 @@ import {
   clampPage,
   clampPageSize,
   createPlanListCacheKey,
+  evictPlanListCacheEntries,
   type PlanListCacheEntry,
   normalizeFilters,
 } from './planListCache';
@@ -52,10 +53,16 @@ export type PlanListController = {
   resetFilters: () => Promise<void>;
   changePage: (page: number) => Promise<void>;
   changePageSize: (pageSize: number) => Promise<void>;
+  restore: (state: {
+    filters: PlanListFilters;
+    page: number;
+    pageSize: number;
+  }) => Promise<void>;
   getCachedPlan: (id: string) => PlanSummary | null;
 };
 
-const DEFAULT_PAGE_SIZE = 10;
+export const DEFAULT_PLAN_LIST_PAGE_SIZE = 10;
+const PLAN_LIST_CACHE_LIMIT = 12;
 
 function createEmptyFilters(): PlanListFilters {
   return {
@@ -74,7 +81,7 @@ function createInitialState(): PlanListState {
     filters: createEmptyFilters(),
     pagination: {
       page: 0,
-      pageSize: DEFAULT_PAGE_SIZE,
+      pageSize: DEFAULT_PLAN_LIST_PAGE_SIZE,
       total: 0,
     },
     status: 'idle',
@@ -89,8 +96,13 @@ export function usePlanListController(
   session: LoginResponse | null
 ): PlanListController {
   const [state, setState] = useState<PlanListState>(() => createInitialState());
+  const stateRef = useRef<PlanListState>(state);
   const cacheRef = useRef<Map<string, PlanListCacheEntry>>(new Map());
   const recordIndexRef = useRef<Map<string, PlanSummary>>(new Map());
+
+  useEffect(() => {
+    stateRef.current = state;
+  }, [state]);
 
   const loadPlans = useCallback(
     async (
@@ -112,7 +124,7 @@ export function usePlanListController(
       }
       let nextFilters: PlanListFilters = createEmptyFilters();
       let nextPage = 0;
-      let pageSize = DEFAULT_PAGE_SIZE;
+      let pageSize = DEFAULT_PLAN_LIST_PAGE_SIZE;
       let cacheKey = '';
       let cachedEntry: PlanListCacheEntry | null = null;
       let useCache = false;
@@ -120,7 +132,9 @@ export function usePlanListController(
         const mergedFilters = { ...current.filters, ...options?.filters } as PlanListFilters;
         nextFilters = normalizeFilters(mergedFilters);
         nextPage = clampPage(options?.page ?? current.pagination.page ?? 0);
-        pageSize = clampPageSize(options?.pageSize ?? current.pagination.pageSize ?? DEFAULT_PAGE_SIZE);
+        pageSize = clampPageSize(
+          options?.pageSize ?? current.pagination.pageSize ?? DEFAULT_PLAN_LIST_PAGE_SIZE
+        );
         cacheKey = createPlanListCacheKey(nextFilters, nextPage, pageSize);
         cachedEntry = cache.get(cacheKey) ?? null;
         useCache = Boolean(cachedEntry) && !options?.force;
@@ -173,6 +187,7 @@ export function usePlanListController(
           fetchedAt,
         };
         cache.set(cacheKey, cacheEntry);
+        evictPlanListCacheEntries(cache, PLAN_LIST_CACHE_LIMIT);
         updateRecordIndex(recordIndex, records);
         setState({
           records,
@@ -257,6 +272,25 @@ export function usePlanListController(
     [loadPlans]
   );
 
+  const restore = useCallback(
+    async (snapshot: { filters: PlanListFilters; page: number; pageSize: number }) => {
+      const normalizedFilters = normalizeFilters(snapshot.filters);
+      const nextPage = clampPage(snapshot.page);
+      const nextPageSize = clampPageSize(snapshot.pageSize);
+      const current = stateRef.current;
+      if (
+        current &&
+        arePlanListFiltersEqual(current.filters, normalizedFilters) &&
+        current.pagination.page === nextPage &&
+        current.pagination.pageSize === nextPageSize
+      ) {
+        return;
+      }
+      await loadPlans({ filters: normalizedFilters, page: nextPage, pageSize: nextPageSize });
+    },
+    [loadPlans]
+  );
+
   const getCachedPlan = useCallback(
     (id: string) => {
       return recordIndexRef.current?.get(id) ?? null;
@@ -272,9 +306,20 @@ export function usePlanListController(
       resetFilters,
       changePage,
       changePageSize,
+      restore,
       getCachedPlan,
     }),
-    [state, refresh, applyFilters, resetFilters, changePage, changePageSize, getCachedPlan]
+    [state, refresh, applyFilters, resetFilters, changePage, changePageSize, restore, getCachedPlan]
+  );
+}
+
+export function arePlanListFiltersEqual(a: PlanListFilters, b: PlanListFilters): boolean {
+  return (
+    a.owner === b.owner &&
+    a.keyword === b.keyword &&
+    a.status === b.status &&
+    a.from === b.from &&
+    a.to === b.to
   );
 }
 
