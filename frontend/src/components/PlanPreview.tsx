@@ -125,7 +125,6 @@ export function PlanPreview({
   const nodeMutationContext = mutation.context?.type === 'node' ? mutation.context : null;
   const reminderMutationContext = mutation.context?.type === 'reminder' ? mutation.context : null;
 
-
   useEffect(() => {
     if (mutation.status !== 'success' || !mutation.completedAt) {
       return;
@@ -1008,6 +1007,7 @@ function renderReminderMutationHelper({
   }
 }
 
+
 function getDefaultOperatorId({
   detail,
   node,
@@ -1038,3 +1038,350 @@ function getDefaultAssigneeId({ detail, node }: AssigneeSelectionOptions): strin
   const fallback = participants.find((participant) => participant.id !== currentAssignee);
   return fallback?.id ?? currentAssignee ?? participants[0]?.id ?? null;
 }
+
+type ReminderEditorFormProps = {
+  editor: ReminderEditorState;
+  translate: LocalizationState['translate'];
+  onUpdate: (patch: Partial<ReminderEditorState>) => void;
+  onCancel: () => void;
+  onSubmit: () => void;
+  submitting: boolean;
+};
+
+function ReminderEditorForm({
+  editor,
+  translate,
+  onUpdate,
+  onCancel,
+  onSubmit,
+  submitting,
+}: ReminderEditorFormProps) {
+  return (
+    <div className="plan-reminder-editor">
+      <div className="plan-reminder-editor-field">
+        <Text type="secondary" className="plan-reminder-editor-label">
+          {translate('planDetailReminderEditActiveLabel')}
+        </Text>
+        <input
+          type="checkbox"
+          checked={editor.active}
+          onChange={(event: { currentTarget: { checked: boolean } }) =>
+            onUpdate({ active: event.currentTarget.checked })
+          }
+        />
+      </div>
+      <div className="plan-reminder-editor-field">
+        <Text type="secondary" className="plan-reminder-editor-label">
+          {translate('planDetailReminderEditOffsetLabel')}
+        </Text>
+        <input
+          type="number"
+          value={editor.offsetMinutes}
+          onChange={(event: { currentTarget: { value: string } }) => {
+            const next = Number(event.currentTarget.value);
+            onUpdate({ offsetMinutes: Number.isNaN(next) ? 0 : next });
+          }}
+        />
+      </div>
+      <Space size="small">
+        <Button type="primary" size="small" onClick={onSubmit} loading={submitting}>
+          {translate('planDetailReminderEditConfirm')}
+        </Button>
+        <Button type="default" size="small" onClick={onCancel} disabled={submitting}>
+          {translate('planDetailReminderEditCancel')}
+        </Button>
+      </Space>
+    </div>
+  );
+}
+
+type NodeMutationHelperOptions = {
+  mutation: PlanDetailMutationState;
+  translate: LocalizationState['translate'];
+  nodeLookup: Map<string, PlanNodeWithPath>;
+};
+
+type ReminderMutationHelperOptions = {
+  mutation: PlanDetailMutationState;
+  translate: LocalizationState['translate'];
+  reminders: PlanReminderSummary[];
+};
+
+type OperatorSelectionOptions = {
+  detail: PlanDetail | null;
+  node: PlanNode | null;
+  currentUserName: string | null;
+};
+
+type AssigneeSelectionOptions = {
+  detail: PlanDetail | null;
+  node: PlanNode | null;
+};
+
+function renderNodeMutationHelper({
+  mutation,
+  translate,
+  nodeLookup,
+}: NodeMutationHelperOptions): ReactNode {
+  const context = mutation.context;
+  if (!context || context.type !== 'node') {
+    return null;
+  }
+  const entry = nodeLookup.get(context.nodeId);
+  const nodeName = entry?.node.name ?? context.nodeId;
+  const actionLabel = translate(ACTION_LABEL_KEY[context.action]);
+  const errorDetail = formatApiErrorMessage(mutation.error, translate);
+  switch (mutation.status) {
+    case 'loading':
+      return (
+        <Alert
+          type="info"
+          showIcon
+          message={translate('planDetailActionProcessing', {
+            action: actionLabel,
+            node: nodeName,
+          })}
+        />
+      );
+    case 'success':
+      return (
+        <Alert
+          type="success"
+          showIcon
+          message={translate('planDetailActionSuccess', {
+            action: actionLabel,
+            node: nodeName,
+          })}
+        />
+      );
+    case 'error':
+      return (
+        <Alert
+          type="error"
+          showIcon
+          message={translate('planDetailActionError', {
+            action: actionLabel,
+            node: nodeName,
+            error: errorDetail ?? translate('commonStateErrorDescription'),
+          })}
+        />
+      );
+    default:
+      return null;
+  }
+}
+
+function renderReminderMutationHelper({
+  mutation,
+  translate,
+  reminders,
+}: ReminderMutationHelperOptions): ReactNode {
+  const context = mutation.context;
+  if (!context || context.type !== 'reminder') {
+    return null;
+  }
+  const reminder = reminders.find((item) => item.id === context.reminderId) ?? null;
+  const channelLabel = reminder
+    ? translate(PLAN_REMINDER_CHANNEL_LABEL[reminder.channel])
+    : context.reminderId;
+  const actionLabel = translate(
+    context.action === 'edit'
+      ? 'planDetailReminderActionEdit'
+      : 'planDetailReminderActionToggle'
+  );
+  const offsetLabel = reminder
+    ? translate('planDetailReminderOffsetMinutes', { minutes: reminder.offsetMinutes })
+    : '';
+  const errorDetail = formatApiErrorMessage(mutation.error, translate);
+  switch (mutation.status) {
+    case 'loading':
+      return (
+        <Alert
+          type="info"
+          showIcon
+          message={translate('planDetailReminderProcessing', {
+            action: actionLabel,
+            channel: channelLabel,
+            offset: offsetLabel,
+          })}
+        />
+      );
+    case 'success':
+      return (
+        <Alert
+          type="success"
+          showIcon
+          message={translate('planDetailReminderSuccess', {
+            action: actionLabel,
+            channel: channelLabel,
+            offset: offsetLabel,
+          })}
+        />
+      );
+    case 'error':
+      return (
+        <Alert
+          type="error"
+          showIcon
+          message={translate('planDetailReminderError', {
+            action: actionLabel,
+            channel: channelLabel,
+            offset: offsetLabel,
+            error: errorDetail ?? translate('commonStateErrorDescription'),
+          })}
+        />
+      );
+    default:
+      return null;
+  }
+}
+
+function getDefaultOperatorId({
+  detail,
+  node,
+  currentUserName,
+}: OperatorSelectionOptions): string | null {
+  const participants = detail?.participants ?? [];
+  if (currentUserName) {
+    const currentUser = participants.find((participant) => participant.name === currentUserName);
+    if (currentUser) {
+      return currentUser.id;
+    }
+  }
+  if (node?.assignee?.id) {
+    return node.assignee.id;
+  }
+  if (detail) {
+    const ownerMatch = participants.find((participant) => participant.name === detail.owner);
+    if (ownerMatch) {
+      return ownerMatch.id;
+    }
+  }
+  return participants[0]?.id ?? null;
+}
+
+function getDefaultAssigneeId({ detail, node }: AssigneeSelectionOptions): string | null {
+  const participants = detail?.participants ?? [];
+  const currentAssignee = node?.assignee?.id ?? null;
+  const fallback = participants.find((participant) => participant.id !== currentAssignee);
+  return fallback?.id ?? currentAssignee ?? participants[0]?.id ?? null;
+}
+
+function renderReminderMutationHelper({
+  mutation,
+  translate,
+  reminders,
+}: ReminderMutationHelperOptions): ReactNode {
+  const context = mutation.context;
+  if (!context || context.type !== 'reminder') {
+    return null;
+  }
+  const reminder = reminders.find((item) => item.id === context.reminderId) ?? null;
+  const channelLabel = reminder
+    ? translate(PLAN_REMINDER_CHANNEL_LABEL[reminder.channel])
+    : context.reminderId;
+  const actionLabel = translate(
+    context.action === 'edit'
+      ? 'planDetailReminderActionEdit'
+      : 'planDetailReminderActionToggle'
+  );
+  const offsetLabel = reminder
+    ? translate('planDetailReminderOffsetMinutes', { minutes: reminder.offsetMinutes })
+    : '';
+  const errorDetail = describeApiError(mutation.error, translate);
+  switch (mutation.status) {
+    case 'loading':
+      return (
+        <Alert
+          type="info"
+          showIcon
+          message={translate('planDetailReminderProcessing', {
+            action: actionLabel,
+            channel: channelLabel,
+            offset: offsetLabel,
+          })}
+        />
+      );
+    case 'success':
+      return (
+        <Alert
+          type="success"
+          showIcon
+          message={translate('planDetailReminderSuccess', {
+            action: actionLabel,
+            channel: channelLabel,
+            offset: offsetLabel,
+          })}
+        />
+      );
+    case 'error':
+      return (
+        <Alert
+          type="error"
+          showIcon
+          message={translate('planDetailReminderError', {
+            action: actionLabel,
+            channel: channelLabel,
+            offset: offsetLabel,
+            error: errorDetail ?? translate('commonStateErrorDescription'),
+          })}
+        />
+      );
+    default:
+      return null;
+  }
+}
+
+function describeApiError(error: ApiError | null, translate: LocalizationState['translate']): string | null {
+  if (!error) {
+    return null;
+  }
+  if (error.type === 'status') {
+    return translate('backendErrorStatus', { status: error.status });
+  }
+  return translate('backendErrorNetwork');
+}
+
+function getDefaultOperatorId({
+  detail,
+  node,
+  currentUserName,
+}: OperatorSelectionOptions): string | null {
+  const participants = detail?.participants ?? [];
+  if (currentUserName) {
+    const currentUser = participants.find((participant) => participant.name === currentUserName);
+    if (currentUser) {
+      return currentUser.id;
+    }
+  }
+  if (node?.assignee?.id) {
+    return node.assignee.id;
+  }
+  if (detail) {
+    const ownerMatch = participants.find((participant) => participant.name === detail.owner);
+    if (ownerMatch) {
+      return ownerMatch.id;
+    }
+  }
+  return participants[0]?.id ?? null;
+}
+
+function getDefaultAssigneeId({ detail, node }: AssigneeSelectionOptions): string | null {
+  const participants = detail?.participants ?? [];
+  const currentAssignee = node?.assignee?.id ?? null;
+  const fallback = participants.find((participant) => participant.id !== currentAssignee);
+  return fallback?.id ?? currentAssignee ?? participants[0]?.id ?? null;
+}
+
+const ACTION_LABEL_KEY: Record<PlanNodeActionType, UiMessageKey> = {
+  start: 'planDetailActionStart',
+  complete: 'planDetailActionComplete',
+  handover: 'planDetailActionHandover',
+};
+
+type ReminderActionIntent = {
+  reminderId: string;
+  action: 'edit' | 'toggle';
+  channel: PlanReminderChannel;
+  offset: number;
+};
