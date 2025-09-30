@@ -1,4 +1,4 @@
-import React, { forwardRef } from 'react';
+import React, { forwardRef, useEffect, useRef, useState } from 'react';
 
 const classNames = (...tokens) => tokens.filter(Boolean).join(' ');
 
@@ -133,6 +133,150 @@ export const Space = ({
       style={{ ...baseStyle, ...(style ?? {}) }}
     >
       {children}
+    </div>
+  );
+};
+
+const normalizeMenuItems = (items = []) =>
+  Array.isArray(items) ? items.filter(Boolean) : [];
+
+export const Menu = ({
+  items = [],
+  selectedKeys = [],
+  onClick,
+  mode = 'horizontal',
+  className = '',
+  style,
+}) => {
+  const normalizedItems = normalizeMenuItems(items);
+  const handleItemClick = (item, event) => {
+    if (item.disabled) {
+      return;
+    }
+    item.onClick?.(event);
+    onClick?.({ key: item.key });
+  };
+  const role = mode === 'horizontal' ? 'menubar' : 'menu';
+  return (
+    <ul className={classNames('antd-menu', `antd-menu-${mode}`, className)} style={style} role={role}>
+      {normalizedItems.map((item, index) => {
+        if (item && item.type === 'divider') {
+          const key = item.key ?? `divider-${index}`;
+          return <li key={key} className="antd-menu-divider" role="separator" />;
+        }
+        if (!item || !item.key) {
+          return null;
+        }
+        const active = selectedKeys.includes(item.key);
+        const itemClass = classNames(
+          'antd-menu-item',
+          active ? 'antd-menu-item-active' : '',
+          item.disabled ? 'antd-menu-item-disabled' : ''
+        );
+        return (
+          <li key={item.key} className={itemClass} role="none">
+            <button
+              type="button"
+              className="antd-menu-item-button"
+              onClick={(event) => handleItemClick(item, event)}
+              disabled={item.disabled}
+            >
+              <span className="antd-menu-item-label">{item.label}</span>
+            </button>
+          </li>
+        );
+      })}
+    </ul>
+  );
+};
+
+const assignRef = (ref, value) => {
+  if (!ref) {
+    return;
+  }
+  if (typeof ref === 'function') {
+    ref(value);
+    return;
+  }
+  try {
+    // eslint-disable-next-line no-param-reassign
+    ref.current = value;
+  } catch {
+    // ignore assignment failures for non-standard refs
+  }
+};
+
+export const Dropdown = ({
+  menu,
+  children,
+  placement = 'bottomLeft',
+  className = '',
+  style,
+}) => {
+  const [open, setOpen] = useState(false);
+  const triggerRef = useRef(null);
+  const panelRef = useRef(null);
+  useEffect(() => {
+    if (!open) {
+      return;
+    }
+    const handleClickOutside = (event) => {
+      if (
+        triggerRef.current &&
+        panelRef.current &&
+        !triggerRef.current.contains(event.target) &&
+        !panelRef.current.contains(event.target)
+      ) {
+        setOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [open]);
+
+  if (!children) {
+    return null;
+  }
+
+  const singleChild = React.Children.only(children);
+  const originalOnClick = singleChild.props?.onClick;
+  const handleTriggerClick = (event) => {
+    originalOnClick?.(event);
+    if (event.defaultPrevented) {
+      return;
+    }
+    setOpen((value) => !value);
+  };
+  const clonedChild = React.cloneElement(singleChild, {
+    onClick: handleTriggerClick,
+    ref: (node) => {
+      assignRef(singleChild.ref, node);
+      triggerRef.current = node;
+    },
+  });
+  const items = menu?.items ?? [];
+  const handleMenuClick = (info) => {
+    menu?.onClick?.(info);
+    setOpen(false);
+  };
+  return (
+    <div className={classNames('antd-dropdown', className)} style={style}>
+      {clonedChild}
+      {open ? (
+        <div
+          ref={panelRef}
+          className={classNames('antd-dropdown-panel', `antd-dropdown-${placement}`)}
+        >
+          <Menu
+            items={items}
+            mode="vertical"
+            onClick={handleMenuClick}
+            className="antd-dropdown-menu"
+          />
+        </div>
+      ) : null}
     </div>
   );
 };
