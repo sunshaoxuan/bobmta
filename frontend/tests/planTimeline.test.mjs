@@ -4,6 +4,7 @@ import {
   extractTimelineCategories,
   filterTimelineEntries,
   isTimelineHighlightVisible,
+  deriveTimelineFilter,
 } from '../dist/utils/planTimeline.js';
 
 const sampleTimeline = [
@@ -36,4 +37,23 @@ test('isTimelineHighlightVisible validates highlight against active filters', ()
   assert.equal(isTimelineHighlightVisible(sampleTimeline, ['PLAN', 'NODE'], 'e2'), true);
   assert.equal(isTimelineHighlightVisible(sampleTimeline, [], 'e4'), true);
   assert.equal(isTimelineHighlightVisible(sampleTimeline, ['NODE'], null), true);
+});
+
+test('deriveTimelineFilter summarizes categories and filtered entries', () => {
+  const result = deriveTimelineFilter(sampleTimeline, 'NODE');
+  assert.deepEqual(result.categories, ['PLAN', 'NODE', 'REMINDER']);
+  assert.deepEqual(result.activeCategories, ['NODE']);
+  assert.equal(result.isFilterActive, true);
+  assert.equal(result.isFilteredEmpty, false);
+  assert.deepEqual(
+    result.filteredEntries.map((entry) => entry.id),
+    ['e2', 'e3']
+  );
+});
+
+test('deriveTimelineFilter handles unknown category gracefully', () => {
+  const result = deriveTimelineFilter(sampleTimeline, 'UNKNOWN');
+  assert.deepEqual(result.activeCategories, ['UNKNOWN']);
+  assert.equal(result.isFilteredEmpty, true);
+  assert.deepEqual(result.filteredEntries, []);
 });

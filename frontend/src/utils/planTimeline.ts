@@ -1,5 +1,13 @@
 import type { PlanTimelineEntry } from '../api/types';
 
+export type TimelineFilterResult = {
+  categories: string[];
+  activeCategories: string[];
+  filteredEntries: PlanTimelineEntry[];
+  isFilterActive: boolean;
+  isFilteredEmpty: boolean;
+};
+
 export function extractTimelineCategories(
   entries: readonly PlanTimelineEntry[]
 ): string[] {
@@ -39,4 +47,24 @@ export function isTimelineHighlightVisible(
   }
   const filtered = filterTimelineEntries(entries, categories);
   return filtered.some((entry) => entry.id === highlightId);
+}
+
+export function deriveTimelineFilter(
+  entries: readonly PlanTimelineEntry[],
+  selectedCategory: string | null
+): TimelineFilterResult {
+  const categories = extractTimelineCategories(entries);
+  const normalizedSelection =
+    typeof selectedCategory === 'string' && selectedCategory !== ''
+      ? selectedCategory
+      : null;
+  const activeCategories = normalizedSelection ? [normalizedSelection] : [];
+  const filteredEntries = filterTimelineEntries(entries, activeCategories);
+  return {
+    categories,
+    activeCategories,
+    filteredEntries,
+    isFilterActive: activeCategories.length > 0,
+    isFilteredEmpty: entries.length > 0 && filteredEntries.length === 0,
+  };
 }

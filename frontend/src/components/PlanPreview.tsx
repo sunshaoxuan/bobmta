@@ -31,13 +31,13 @@ import { PlanNodeTree } from './PlanNodeTree';
 import { PlanDetailSection } from './PlanDetailSection';
 import { PlanNodeActions, type PlanNodeActionIntent } from './PlanNodeActions';
 import { PlanReminderBoard } from './PlanReminderBoard';
+import { PlanTimelineBoard } from './PlanTimelineBoard';
 import {
   flattenPlanNodes,
   getActionablePlanNodes,
   type PlanNodeWithPath,
   type PlanNodeActionType,
 } from '../utils/planNodes';
-import { filterTimelineEntries, isTimelineHighlightVisible } from '../utils/planTimeline.js';
 import type {
   PlanDetailMutationState,
   PlanNodeActionInput,
@@ -107,24 +107,7 @@ export function PlanPreview({
     setHighlightedTimelineEntryId(null);
   }, [detail?.id, plan?.id]);
 
-  const timelineCategories = detailState.filters.timeline.categories;
   const timelineCategoryFilter = detailState.filters.timeline.activeCategory;
-
-  const activeTimelineCategories = useMemo(
-    () => (timelineCategoryFilter ? [timelineCategoryFilter] : []),
-    [timelineCategoryFilter]
-  );
-
-  const filteredTimeline = useMemo(
-    () => filterTimelineEntries(timeline, activeTimelineCategories),
-    [activeTimelineCategories, timeline]
-  );
-
-  const isHighlightedTimelineVisible = useMemo(
-    () =>
-      isTimelineHighlightVisible(timeline, activeTimelineCategories, highlightedTimelineEntryId),
-    [activeTimelineCategories, highlightedTimelineEntryId, timeline]
-  );
 
   const actionableNodes: PlanNodeWithPath[] = useMemo(
     () => getActionablePlanNodes(nodes),
@@ -141,52 +124,6 @@ export function PlanPreview({
   const mutation = detailState.mutation;
   const nodeMutationContext = mutation.context?.type === 'node' ? mutation.context : null;
   const reminderMutationContext = mutation.context?.type === 'reminder' ? mutation.context : null;
-
-  const timelineHelper = renderTimelineHelper({
-    translate,
-    filterActive: timelineCategoryFilter !== null,
-    filteredEmpty: filteredTimeline.length === 0 && timeline.length > 0,
-    highlightHidden:
-      Boolean(highlightedTimelineEntryId) && !isHighlightedTimelineVisible,
-  });
-
-  const timelineFilterActions =
-    timelineCategories.length > 0
-      ? (
-          <Space size="small" align="center">
-            <Text type="secondary">{translate('planDetailTimelineFilterLabel')}</Text>
-            <Select
-              size="small"
-              className="plan-preview-timeline-filter"
-              value={timelineCategoryFilter ?? '__ALL__'}
-              onChange={(value: string) => {
-                onTimelineCategoryChange(value === '__ALL__' ? null : value);
-              }}
-              options={[
-                {
-                  value: '__ALL__',
-                  label: translate('planDetailTimelineFilterAll'),
-                },
-                ...timelineCategories.map((category) => ({
-                  value: category,
-                  label: translate('planDetailTimelineFilterOption', { category }),
-                })),
-              ]}
-            />
-            {timelineCategoryFilter !== null ? (
-              <Button
-                type="link"
-                size="small"
-                onClick={() => {
-                  onTimelineCategoryChange(null);
-                }}
-              >
-                {translate('planDetailTimelineFilterReset')}
-              </Button>
-            ) : null}
-          </Space>
-        )
-      : null;
 
   useEffect(() => {
     if (mutation.status !== 'success' || !mutation.completedAt) {
@@ -625,54 +562,18 @@ export function PlanPreview({
                 />
               ) : null}
             </PlanDetailSection>
-            <PlanDetailSection
-              title={translate('planDetailTimelineTitle')}
+            <PlanTimelineBoard
+              entries={timeline}
               status={detailStatus}
               error={detailError}
               translate={translate}
-              empty={timeline.length === 0}
+              locale={locale}
+              activeCategory={timelineCategoryFilter}
+              highlightedEntryId={highlightedTimelineEntryId}
+              onCategoryChange={onTimelineCategoryChange}
               onRetry={onRefreshDetail}
               errorDetail={detailErrorDetail}
-              emptyMessage={translate('planDetailTimelineEmpty')}
-              actions={timelineFilterActions}
-              helper={timelineHelper}
-            >
-              {filteredTimeline.length === 0 ? (
-                <Alert
-                  type="info"
-                  showIcon
-                  message={translate('planDetailTimelineFilterEmpty')}
-                />
-              ) : (
-                <ul className="plan-preview-timeline">
-                  {filteredTimeline.map((entry) => (
-                    <li
-                      key={entry.id}
-                      className={[
-                        'plan-preview-timeline-item',
-                        highlightedTimelineEntryId === entry.id
-                          ? 'plan-preview-timeline-item-highlight'
-                          : '',
-                      ]
-                        .filter(Boolean)
-                        .join(' ')}
-                    >
-                      <div className="plan-preview-timeline-time">
-                        {formatDateTime(entry.occurredAt, locale) ?? entry.occurredAt}
-                      </div>
-                      <div className="plan-preview-timeline-body">
-                        <Text>{entry.message}</Text>
-                        {entry.actor ? (
-                          <Tag color="cyan" className="plan-preview-timeline-actor">
-                            {entry.actor.name}
-                          </Tag>
-                        ) : null}
-                      </div>
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </PlanDetailSection>
+            />
             <PlanDetailSection
               title={translate('planDetailRemindersTitle')}
               status={detailStatus}
@@ -935,13 +836,6 @@ type ReminderMutationHelperOptions = {
   onEdit?: () => void;
 };
 
-type TimelineHelperOptions = {
-  translate: LocalizationState['translate'];
-  filterActive: boolean;
-  filteredEmpty: boolean;
-  highlightHidden: boolean;
-};
-
 type OperatorSelectionOptions = {
   detail: PlanDetail | null;
   node: PlanNode | null;
@@ -1113,42 +1007,6 @@ function renderReminderMutationHelper({
   }
 }
 
-function renderTimelineHelper({
-  translate,
-  filterActive,
-  filteredEmpty,
-  highlightHidden,
-}: TimelineHelperOptions): ReactNode {
-  const helperMessages: ReactNode[] = [];
-  if (filterActive && filteredEmpty) {
-    helperMessages.push(
-      <Alert
-        key="filter-empty"
-        type="warning"
-        showIcon
-        message={translate('planDetailTimelineFilterNoMatch')}
-      />
-    );
-  }
-  if (highlightHidden) {
-    helperMessages.push(
-      <Alert
-        key="highlight-hidden"
-        type="info"
-        showIcon
-        message={translate('planDetailTimelineHighlightHidden')}
-      />
-    );
-  }
-  if (helperMessages.length === 0) {
-    return null;
-  }
-  return (
-    <Space direction="vertical" size="small" style={{ width: '100%' }}>
-      {helperMessages}
-    </Space>
-  );
-}
 
 function getDefaultOperatorId({
   detail,
@@ -1179,280 +1037,6 @@ function getDefaultAssigneeId({ detail, node }: AssigneeSelectionOptions): strin
   const currentAssignee = node?.assignee?.id ?? null;
   const fallback = participants.find((participant) => participant.id !== currentAssignee);
   return fallback?.id ?? currentAssignee ?? participants[0]?.id ?? null;
-}
-
-function renderReminderMutationHelper({
-  mutation,
-  translate,
-  reminders,
-  onRetry,
-  onEdit,
-}: ReminderMutationHelperOptions): ReactNode {
-  const context = mutation.context;
-  if (!context || context.type !== 'reminder') {
-    return null;
-  }
-  const reminder = reminders.find((item) => item.id === context.reminderId) ?? null;
-  const channelLabel = reminder
-    ? translate(PLAN_REMINDER_CHANNEL_LABEL[reminder.channel])
-    : context.reminderId;
-  const actionLabel = translate(
-    context.action === 'edit'
-      ? 'planDetailReminderActionEdit'
-      : 'planDetailReminderActionToggle'
-  );
-  const offsetLabel = reminder
-    ? translate('planDetailReminderOffsetMinutes', { minutes: reminder.offsetMinutes })
-    : '';
-  const errorDetail = formatApiErrorMessage(mutation.error, translate);
-  switch (mutation.status) {
-    case 'loading':
-      return (
-        <Alert
-          type="info"
-          showIcon
-          message={translate('planDetailReminderProcessing', {
-            action: actionLabel,
-            channel: channelLabel,
-            offset: offsetLabel,
-          })}
-        />
-      );
-    case 'success':
-      return (
-        <Alert
-          type="success"
-          showIcon
-          message={translate('planDetailReminderSuccess', {
-            action: actionLabel,
-            channel: channelLabel,
-            offset: offsetLabel,
-          })}
-        />
-      );
-    case 'error':
-      const reminderActions: ReactNode[] = [];
-      if (onRetry) {
-        reminderActions.push(
-          <Button key="retry" type="primary" size="small" onClick={onRetry}>
-            {translate('planDetailReminderRetry')}
-          </Button>
-        );
-      }
-      if (onEdit && context.action === 'edit') {
-        reminderActions.push(
-          <Button key="edit" size="small" onClick={onEdit}>
-            {translate('planDetailReminderRetryEdit')}
-          </Button>
-        );
-      }
-      return (
-        <Alert
-          type="error"
-          showIcon
-          message={translate('planDetailReminderError', {
-            action: actionLabel,
-            channel: channelLabel,
-            offset: offsetLabel,
-            error: errorDetail ?? translate('commonStateErrorDescription'),
-          })}
-          action={
-            reminderActions.length > 0 ? (
-              <Space size="small">{reminderActions}</Space>
-            ) : undefined
-          }
-        />
-      );
-    default:
-      return null;
-  }
-}
-
-function renderTimelineHelper({
-  translate,
-  filterActive,
-  filteredEmpty,
-  highlightHidden,
-}: TimelineHelperOptions): ReactNode {
-  const helperMessages: ReactNode[] = [];
-  if (filterActive && filteredEmpty) {
-    helperMessages.push(
-      <Alert
-        key="filter-empty"
-        type="warning"
-        showIcon
-        message={translate('planDetailTimelineFilterNoMatch')}
-      />
-    );
-  }
-  if (highlightHidden) {
-    helperMessages.push(
-      <Alert
-        key="highlight-hidden"
-        type="info"
-        showIcon
-        message={translate('planDetailTimelineHighlightHidden')}
-      />
-    );
-  }
-  if (helperMessages.length === 0) {
-    return null;
-  }
-  return (
-    <Space direction="vertical" size="small" style={{ width: '100%' }}>
-      {helperMessages}
-    </Space>
-  );
-}
-
-function getDefaultOperatorId({
-  detail,
-  node,
-  currentUserName,
-}: OperatorSelectionOptions): string | null {
-  const participants = detail?.participants ?? [];
-  if (currentUserName) {
-    const currentUser = participants.find((participant) => participant.name === currentUserName);
-    if (currentUser) {
-      return currentUser.id;
-    }
-  }
-  if (node?.assignee?.id) {
-    return node.assignee.id;
-  }
-  if (detail) {
-    const ownerMatch = participants.find((participant) => participant.name === detail.owner);
-    if (ownerMatch) {
-      return ownerMatch.id;
-    }
-  }
-  return participants[0]?.id ?? null;
-}
-
-function getDefaultAssigneeId({ detail, node }: AssigneeSelectionOptions): string | null {
-  const participants = detail?.participants ?? [];
-  const currentAssignee = node?.assignee?.id ?? null;
-  const fallback = participants.find((participant) => participant.id !== currentAssignee);
-  return fallback?.id ?? currentAssignee ?? participants[0]?.id ?? null;
-}
-
-const ACTION_LABEL_KEY: Record<PlanNodeActionType, UiMessageKey> = {
-  start: 'planDetailActionStart',
-  complete: 'planDetailActionComplete',
-  handover: 'planDetailActionHandover',
-};
-
-type NodeActionDialogState = {
-  intent: PlanNodeActionIntent;
-  operatorId: string;
-  assigneeId: string;
-  resultSummary: string;
-  comment: string;
-};
-
-type ReminderEditorState = {
-  reminder: PlanReminderSummary;
-  active: boolean;
-  offsetMinutes: number;
-};
-
-type NodeActionFormProps = {
-  dialog: NodeActionDialogState;
-  detail: PlanDetail | null;
-  translate: LocalizationState['translate'];
-  onUpdate: (patch: Partial<NodeActionDialogState>) => void;
-  onCancel: () => void;
-  onSubmit: () => void;
-  submitting: boolean;
-};
-
-function NodeActionForm({
-  dialog,
-  detail,
-  translate,
-  onUpdate,
-  onCancel,
-  onSubmit,
-  submitting,
-}: NodeActionFormProps) {
-  const participants = detail?.participants ?? [];
-  const operatorOptions = [
-    { value: '', label: translate('planDetailActionDialogOperatorPlaceholder') },
-    ...participants.map((participant) => ({ value: participant.id, label: participant.name })),
-  ];
-  const assigneeOptions = [
-    { value: '', label: translate('planDetailActionDialogAssigneePlaceholder') },
-    ...participants.map((participant) => ({ value: participant.id, label: participant.name })),
-  ];
-
-  return (
-    <div className="plan-node-action-form">
-      <div className="plan-node-action-field">
-        <Text type="secondary" className="plan-node-action-label">
-          {translate('planDetailActionDialogOperatorLabel')}
-        </Text>
-        <Select
-          options={operatorOptions}
-          value={dialog.operatorId ?? ''}
-          onChange={(value: string) => onUpdate({ operatorId: value })}
-        />
-      </div>
-      {dialog.intent.action === 'handover' ? (
-        <div className="plan-node-action-field">
-          <Text type="secondary" className="plan-node-action-label">
-            {translate('planDetailActionDialogAssigneeLabel')}
-          </Text>
-          <Select
-            options={assigneeOptions}
-            value={dialog.assigneeId ?? ''}
-            onChange={(value: string) => onUpdate({ assigneeId: value })}
-          />
-        </div>
-      ) : null}
-      {dialog.intent.action === 'complete' ? (
-        <div className="plan-node-action-field">
-          <Text type="secondary" className="plan-node-action-label">
-            {translate('planDetailActionDialogResultLabel')}
-          </Text>
-          <textarea
-            rows={3}
-            value={dialog.resultSummary}
-            onChange={(event: { currentTarget: { value: string } }) =>
-              onUpdate({ resultSummary: event.currentTarget.value })
-            }
-          />
-        </div>
-      ) : null}
-      {dialog.intent.action === 'handover' ? (
-        <div className="plan-node-action-field">
-          <Text type="secondary" className="plan-node-action-label">
-            {translate('planDetailActionDialogCommentLabel')}
-          </Text>
-          <textarea
-            rows={3}
-            value={dialog.comment}
-            onChange={(event: { currentTarget: { value: string } }) =>
-              onUpdate({ comment: event.currentTarget.value })
-            }
-          />
-        </div>
-      ) : null}
-      <Space size="small">
-        <Button
-          type="primary"
-          size="small"
-          onClick={onSubmit}
-          loading={submitting}
-          disabled={!dialog.operatorId || (dialog.intent.action === 'handover' && !dialog.assigneeId)}
-        >
-          {translate('planDetailActionDialogConfirm')}
-        </Button>
-        <Button type="default" size="small" onClick={onCancel} disabled={submitting}>
-          {translate('planDetailActionDialogCancel')}
-        </Button>
-      </Space>
-    </div>
-  );
 }
 
 type ReminderEditorFormProps = {
