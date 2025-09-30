@@ -1,20 +1,26 @@
-import React, { useEffect, useMemo, useState, type ReactNode } from '../../vendor/react/index.js';
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+  type ReactNode,
+} from '../../vendor/react/index.js';
 import {
   Alert,
   Button,
   Card,
+  Select,
   Space,
   Tag,
   Typography,
 } from '../../vendor/antd/index.js';
 import type {
   PlanDetail,
-  PlanReminderChannel,
+  PlanNode,
   PlanReminderSummary,
   PlanSummary,
   PlanTimelineEntry,
 } from '../api/types';
-import type { ApiError } from '../api/client';
 import type { Locale, UiMessageKey } from '../i18n/localization';
 import type { LocalizationState } from '../i18n/useLocalization';
 import { PLAN_STATUS_COLOR, PLAN_STATUS_LABEL } from '../constants/planStatus';
@@ -25,7 +31,19 @@ import { PlanNodeTree } from './PlanNodeTree';
 import { PlanDetailSection } from './PlanDetailSection';
 import { PlanNodeActions, type PlanNodeActionIntent } from './PlanNodeActions';
 import { PlanReminderBoard } from './PlanReminderBoard';
-import { getActionablePlanNodes, type PlanNodeWithPath, type PlanNodeActionType } from '../utils/planNodes';
+import {
+  flattenPlanNodes,
+  getActionablePlanNodes,
+  type PlanNodeWithPath,
+  type PlanNodeActionType,
+} from '../utils/planNodes';
+import { filterTimelineEntries, isTimelineHighlightVisible } from '../utils/planTimeline.js';
+import type {
+  PlanDetailMutationState,
+  PlanNodeActionInput,
+  PlanReminderUpdateInput,
+} from '../state/planDetail';
+import { formatApiErrorMessage } from '../utils/apiErrors';
 
 const { Text, Paragraph } = Typography;
 
@@ -37,6 +55,10 @@ type PlanPreviewProps = {
   detailState: PlanDetailState;
   onRefreshDetail: () => void;
   detailErrorDetail: string | null;
+  onExecuteNodeAction: (input: PlanNodeActionInput) => Promise<void>;
+  onUpdateReminder: (input: PlanReminderUpdateInput) => Promise<void>;
+  currentUserName: string | null;
+  onTimelineCategoryChange: (category: string | null) => void;
 };
 
 export function PlanPreview({
@@ -47,6 +69,10 @@ export function PlanPreview({
   detailState,
   onRefreshDetail,
   detailErrorDetail,
+  onExecuteNodeAction,
+  onUpdateReminder,
+  currentUserName,
+  onTimelineCategoryChange,
 }: PlanPreviewProps) {
   const isActiveDetail = Boolean(plan && detailState.activePlanId === plan.id);
   const detail: PlanDetail | null = isActiveDetail ? detailState.detail : null;
@@ -69,97 +95,371 @@ export function PlanPreview({
   const participantNames = detail
     ? detail.participants.map((participant) => participant.name)
     : plan?.participants ?? [];
-  const [pendingAction, setPendingAction] = useState<PlanNodeActionIntent | null>(null);
-  const [reminderDrafts, setReminderDrafts] = useState<Record<string, boolean>>({});
+  const [actionDialog, setActionDialog] = useState<NodeActionDialogState | null>(null);
+  const [reminderEditor, setReminderEditor] = useState<ReminderEditorState | null>(null);
   const [selectedReminderId, setSelectedReminderId] = useState<string | null>(null);
-  const [pendingReminderIntent, setPendingReminderIntent] = useState<ReminderActionIntent | null>(null);
+  const [highlightedTimelineEntryId, setHighlightedTimelineEntryId] = useState<string | null>(null);
 
   useEffect(() => {
-    setPendingAction(null);
-    setReminderDrafts({});
+    setActionDialog(null);
+    setReminderEditor(null);
     setSelectedReminderId(null);
-    setPendingReminderIntent(null);
+    setHighlightedTimelineEntryId(null);
   }, [detail?.id, plan?.id]);
+
+  const timelineCategories = detailState.filters.timeline.categories;
+  const timelineCategoryFilter = detailState.filters.timeline.activeCategory;
+
+  const activeTimelineCategories = useMemo(
+    () => (timelineCategoryFilter ? [timelineCategoryFilter] : []),
+    [timelineCategoryFilter]
+  );
+
+  const filteredTimeline = useMemo(
+    () => filterTimelineEntries(timeline, activeTimelineCategories),
+    [activeTimelineCategories, timeline]
+  );
+
+  const isHighlightedTimelineVisible = useMemo(
+    () =>
+      isTimelineHighlightVisible(timeline, activeTimelineCategories, highlightedTimelineEntryId),
+    [activeTimelineCategories, highlightedTimelineEntryId, timeline]
+  );
 
   const actionableNodes: PlanNodeWithPath[] = useMemo(
     () => getActionablePlanNodes(nodes),
     [nodes]
   );
+  const nodeLookup = useMemo(() => {
+    const map = new Map<string, PlanNodeWithPath>();
+    for (const entry of flattenPlanNodes(nodes)) {
+      map.set(entry.node.id, entry);
+    }
+    return map;
+  }, [nodes]);
 
-  const effectiveReminders = useMemo(
-    () =>
-      reminders.map((reminder) => {
-        const override = reminderDrafts[reminder.id];
-        if (typeof override === 'boolean') {
-          return { ...reminder, active: override };
-        }
-        return reminder;
-      }),
-    [reminders, reminderDrafts]
-  );
+  const mutation = detailState.mutation;
+  const nodeMutationContext = mutation.context?.type === 'node' ? mutation.context : null;
+  const reminderMutationContext = mutation.context?.type === 'reminder' ? mutation.context : null;
 
-  const actionHelper = pendingAction
-    ? (
-        <Alert
-          type="info"
-          showIcon
-          message={translate('planDetailActionPending', {
-            action: translate(ACTION_LABEL_KEY[pendingAction.action]),
-            node: pendingAction.nodeName,
-          })}
-        />
-      )
-    : null;
+  const timelineHelper = renderTimelineHelper({
+    translate,
+    filterActive: timelineCategoryFilter !== null,
+    filteredEmpty: filteredTimeline.length === 0 && timeline.length > 0,
+    highlightHidden:
+      Boolean(highlightedTimelineEntryId) && !isHighlightedTimelineVisible,
+  });
 
-  const reminderHelper = pendingReminderIntent
-    ? (
-        <Alert
-          type="info"
-          showIcon
-          message={translate('planDetailReminderActionPending', {
-            action: translate(
-              pendingReminderIntent.action === 'edit'
-                ? 'planDetailReminderActionEdit'
-                : 'planDetailReminderActionToggle'
-            ),
-            channel: translate(PLAN_REMINDER_CHANNEL_LABEL[pendingReminderIntent.channel]),
-            offset: translate('planDetailReminderOffsetMinutes', {
-              minutes: pendingReminderIntent.offset,
-            }),
-          })}
-        />
-      )
-    : null;
+  const timelineFilterActions =
+    timelineCategories.length > 0
+      ? (
+          <Space size="small" align="center">
+            <Text type="secondary">{translate('planDetailTimelineFilterLabel')}</Text>
+            <Select
+              size="small"
+              className="plan-preview-timeline-filter"
+              value={timelineCategoryFilter ?? '__ALL__'}
+              onChange={(value: string) => {
+                onTimelineCategoryChange(value === '__ALL__' ? null : value);
+              }}
+              options={[
+                {
+                  value: '__ALL__',
+                  label: translate('planDetailTimelineFilterAll'),
+                },
+                ...timelineCategories.map((category) => ({
+                  value: category,
+                  label: translate('planDetailTimelineFilterOption', { category }),
+                })),
+              ]}
+            />
+            {timelineCategoryFilter !== null ? (
+              <Button
+                type="link"
+                size="small"
+                onClick={() => {
+                  onTimelineCategoryChange(null);
+                }}
+              >
+                {translate('planDetailTimelineFilterReset')}
+              </Button>
+            ) : null}
+          </Space>
+        )
+      : null;
+
+  useEffect(() => {
+    if (mutation.status !== 'success' || !mutation.completedAt) {
+      return;
+    }
+    if (!detail || timeline.length === 0) {
+      return;
+    }
+    const newestEntryId = timeline[0]?.id ?? null;
+    if (!newestEntryId) {
+      return;
+    }
+    setHighlightedTimelineEntryId(newestEntryId);
+    if (typeof window === 'undefined') {
+      return;
+    }
+    const timer = window.setTimeout(() => {
+      setHighlightedTimelineEntryId((current) => (current === newestEntryId ? null : current));
+    }, 8000);
+    return () => {
+      window.clearTimeout(timer);
+    };
+  }, [detail, mutation.completedAt, mutation.status, timeline]);
+
+  const pendingNodeAction =
+    nodeMutationContext && mutation.status === 'loading'
+      ? { nodeId: nodeMutationContext.nodeId, action: nodeMutationContext.action }
+      : null;
+  const pendingNodeStatus =
+    nodeMutationContext && mutation.status === 'loading' ? 'loading' : 'idle';
+
+  const pendingReminderId = reminderMutationContext ? reminderMutationContext.reminderId : null;
+  const pendingReminderStatus =
+    reminderMutationContext && mutation.status === 'loading' ? 'loading' : 'idle';
 
   const handleNodeAction = (intent: PlanNodeActionIntent) => {
-    setPendingAction(intent);
+    if (!detail) {
+      return;
+    }
+    const nodeEntry = nodeLookup.get(intent.nodeId);
+    const defaultOperator =
+      getDefaultOperatorId({
+        detail,
+        node: nodeEntry?.node ?? null,
+        currentUserName,
+      }) ?? '';
+    const defaultAssignee =
+      intent.action === 'handover'
+        ? getDefaultAssigneeId({ detail, node: nodeEntry?.node ?? null }) ?? ''
+        : nodeEntry?.node.assignee?.id ?? '';
+    setActionDialog({
+      intent,
+      operatorId: defaultOperator,
+      assigneeId: defaultAssignee,
+      resultSummary: nodeEntry?.node.resultSummary ?? '',
+      comment: '',
+    });
   };
 
   const handleReminderToggle = (reminder: PlanReminderSummary) => {
-    setReminderDrafts((current) => {
-      const currentActive = Object.prototype.hasOwnProperty.call(current, reminder.id)
-        ? current[reminder.id]
-        : reminder.active;
-      return { ...current, [reminder.id]: !currentActive };
-    });
+    if (!detail) {
+      return;
+    }
     setSelectedReminderId(reminder.id);
-    setPendingReminderIntent({
+    void onUpdateReminder({
+      planId: detail.id,
       reminderId: reminder.id,
-      action: 'toggle',
-      channel: reminder.channel,
-      offset: reminder.offsetMinutes,
+      active: !reminder.active,
     });
   };
 
   const handleReminderEdit = (reminder: PlanReminderSummary) => {
+    if (!detail) {
+      return;
+    }
     setSelectedReminderId(reminder.id);
-    setPendingReminderIntent({
-      reminderId: reminder.id,
-      action: 'edit',
-      channel: reminder.channel,
-      offset: reminder.offsetMinutes,
+    setReminderEditor({
+      reminder,
+      active: reminder.active,
+      offsetMinutes: reminder.offsetMinutes,
     });
   };
+
+  const handleRetryNodeMutation = useCallback(() => {
+    const context = mutation.context;
+    if (!context || context.type !== 'node') {
+      return;
+    }
+    void onExecuteNodeAction(context.input);
+  }, [mutation, onExecuteNodeAction]);
+
+  const handleEditNodeMutation = useCallback(() => {
+    const context = mutation.context;
+    if (!detail || !context || context.type !== 'node') {
+      return;
+    }
+    const nodeEntry = nodeLookup.get(context.nodeId);
+    if (!nodeEntry) {
+      return;
+    }
+    const dialog: NodeActionDialogState = {
+      intent: {
+        nodeId: context.nodeId,
+        nodeName: nodeEntry.node.name,
+        path: nodeEntry.path,
+        action: context.action,
+      },
+      operatorId: context.input.operatorId,
+      assigneeId: nodeEntry?.node.assignee?.id ?? '',
+      resultSummary: nodeEntry?.node.resultSummary ?? '',
+      comment: '',
+    };
+    switch (context.input.type) {
+      case 'complete':
+        dialog.resultSummary = context.input.resultSummary ?? dialog.resultSummary;
+        break;
+      case 'handover':
+        dialog.assigneeId = context.input.assigneeId;
+        dialog.comment = context.input.comment ?? '';
+        break;
+      default:
+        break;
+    }
+    setActionDialog(dialog);
+  }, [detail, mutation, nodeLookup]);
+
+  const handleRetryReminderMutation = useCallback(() => {
+    const context = mutation.context;
+    if (!context || context.type !== 'reminder') {
+      return;
+    }
+    void onUpdateReminder(context.input);
+  }, [mutation, onUpdateReminder]);
+
+  const handleEditReminderMutation = useCallback(() => {
+    const context = mutation.context;
+    if (!context || context.type !== 'reminder') {
+      return;
+    }
+    const reminder = reminders.find((item) => item.id === context.reminderId);
+    if (!detail || !reminder) {
+      return;
+    }
+    setSelectedReminderId(reminder.id);
+    setReminderEditor({
+      reminder,
+      active: context.input.active,
+      offsetMinutes:
+        typeof context.input.offsetMinutes === 'number'
+          ? context.input.offsetMinutes
+          : reminder.offsetMinutes,
+    });
+  }, [detail, mutation, reminders]);
+
+  const actionHelper = renderNodeMutationHelper({
+    mutation,
+    translate,
+    nodeLookup,
+    onRetry: handleRetryNodeMutation,
+    onEdit: handleEditNodeMutation,
+  });
+
+  const reminderHelper = renderReminderMutationHelper({
+    mutation,
+    translate,
+    reminders,
+    onRetry: handleRetryReminderMutation,
+    onEdit: handleEditReminderMutation,
+  });
+
+  const updateActionDialog = (patch: Partial<NodeActionDialogState>) => {
+    setActionDialog((current) => (current ? { ...current, ...patch } : current));
+  };
+
+  const updateReminderEditor = (patch: Partial<ReminderEditorState>) => {
+    setReminderEditor((current) => (current ? { ...current, ...patch } : current));
+  };
+
+  const handleNodeActionSubmit = async () => {
+    if (!detail || !actionDialog) {
+      return;
+    }
+    const operatorId = actionDialog.operatorId.trim();
+    if (!operatorId) {
+      return;
+    }
+    let payload: PlanNodeActionInput | null = null;
+    switch (actionDialog.intent.action) {
+      case 'start':
+        payload = {
+          planId: detail.id,
+          nodeId: actionDialog.intent.nodeId,
+          type: 'start',
+          operatorId,
+        };
+        break;
+      case 'complete': {
+        const resultSummary = actionDialog.resultSummary.trim();
+        payload = {
+          planId: detail.id,
+          nodeId: actionDialog.intent.nodeId,
+          type: 'complete',
+          operatorId,
+          resultSummary: resultSummary ? resultSummary : null,
+        };
+        break;
+      }
+      case 'handover': {
+        const assigneeId = actionDialog.assigneeId;
+        if (!assigneeId) {
+          return;
+        }
+        const comment = actionDialog.comment.trim();
+        payload = {
+          planId: detail.id,
+          nodeId: actionDialog.intent.nodeId,
+          type: 'handover',
+          operatorId,
+          assigneeId,
+          comment: comment ? comment : null,
+        };
+        break;
+      }
+    }
+    if (!payload) {
+      return;
+    }
+    try {
+      await onExecuteNodeAction(payload);
+    } catch (error) {
+      // Mutation feedback handled separately
+    }
+  };
+
+  const handleReminderEditorSubmit = async () => {
+    if (!detail || !reminderEditor) {
+      return;
+    }
+    try {
+      await onUpdateReminder({
+        planId: detail.id,
+        reminderId: reminderEditor.reminder.id,
+        active: reminderEditor.active,
+        offsetMinutes: reminderEditor.offsetMinutes,
+      });
+    } catch (error) {
+      // Mutation feedback handled separately
+    }
+  };
+
+  useEffect(() => {
+    if (
+      actionDialog &&
+      detail &&
+      mutation.status === 'success' &&
+      mutation.context?.type === 'node' &&
+      mutation.context.nodeId === actionDialog.intent.nodeId
+    ) {
+      setActionDialog(null);
+    }
+  }, [actionDialog, detail, mutation]);
+
+  useEffect(() => {
+    if (
+      reminderEditor &&
+      detail &&
+      mutation.status === 'success' &&
+      mutation.context?.type === 'reminder' &&
+      mutation.context.reminderId === reminderEditor.reminder.id
+    ) {
+      setReminderEditor(null);
+    }
+  }, [detail, mutation, reminderEditor]);
 
   return (
     <Card
@@ -301,8 +601,29 @@ export function PlanPreview({
                 candidates={actionableNodes}
                 translate={translate}
                 onAction={handleNodeAction}
-                pendingAction={pendingAction}
+                pendingAction={pendingNodeAction}
+                pendingStatus={pendingNodeStatus}
               />
+              {actionDialog ? (
+                <NodeActionForm
+                  dialog={actionDialog}
+                  detail={detail}
+                  translate={translate}
+                  onUpdate={updateActionDialog}
+                  onCancel={() => {
+                    setActionDialog(null);
+                  }}
+                  onSubmit={() => {
+                    void handleNodeActionSubmit();
+                  }}
+                  submitting={Boolean(
+                    actionDialog &&
+                      nodeMutationContext &&
+                      mutation.status === 'loading' &&
+                      nodeMutationContext.nodeId === actionDialog.intent.nodeId
+                  )}
+                />
+              ) : null}
             </PlanDetailSection>
             <PlanDetailSection
               title={translate('planDetailTimelineTitle')}
@@ -313,43 +634,85 @@ export function PlanPreview({
               onRetry={onRefreshDetail}
               errorDetail={detailErrorDetail}
               emptyMessage={translate('planDetailTimelineEmpty')}
+              actions={timelineFilterActions}
+              helper={timelineHelper}
             >
-              <ul className="plan-preview-timeline">
-                {timeline.map((entry) => (
-                  <li key={entry.id} className="plan-preview-timeline-item">
-                    <div className="plan-preview-timeline-time">
-                      {formatDateTime(entry.occurredAt, locale) ?? entry.occurredAt}
-                    </div>
-                    <div className="plan-preview-timeline-body">
-                      <Text>{entry.message}</Text>
-                      {entry.actor ? (
-                        <Tag color="cyan" className="plan-preview-timeline-actor">
-                          {entry.actor.name}
-                        </Tag>
-                      ) : null}
-                    </div>
-                  </li>
-                ))}
-              </ul>
+              {filteredTimeline.length === 0 ? (
+                <Alert
+                  type="info"
+                  showIcon
+                  message={translate('planDetailTimelineFilterEmpty')}
+                />
+              ) : (
+                <ul className="plan-preview-timeline">
+                  {filteredTimeline.map((entry) => (
+                    <li
+                      key={entry.id}
+                      className={[
+                        'plan-preview-timeline-item',
+                        highlightedTimelineEntryId === entry.id
+                          ? 'plan-preview-timeline-item-highlight'
+                          : '',
+                      ]
+                        .filter(Boolean)
+                        .join(' ')}
+                    >
+                      <div className="plan-preview-timeline-time">
+                        {formatDateTime(entry.occurredAt, locale) ?? entry.occurredAt}
+                      </div>
+                      <div className="plan-preview-timeline-body">
+                        <Text>{entry.message}</Text>
+                        {entry.actor ? (
+                          <Tag color="cyan" className="plan-preview-timeline-actor">
+                            {entry.actor.name}
+                          </Tag>
+                        ) : null}
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              )}
             </PlanDetailSection>
             <PlanDetailSection
               title={translate('planDetailRemindersTitle')}
               status={detailStatus}
               error={detailError}
               translate={translate}
-              empty={effectiveReminders.length === 0}
+              empty={reminders.length === 0}
               onRetry={onRefreshDetail}
               errorDetail={detailErrorDetail}
               emptyMessage={translate('planDetailRemindersEmpty')}
               helper={reminderHelper}
             >
               <PlanReminderBoard
-                reminders={effectiveReminders}
+                reminders={reminders}
                 translate={translate}
                 onEdit={handleReminderEdit}
                 onToggle={handleReminderToggle}
                 selectedReminderId={selectedReminderId}
+                pendingReminderId={pendingReminderId}
+                pendingStatus={pendingReminderStatus}
               />
+              {reminderEditor ? (
+                <ReminderEditorForm
+                  editor={reminderEditor}
+                  translate={translate}
+                  onUpdate={updateReminderEditor}
+                  onCancel={() => {
+                    setReminderEditor(null);
+                    setSelectedReminderId(null);
+                  }}
+                  onSubmit={() => {
+                    void handleReminderEditorSubmit();
+                  }}
+                  submitting={Boolean(
+                    reminderEditor &&
+                      reminderMutationContext &&
+                      mutation.status === 'loading' &&
+                      reminderMutationContext.reminderId === reminderEditor.reminder.id
+                  )}
+                />
+              ) : null}
             </PlanDetailSection>
           </div>
         </Space>
@@ -379,6 +742,1051 @@ function normalizeProgress(value: number | undefined): number {
     return 0;
   }
   return Math.max(0, Math.min(100, Math.round(value ?? 0)));
+}
+
+const ACTION_LABEL_KEY: Record<PlanNodeActionType, UiMessageKey> = {
+  start: 'planDetailActionStart',
+  complete: 'planDetailActionComplete',
+  handover: 'planDetailActionHandover',
+};
+
+type NodeActionDialogState = {
+  intent: PlanNodeActionIntent;
+  operatorId: string;
+  assigneeId: string;
+  resultSummary: string;
+  comment: string;
+};
+
+type ReminderEditorState = {
+  reminder: PlanReminderSummary;
+  active: boolean;
+  offsetMinutes: number;
+};
+
+type NodeActionFormProps = {
+  dialog: NodeActionDialogState;
+  detail: PlanDetail | null;
+  translate: LocalizationState['translate'];
+  onUpdate: (patch: Partial<NodeActionDialogState>) => void;
+  onCancel: () => void;
+  onSubmit: () => void;
+  submitting: boolean;
+};
+
+function NodeActionForm({
+  dialog,
+  detail,
+  translate,
+  onUpdate,
+  onCancel,
+  onSubmit,
+  submitting,
+}: NodeActionFormProps) {
+  const participants = detail?.participants ?? [];
+  const operatorOptions = [
+    { value: '', label: translate('planDetailActionDialogOperatorPlaceholder') },
+    ...participants.map((participant) => ({ value: participant.id, label: participant.name })),
+  ];
+  const assigneeOptions = [
+    { value: '', label: translate('planDetailActionDialogAssigneePlaceholder') },
+    ...participants.map((participant) => ({ value: participant.id, label: participant.name })),
+  ];
+
+  return (
+    <div className="plan-node-action-form">
+      <div className="plan-node-action-field">
+        <Text type="secondary" className="plan-node-action-label">
+          {translate('planDetailActionDialogOperatorLabel')}
+        </Text>
+        <Select
+          options={operatorOptions}
+          value={dialog.operatorId ?? ''}
+          onChange={(value: string) => onUpdate({ operatorId: value })}
+        />
+      </div>
+      {dialog.intent.action === 'handover' ? (
+        <div className="plan-node-action-field">
+          <Text type="secondary" className="plan-node-action-label">
+            {translate('planDetailActionDialogAssigneeLabel')}
+          </Text>
+          <Select
+            options={assigneeOptions}
+            value={dialog.assigneeId ?? ''}
+            onChange={(value: string) => onUpdate({ assigneeId: value })}
+          />
+        </div>
+      ) : null}
+      {dialog.intent.action === 'complete' ? (
+        <div className="plan-node-action-field">
+          <Text type="secondary" className="plan-node-action-label">
+            {translate('planDetailActionDialogResultLabel')}
+          </Text>
+          <textarea
+            rows={3}
+            value={dialog.resultSummary}
+            onChange={(event: { currentTarget: { value: string } }) =>
+              onUpdate({ resultSummary: event.currentTarget.value })
+            }
+          />
+        </div>
+      ) : null}
+      {dialog.intent.action === 'handover' ? (
+        <div className="plan-node-action-field">
+          <Text type="secondary" className="plan-node-action-label">
+            {translate('planDetailActionDialogCommentLabel')}
+          </Text>
+          <textarea
+            rows={3}
+            value={dialog.comment}
+            onChange={(event: { currentTarget: { value: string } }) =>
+              onUpdate({ comment: event.currentTarget.value })
+            }
+          />
+        </div>
+      ) : null}
+      <Space size="small">
+        <Button
+          type="primary"
+          size="small"
+          onClick={onSubmit}
+          loading={submitting}
+          disabled={!dialog.operatorId || (dialog.intent.action === 'handover' && !dialog.assigneeId)}
+        >
+          {translate('planDetailActionDialogConfirm')}
+        </Button>
+        <Button type="default" size="small" onClick={onCancel} disabled={submitting}>
+          {translate('planDetailActionDialogCancel')}
+        </Button>
+      </Space>
+    </div>
+  );
+}
+
+type ReminderEditorFormProps = {
+  editor: ReminderEditorState;
+  translate: LocalizationState['translate'];
+  onUpdate: (patch: Partial<ReminderEditorState>) => void;
+  onCancel: () => void;
+  onSubmit: () => void;
+  submitting: boolean;
+};
+
+function ReminderEditorForm({
+  editor,
+  translate,
+  onUpdate,
+  onCancel,
+  onSubmit,
+  submitting,
+}: ReminderEditorFormProps) {
+  return (
+    <div className="plan-reminder-editor">
+      <div className="plan-reminder-editor-field">
+        <Text type="secondary" className="plan-reminder-editor-label">
+          {translate('planDetailReminderEditActiveLabel')}
+        </Text>
+        <input
+          type="checkbox"
+          checked={editor.active}
+          onChange={(event: { currentTarget: { checked: boolean } }) =>
+            onUpdate({ active: event.currentTarget.checked })
+          }
+        />
+      </div>
+      <div className="plan-reminder-editor-field">
+        <Text type="secondary" className="plan-reminder-editor-label">
+          {translate('planDetailReminderEditOffsetLabel')}
+        </Text>
+        <input
+          type="number"
+          value={editor.offsetMinutes}
+          onChange={(event: { currentTarget: { value: string } }) => {
+            const next = Number(event.currentTarget.value);
+            onUpdate({ offsetMinutes: Number.isNaN(next) ? 0 : next });
+          }}
+        />
+      </div>
+      <Space size="small">
+        <Button type="primary" size="small" onClick={onSubmit} loading={submitting}>
+          {translate('planDetailReminderEditConfirm')}
+        </Button>
+        <Button type="default" size="small" onClick={onCancel} disabled={submitting}>
+          {translate('planDetailReminderEditCancel')}
+        </Button>
+      </Space>
+    </div>
+  );
+}
+
+type NodeMutationHelperOptions = {
+  mutation: PlanDetailMutationState;
+  translate: LocalizationState['translate'];
+  nodeLookup: Map<string, PlanNodeWithPath>;
+  onRetry?: () => void;
+  onEdit?: () => void;
+};
+
+type ReminderMutationHelperOptions = {
+  mutation: PlanDetailMutationState;
+  translate: LocalizationState['translate'];
+  reminders: PlanReminderSummary[];
+  onRetry?: () => void;
+  onEdit?: () => void;
+};
+
+type TimelineHelperOptions = {
+  translate: LocalizationState['translate'];
+  filterActive: boolean;
+  filteredEmpty: boolean;
+  highlightHidden: boolean;
+};
+
+type OperatorSelectionOptions = {
+  detail: PlanDetail | null;
+  node: PlanNode | null;
+  currentUserName: string | null;
+};
+
+type AssigneeSelectionOptions = {
+  detail: PlanDetail | null;
+  node: PlanNode | null;
+};
+
+function renderNodeMutationHelper({
+  mutation,
+  translate,
+  nodeLookup,
+  onRetry,
+  onEdit,
+}: NodeMutationHelperOptions): ReactNode {
+  const context = mutation.context;
+  if (!context || context.type !== 'node') {
+    return null;
+  }
+  const entry = nodeLookup.get(context.nodeId);
+  const nodeName = entry?.node.name ?? context.nodeId;
+  const actionLabel = translate(ACTION_LABEL_KEY[context.action]);
+  const errorDetail = formatApiErrorMessage(mutation.error, translate);
+  switch (mutation.status) {
+    case 'loading':
+      return (
+        <Alert
+          type="info"
+          showIcon
+          message={translate('planDetailActionProcessing', {
+            action: actionLabel,
+            node: nodeName,
+          })}
+        />
+      );
+    case 'success':
+      return (
+        <Alert
+          type="success"
+          showIcon
+          message={translate('planDetailActionSuccess', {
+            action: actionLabel,
+            node: nodeName,
+          })}
+        />
+      );
+    case 'error':
+      const nodeActions: ReactNode[] = [];
+      if (onRetry) {
+        nodeActions.push(
+          <Button key="retry" type="primary" size="small" onClick={onRetry}>
+            {translate('planDetailActionRetry')}
+          </Button>
+        );
+      }
+      if (onEdit) {
+        nodeActions.push(
+          <Button key="edit" size="small" onClick={onEdit}>
+            {translate('planDetailActionRetryEdit')}
+          </Button>
+        );
+      }
+      return (
+        <Alert
+          type="error"
+          showIcon
+          message={translate('planDetailActionError', {
+            action: actionLabel,
+            node: nodeName,
+            error: errorDetail ?? translate('commonStateErrorDescription'),
+          })}
+          action={
+            nodeActions.length > 0 ? <Space size="small">{nodeActions}</Space> : undefined
+          }
+        />
+      );
+    default:
+      return null;
+  }
+}
+
+function renderReminderMutationHelper({
+  mutation,
+  translate,
+  reminders,
+  onRetry,
+  onEdit,
+}: ReminderMutationHelperOptions): ReactNode {
+  const context = mutation.context;
+  if (!context || context.type !== 'reminder') {
+    return null;
+  }
+  const reminder = reminders.find((item) => item.id === context.reminderId) ?? null;
+  const channelLabel = reminder
+    ? translate(PLAN_REMINDER_CHANNEL_LABEL[reminder.channel])
+    : context.reminderId;
+  const actionLabel = translate(
+    context.action === 'edit'
+      ? 'planDetailReminderActionEdit'
+      : 'planDetailReminderActionToggle'
+  );
+  const offsetLabel = reminder
+    ? translate('planDetailReminderOffsetMinutes', { minutes: reminder.offsetMinutes })
+    : '';
+  const errorDetail = formatApiErrorMessage(mutation.error, translate);
+  switch (mutation.status) {
+    case 'loading':
+      return (
+        <Alert
+          type="info"
+          showIcon
+          message={translate('planDetailReminderProcessing', {
+            action: actionLabel,
+            channel: channelLabel,
+            offset: offsetLabel,
+          })}
+        />
+      );
+    case 'success':
+      return (
+        <Alert
+          type="success"
+          showIcon
+          message={translate('planDetailReminderSuccess', {
+            action: actionLabel,
+            channel: channelLabel,
+            offset: offsetLabel,
+          })}
+        />
+      );
+    case 'error':
+      const reminderActions: ReactNode[] = [];
+      if (onRetry) {
+        reminderActions.push(
+          <Button key="retry" type="primary" size="small" onClick={onRetry}>
+            {translate('planDetailReminderRetry')}
+          </Button>
+        );
+      }
+      if (onEdit && context.action === 'edit') {
+        reminderActions.push(
+          <Button key="edit" size="small" onClick={onEdit}>
+            {translate('planDetailReminderRetryEdit')}
+          </Button>
+        );
+      }
+      return (
+        <Alert
+          type="error"
+          showIcon
+          message={translate('planDetailReminderError', {
+            action: actionLabel,
+            channel: channelLabel,
+            offset: offsetLabel,
+            error: errorDetail ?? translate('commonStateErrorDescription'),
+          })}
+          action={
+            reminderActions.length > 0 ? (
+              <Space size="small">{reminderActions}</Space>
+            ) : undefined
+          }
+        />
+      );
+    default:
+      return null;
+  }
+}
+
+function renderTimelineHelper({
+  translate,
+  filterActive,
+  filteredEmpty,
+  highlightHidden,
+}: TimelineHelperOptions): ReactNode {
+  const helperMessages: ReactNode[] = [];
+  if (filterActive && filteredEmpty) {
+    helperMessages.push(
+      <Alert
+        key="filter-empty"
+        type="warning"
+        showIcon
+        message={translate('planDetailTimelineFilterNoMatch')}
+      />
+    );
+  }
+  if (highlightHidden) {
+    helperMessages.push(
+      <Alert
+        key="highlight-hidden"
+        type="info"
+        showIcon
+        message={translate('planDetailTimelineHighlightHidden')}
+      />
+    );
+  }
+  if (helperMessages.length === 0) {
+    return null;
+  }
+  return (
+    <Space direction="vertical" size="small" style={{ width: '100%' }}>
+      {helperMessages}
+    </Space>
+  );
+}
+
+function getDefaultOperatorId({
+  detail,
+  node,
+  currentUserName,
+}: OperatorSelectionOptions): string | null {
+  const participants = detail?.participants ?? [];
+  if (currentUserName) {
+    const currentUser = participants.find((participant) => participant.name === currentUserName);
+    if (currentUser) {
+      return currentUser.id;
+    }
+  }
+  if (node?.assignee?.id) {
+    return node.assignee.id;
+  }
+  if (detail) {
+    const ownerMatch = participants.find((participant) => participant.name === detail.owner);
+    if (ownerMatch) {
+      return ownerMatch.id;
+    }
+  }
+  return participants[0]?.id ?? null;
+}
+
+function getDefaultAssigneeId({ detail, node }: AssigneeSelectionOptions): string | null {
+  const participants = detail?.participants ?? [];
+  const currentAssignee = node?.assignee?.id ?? null;
+  const fallback = participants.find((participant) => participant.id !== currentAssignee);
+  return fallback?.id ?? currentAssignee ?? participants[0]?.id ?? null;
+}
+
+function renderReminderMutationHelper({
+  mutation,
+  translate,
+  reminders,
+  onRetry,
+  onEdit,
+}: ReminderMutationHelperOptions): ReactNode {
+  const context = mutation.context;
+  if (!context || context.type !== 'reminder') {
+    return null;
+  }
+  const reminder = reminders.find((item) => item.id === context.reminderId) ?? null;
+  const channelLabel = reminder
+    ? translate(PLAN_REMINDER_CHANNEL_LABEL[reminder.channel])
+    : context.reminderId;
+  const actionLabel = translate(
+    context.action === 'edit'
+      ? 'planDetailReminderActionEdit'
+      : 'planDetailReminderActionToggle'
+  );
+  const offsetLabel = reminder
+    ? translate('planDetailReminderOffsetMinutes', { minutes: reminder.offsetMinutes })
+    : '';
+  const errorDetail = formatApiErrorMessage(mutation.error, translate);
+  switch (mutation.status) {
+    case 'loading':
+      return (
+        <Alert
+          type="info"
+          showIcon
+          message={translate('planDetailReminderProcessing', {
+            action: actionLabel,
+            channel: channelLabel,
+            offset: offsetLabel,
+          })}
+        />
+      );
+    case 'success':
+      return (
+        <Alert
+          type="success"
+          showIcon
+          message={translate('planDetailReminderSuccess', {
+            action: actionLabel,
+            channel: channelLabel,
+            offset: offsetLabel,
+          })}
+        />
+      );
+    case 'error':
+      const reminderActions: ReactNode[] = [];
+      if (onRetry) {
+        reminderActions.push(
+          <Button key="retry" type="primary" size="small" onClick={onRetry}>
+            {translate('planDetailReminderRetry')}
+          </Button>
+        );
+      }
+      if (onEdit && context.action === 'edit') {
+        reminderActions.push(
+          <Button key="edit" size="small" onClick={onEdit}>
+            {translate('planDetailReminderRetryEdit')}
+          </Button>
+        );
+      }
+      return (
+        <Alert
+          type="error"
+          showIcon
+          message={translate('planDetailReminderError', {
+            action: actionLabel,
+            channel: channelLabel,
+            offset: offsetLabel,
+            error: errorDetail ?? translate('commonStateErrorDescription'),
+          })}
+          action={
+            reminderActions.length > 0 ? (
+              <Space size="small">{reminderActions}</Space>
+            ) : undefined
+          }
+        />
+      );
+    default:
+      return null;
+  }
+}
+
+function renderTimelineHelper({
+  translate,
+  filterActive,
+  filteredEmpty,
+  highlightHidden,
+}: TimelineHelperOptions): ReactNode {
+  const helperMessages: ReactNode[] = [];
+  if (filterActive && filteredEmpty) {
+    helperMessages.push(
+      <Alert
+        key="filter-empty"
+        type="warning"
+        showIcon
+        message={translate('planDetailTimelineFilterNoMatch')}
+      />
+    );
+  }
+  if (highlightHidden) {
+    helperMessages.push(
+      <Alert
+        key="highlight-hidden"
+        type="info"
+        showIcon
+        message={translate('planDetailTimelineHighlightHidden')}
+      />
+    );
+  }
+  if (helperMessages.length === 0) {
+    return null;
+  }
+  return (
+    <Space direction="vertical" size="small" style={{ width: '100%' }}>
+      {helperMessages}
+    </Space>
+  );
+}
+
+function getDefaultOperatorId({
+  detail,
+  node,
+  currentUserName,
+}: OperatorSelectionOptions): string | null {
+  const participants = detail?.participants ?? [];
+  if (currentUserName) {
+    const currentUser = participants.find((participant) => participant.name === currentUserName);
+    if (currentUser) {
+      return currentUser.id;
+    }
+  }
+  if (node?.assignee?.id) {
+    return node.assignee.id;
+  }
+  if (detail) {
+    const ownerMatch = participants.find((participant) => participant.name === detail.owner);
+    if (ownerMatch) {
+      return ownerMatch.id;
+    }
+  }
+  return participants[0]?.id ?? null;
+}
+
+function getDefaultAssigneeId({ detail, node }: AssigneeSelectionOptions): string | null {
+  const participants = detail?.participants ?? [];
+  const currentAssignee = node?.assignee?.id ?? null;
+  const fallback = participants.find((participant) => participant.id !== currentAssignee);
+  return fallback?.id ?? currentAssignee ?? participants[0]?.id ?? null;
+}
+
+const ACTION_LABEL_KEY: Record<PlanNodeActionType, UiMessageKey> = {
+  start: 'planDetailActionStart',
+  complete: 'planDetailActionComplete',
+  handover: 'planDetailActionHandover',
+};
+
+type NodeActionDialogState = {
+  intent: PlanNodeActionIntent;
+  operatorId: string;
+  assigneeId: string;
+  resultSummary: string;
+  comment: string;
+};
+
+type ReminderEditorState = {
+  reminder: PlanReminderSummary;
+  active: boolean;
+  offsetMinutes: number;
+};
+
+type NodeActionFormProps = {
+  dialog: NodeActionDialogState;
+  detail: PlanDetail | null;
+  translate: LocalizationState['translate'];
+  onUpdate: (patch: Partial<NodeActionDialogState>) => void;
+  onCancel: () => void;
+  onSubmit: () => void;
+  submitting: boolean;
+};
+
+function NodeActionForm({
+  dialog,
+  detail,
+  translate,
+  onUpdate,
+  onCancel,
+  onSubmit,
+  submitting,
+}: NodeActionFormProps) {
+  const participants = detail?.participants ?? [];
+  const operatorOptions = [
+    { value: '', label: translate('planDetailActionDialogOperatorPlaceholder') },
+    ...participants.map((participant) => ({ value: participant.id, label: participant.name })),
+  ];
+  const assigneeOptions = [
+    { value: '', label: translate('planDetailActionDialogAssigneePlaceholder') },
+    ...participants.map((participant) => ({ value: participant.id, label: participant.name })),
+  ];
+
+  return (
+    <div className="plan-node-action-form">
+      <div className="plan-node-action-field">
+        <Text type="secondary" className="plan-node-action-label">
+          {translate('planDetailActionDialogOperatorLabel')}
+        </Text>
+        <Select
+          options={operatorOptions}
+          value={dialog.operatorId ?? ''}
+          onChange={(value: string) => onUpdate({ operatorId: value })}
+        />
+      </div>
+      {dialog.intent.action === 'handover' ? (
+        <div className="plan-node-action-field">
+          <Text type="secondary" className="plan-node-action-label">
+            {translate('planDetailActionDialogAssigneeLabel')}
+          </Text>
+          <Select
+            options={assigneeOptions}
+            value={dialog.assigneeId ?? ''}
+            onChange={(value: string) => onUpdate({ assigneeId: value })}
+          />
+        </div>
+      ) : null}
+      {dialog.intent.action === 'complete' ? (
+        <div className="plan-node-action-field">
+          <Text type="secondary" className="plan-node-action-label">
+            {translate('planDetailActionDialogResultLabel')}
+          </Text>
+          <textarea
+            rows={3}
+            value={dialog.resultSummary}
+            onChange={(event: { currentTarget: { value: string } }) =>
+              onUpdate({ resultSummary: event.currentTarget.value })
+            }
+          />
+        </div>
+      ) : null}
+      {dialog.intent.action === 'handover' ? (
+        <div className="plan-node-action-field">
+          <Text type="secondary" className="plan-node-action-label">
+            {translate('planDetailActionDialogCommentLabel')}
+          </Text>
+          <textarea
+            rows={3}
+            value={dialog.comment}
+            onChange={(event: { currentTarget: { value: string } }) =>
+              onUpdate({ comment: event.currentTarget.value })
+            }
+          />
+        </div>
+      ) : null}
+      <Space size="small">
+        <Button
+          type="primary"
+          size="small"
+          onClick={onSubmit}
+          loading={submitting}
+          disabled={!dialog.operatorId || (dialog.intent.action === 'handover' && !dialog.assigneeId)}
+        >
+          {translate('planDetailActionDialogConfirm')}
+        </Button>
+        <Button type="default" size="small" onClick={onCancel} disabled={submitting}>
+          {translate('planDetailActionDialogCancel')}
+        </Button>
+      </Space>
+    </div>
+  );
+}
+
+type ReminderEditorFormProps = {
+  editor: ReminderEditorState;
+  translate: LocalizationState['translate'];
+  onUpdate: (patch: Partial<ReminderEditorState>) => void;
+  onCancel: () => void;
+  onSubmit: () => void;
+  submitting: boolean;
+};
+
+function ReminderEditorForm({
+  editor,
+  translate,
+  onUpdate,
+  onCancel,
+  onSubmit,
+  submitting,
+}: ReminderEditorFormProps) {
+  return (
+    <div className="plan-reminder-editor">
+      <div className="plan-reminder-editor-field">
+        <Text type="secondary" className="plan-reminder-editor-label">
+          {translate('planDetailReminderEditActiveLabel')}
+        </Text>
+        <input
+          type="checkbox"
+          checked={editor.active}
+          onChange={(event: { currentTarget: { checked: boolean } }) =>
+            onUpdate({ active: event.currentTarget.checked })
+          }
+        />
+      </div>
+      <div className="plan-reminder-editor-field">
+        <Text type="secondary" className="plan-reminder-editor-label">
+          {translate('planDetailReminderEditOffsetLabel')}
+        </Text>
+        <input
+          type="number"
+          value={editor.offsetMinutes}
+          onChange={(event: { currentTarget: { value: string } }) => {
+            const next = Number(event.currentTarget.value);
+            onUpdate({ offsetMinutes: Number.isNaN(next) ? 0 : next });
+          }}
+        />
+      </div>
+      <Space size="small">
+        <Button type="primary" size="small" onClick={onSubmit} loading={submitting}>
+          {translate('planDetailReminderEditConfirm')}
+        </Button>
+        <Button type="default" size="small" onClick={onCancel} disabled={submitting}>
+          {translate('planDetailReminderEditCancel')}
+        </Button>
+      </Space>
+    </div>
+  );
+}
+
+type NodeMutationHelperOptions = {
+  mutation: PlanDetailMutationState;
+  translate: LocalizationState['translate'];
+  nodeLookup: Map<string, PlanNodeWithPath>;
+};
+
+type ReminderMutationHelperOptions = {
+  mutation: PlanDetailMutationState;
+  translate: LocalizationState['translate'];
+  reminders: PlanReminderSummary[];
+};
+
+type OperatorSelectionOptions = {
+  detail: PlanDetail | null;
+  node: PlanNode | null;
+  currentUserName: string | null;
+};
+
+type AssigneeSelectionOptions = {
+  detail: PlanDetail | null;
+  node: PlanNode | null;
+};
+
+function renderNodeMutationHelper({
+  mutation,
+  translate,
+  nodeLookup,
+}: NodeMutationHelperOptions): ReactNode {
+  const context = mutation.context;
+  if (!context || context.type !== 'node') {
+    return null;
+  }
+  const entry = nodeLookup.get(context.nodeId);
+  const nodeName = entry?.node.name ?? context.nodeId;
+  const actionLabel = translate(ACTION_LABEL_KEY[context.action]);
+  const errorDetail = formatApiErrorMessage(mutation.error, translate);
+  switch (mutation.status) {
+    case 'loading':
+      return (
+        <Alert
+          type="info"
+          showIcon
+          message={translate('planDetailActionProcessing', {
+            action: actionLabel,
+            node: nodeName,
+          })}
+        />
+      );
+    case 'success':
+      return (
+        <Alert
+          type="success"
+          showIcon
+          message={translate('planDetailActionSuccess', {
+            action: actionLabel,
+            node: nodeName,
+          })}
+        />
+      );
+    case 'error':
+      return (
+        <Alert
+          type="error"
+          showIcon
+          message={translate('planDetailActionError', {
+            action: actionLabel,
+            node: nodeName,
+            error: errorDetail ?? translate('commonStateErrorDescription'),
+          })}
+        />
+      );
+    default:
+      return null;
+  }
+}
+
+function renderReminderMutationHelper({
+  mutation,
+  translate,
+  reminders,
+}: ReminderMutationHelperOptions): ReactNode {
+  const context = mutation.context;
+  if (!context || context.type !== 'reminder') {
+    return null;
+  }
+  const reminder = reminders.find((item) => item.id === context.reminderId) ?? null;
+  const channelLabel = reminder
+    ? translate(PLAN_REMINDER_CHANNEL_LABEL[reminder.channel])
+    : context.reminderId;
+  const actionLabel = translate(
+    context.action === 'edit'
+      ? 'planDetailReminderActionEdit'
+      : 'planDetailReminderActionToggle'
+  );
+  const offsetLabel = reminder
+    ? translate('planDetailReminderOffsetMinutes', { minutes: reminder.offsetMinutes })
+    : '';
+  const errorDetail = formatApiErrorMessage(mutation.error, translate);
+  switch (mutation.status) {
+    case 'loading':
+      return (
+        <Alert
+          type="info"
+          showIcon
+          message={translate('planDetailReminderProcessing', {
+            action: actionLabel,
+            channel: channelLabel,
+            offset: offsetLabel,
+          })}
+        />
+      );
+    case 'success':
+      return (
+        <Alert
+          type="success"
+          showIcon
+          message={translate('planDetailReminderSuccess', {
+            action: actionLabel,
+            channel: channelLabel,
+            offset: offsetLabel,
+          })}
+        />
+      );
+    case 'error':
+      return (
+        <Alert
+          type="error"
+          showIcon
+          message={translate('planDetailReminderError', {
+            action: actionLabel,
+            channel: channelLabel,
+            offset: offsetLabel,
+            error: errorDetail ?? translate('commonStateErrorDescription'),
+          })}
+        />
+      );
+    default:
+      return null;
+  }
+}
+
+function getDefaultOperatorId({
+  detail,
+  node,
+  currentUserName,
+}: OperatorSelectionOptions): string | null {
+  const participants = detail?.participants ?? [];
+  if (currentUserName) {
+    const currentUser = participants.find((participant) => participant.name === currentUserName);
+    if (currentUser) {
+      return currentUser.id;
+    }
+  }
+  if (node?.assignee?.id) {
+    return node.assignee.id;
+  }
+  if (detail) {
+    const ownerMatch = participants.find((participant) => participant.name === detail.owner);
+    if (ownerMatch) {
+      return ownerMatch.id;
+    }
+  }
+  return participants[0]?.id ?? null;
+}
+
+function getDefaultAssigneeId({ detail, node }: AssigneeSelectionOptions): string | null {
+  const participants = detail?.participants ?? [];
+  const currentAssignee = node?.assignee?.id ?? null;
+  const fallback = participants.find((participant) => participant.id !== currentAssignee);
+  return fallback?.id ?? currentAssignee ?? participants[0]?.id ?? null;
+}
+
+function renderReminderMutationHelper({
+  mutation,
+  translate,
+  reminders,
+}: ReminderMutationHelperOptions): ReactNode {
+  const context = mutation.context;
+  if (!context || context.type !== 'reminder') {
+    return null;
+  }
+  const reminder = reminders.find((item) => item.id === context.reminderId) ?? null;
+  const channelLabel = reminder
+    ? translate(PLAN_REMINDER_CHANNEL_LABEL[reminder.channel])
+    : context.reminderId;
+  const actionLabel = translate(
+    context.action === 'edit'
+      ? 'planDetailReminderActionEdit'
+      : 'planDetailReminderActionToggle'
+  );
+  const offsetLabel = reminder
+    ? translate('planDetailReminderOffsetMinutes', { minutes: reminder.offsetMinutes })
+    : '';
+  const errorDetail = describeApiError(mutation.error, translate);
+  switch (mutation.status) {
+    case 'loading':
+      return (
+        <Alert
+          type="info"
+          showIcon
+          message={translate('planDetailReminderProcessing', {
+            action: actionLabel,
+            channel: channelLabel,
+            offset: offsetLabel,
+          })}
+        />
+      );
+    case 'success':
+      return (
+        <Alert
+          type="success"
+          showIcon
+          message={translate('planDetailReminderSuccess', {
+            action: actionLabel,
+            channel: channelLabel,
+            offset: offsetLabel,
+          })}
+        />
+      );
+    case 'error':
+      return (
+        <Alert
+          type="error"
+          showIcon
+          message={translate('planDetailReminderError', {
+            action: actionLabel,
+            channel: channelLabel,
+            offset: offsetLabel,
+            error: errorDetail ?? translate('commonStateErrorDescription'),
+          })}
+        />
+      );
+    default:
+      return null;
+  }
+}
+
+function describeApiError(error: ApiError | null, translate: LocalizationState['translate']): string | null {
+  if (!error) {
+    return null;
+  }
+  if (error.type === 'status') {
+    return translate('backendErrorStatus', { status: error.status });
+  }
+  return translate('backendErrorNetwork');
+}
+
+function getDefaultOperatorId({
+  detail,
+  node,
+  currentUserName,
+}: OperatorSelectionOptions): string | null {
+  const participants = detail?.participants ?? [];
+  if (currentUserName) {
+    const currentUser = participants.find((participant) => participant.name === currentUserName);
+    if (currentUser) {
+      return currentUser.id;
+    }
+  }
+  if (node?.assignee?.id) {
+    return node.assignee.id;
+  }
+  if (detail) {
+    const ownerMatch = participants.find((participant) => participant.name === detail.owner);
+    if (ownerMatch) {
+      return ownerMatch.id;
+    }
+  }
+  return participants[0]?.id ?? null;
+}
+
+function getDefaultAssigneeId({ detail, node }: AssigneeSelectionOptions): string | null {
+  const participants = detail?.participants ?? [];
+  const currentAssignee = node?.assignee?.id ?? null;
+  const fallback = participants.find((participant) => participant.id !== currentAssignee);
+  return fallback?.id ?? currentAssignee ?? participants[0]?.id ?? null;
 }
 
 const ACTION_LABEL_KEY: Record<PlanNodeActionType, UiMessageKey> = {

@@ -212,6 +212,10 @@
   gap: 8px;
 }
 
+.plan-preview-timeline-filter {
+  min-width: 200px;
+}
+
 .plan-preview-section-helper {
   margin-bottom: 12px;
 }
@@ -264,6 +268,27 @@
   border-radius: 14px;
   border: 1px solid rgba(22, 119, 255, 0.08);
   padding: 12px 14px;
+}
+
+.plan-preview-timeline-item-highlight {
+  border-color: #faad14;
+  box-shadow: 0 0 0 2px rgba(250, 173, 20, 0.25);
+  animation: plan-timeline-highlight 0.4s ease-in-out;
+}
+
+@keyframes plan-timeline-highlight {
+  0% {
+    transform: translateY(-4px);
+    opacity: 0.6;
+  }
+  60% {
+    transform: translateY(0);
+    opacity: 1;
+  }
+  100% {
+    transform: translateY(0);
+    opacity: 1;
+  }
 }
 
 .plan-preview-timeline-time {
@@ -386,6 +411,43 @@
 .plan-reminder-board-helper {
   font-size: 12px !important;
   color: #6b7080 !important;
+}
+
+.plan-node-action-form {
+  width: 100%;
+}
+
+.plan-node-action-field,
+.plan-reminder-editor-field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-xs);
+}
+
+.plan-node-action-label,
+.plan-reminder-editor-label {
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #6b7080;
+}
+
+.plan-reminder-editor {
+  width: 100%;
+}
+
+.plan-node-action-field textarea,
+.plan-reminder-editor-field input[type='number'] {
+  width: 100%;
+  padding: var(--spacing-xs);
+  border: 1px solid rgba(0, 0, 0, 0.15);
+  border-radius: 4px;
+  font-size: 14px;
+}
+
+.plan-reminder-editor-field input[type='checkbox'] {
+  width: 16px;
+  height: 16px;
 }
 
 .plan-preview-field-label {
