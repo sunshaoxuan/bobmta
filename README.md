@@ -255,7 +255,55 @@
 ```
 backend/   # Spring Boot 3 后端服务，聚合阶段三/四功能所需的 REST API 与仓储抽象
 frontend/  # React + Vite 前端占位，后续阶段将继续完善
+deploy/    # Docker Compose 所需的 Nginx/后端/MinIO/TLS 示例配置
 ```
+
+## 部署与运行
+
+设计说明书推荐通过 Docker Compose 一键编排前端、后端、PostgreSQL 与 MinIO。本仓库在根目录提供了与文档结构一致的 `docker-compose.yml` 以及 `deploy/` 目录，可按以下步骤启动：
+
+1. 构建前端静态资源，供 Nginx 挂载：
+
+   ```bash
+   cd frontend
+   npm install
+   npm run build
+   cd ..
+   ```
+
+2. 根据环境安全要求覆盖默认变量，可直接编辑 `deploy/backend/backend.env` 或复制为 `.env` 并在运行时通过 `--env-file` 指定。关键变量包括：
+
+   | 变量 | 默认值 | 用途 |
+   | --- | --- | --- |
+   | `POSTGRES_DB` / `POSTGRES_USER` / `POSTGRES_PASSWORD` | `bobmta` / `bobmta` / `change-me` | 数据库名称与账号 |
+   | `JWT_ACCESS_TOKEN_SECRET` | `change-me-please` | 后端 JWT 签名密钥 |
+   | `MINIO_ROOT_USER` / `MINIO_ROOT_PASSWORD` | `minioadmin` / `minioadmin` | MinIO 初始管理员账号 |
+   | `MINIO_BUCKET` | `plan-files` | 计划附件等对象存储桶名称 |
+   | `TZ` | `Asia/Tokyo` | 各容器默认时区 |
+
+3. 构建并启动全部服务：
+
+   ```bash
+   docker compose up -d --build
+   ```
+
+   - 前端静态站点通过 `http://localhost:8080` 访问。
+   - 后端 API 映射至 `http://localhost:8081`，供调试或反向代理联通。
+   - PostgreSQL 和 MinIO 分别暴露在 `5432`、`9000`/`9001` 端口，可使用本地客户端连线。
+
+4. 若需要统一域名及 TLS，可在 `deploy/certs` 放置 `fullchain.pem`/`privkey.pem` 后，启用代理 Profile：
+
+   ```bash
+   docker compose --profile proxy up -d
+   ```
+
+   该 `nginx` 容器会读取 `deploy/nginx/reverse-proxy.conf`，将 80 端口重定向至 443 并分别转发 `/` 和 `/api/` 到内部的 `web`、`api` 容器。
+
+常见操作：
+
+- MinIO 控制台：浏览器访问 `http://localhost:9001`，按上表凭证登陆后创建 `plan-files` 桶（或依据需要更改名称并同步更新 `.env`）。
+- 数据卷：PostgreSQL 与 MinIO 数据默认保存在 `deploy/postgres/data`、`deploy/minio/data`，证书放置于 `deploy/certs`，可根据实际部署调整为独立挂载路径。
+- 停止并清理：执行 `docker compose down`，若需清除数据卷可追加 `-v` 参数。
 
 ## 后端快速开始
 

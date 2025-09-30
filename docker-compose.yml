@@ -1,0 +1,89 @@
+version: "3.9"
+
+services:
+  web:
+    image: nginx:1.25-alpine
+    container_name: bobmta_web
+    depends_on:
+      - api
+    ports:
+      - "8080:80"
+    volumes:
+      - ./frontend/dist:/usr/share/nginx/html:ro
+      - ./deploy/nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
+    restart: unless-stopped
+
+  api:
+    build:
+      context: .
+      dockerfile: deploy/backend/Dockerfile
+    container_name: bobmta_api
+    env_file:
+      - deploy/backend/backend.env
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://db:5432/${POSTGRES_DB:-bobmta}
+      SPRING_DATASOURCE_USERNAME: ${POSTGRES_USER:-bobmta}
+      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD:-change-me}
+      JWT_ACCESS_TOKEN_SECRET: ${JWT_ACCESS_TOKEN_SECRET:-change-me-please}
+      MINIO_ENDPOINT: http://minio:9000
+      MINIO_ACCESS_KEY: ${MINIO_ROOT_USER:-minioadmin}
+      MINIO_SECRET_KEY: ${MINIO_ROOT_PASSWORD:-minioadmin}
+      MINIO_BUCKET: ${MINIO_BUCKET:-plan-files}
+      TZ: ${TZ:-Asia/Tokyo}
+    depends_on:
+      db:
+        condition: service_started
+      minio:
+        condition: service_started
+    ports:
+      - "8081:8080"
+    restart: unless-stopped
+
+  db:
+    image: postgres:15-alpine
+    container_name: bobmta_db
+    env_file:
+      - deploy/backend/backend.env
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-bobmta}
+      POSTGRES_USER: ${POSTGRES_USER:-bobmta}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-change-me}
+      TZ: ${TZ:-Asia/Tokyo}
+    volumes:
+      - ./deploy/postgres/data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    restart: unless-stopped
+
+  minio:
+    image: minio/minio:RELEASE.2024-01-29T23-21-55Z
+    container_name: bobmta_minio
+    command: server /data --console-address ":9001"
+    env_file:
+      - deploy/backend/backend.env
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minioadmin}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-minioadmin}
+      TZ: ${TZ:-Asia/Tokyo}
+    volumes:
+      - ./deploy/minio/data:/data
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    restart: unless-stopped
+
+  nginx:
+    image: nginx:1.25-alpine
+    container_name: bobmta_gateway
+    depends_on:
+      - web
+      - api
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./deploy/nginx/reverse-proxy.conf:/etc/nginx/nginx.conf:ro
+      - ./deploy/certs:/etc/nginx/certs:ro
+    restart: unless-stopped
+    profiles:
+      - proxy
