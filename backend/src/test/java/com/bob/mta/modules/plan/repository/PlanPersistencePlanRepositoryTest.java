@@ -11,278 +11,364 @@ import com.bob.mta.modules.plan.domain.PlanReminderPolicy;
 import com.bob.mta.modules.plan.domain.PlanReminderRule;
 import com.bob.mta.modules.plan.domain.PlanReminderTrigger;
 import com.bob.mta.modules.plan.domain.PlanStatus;
-import com.bob.mta.modules.plan.persistence.PlanAggregate;
-import com.bob.mta.modules.plan.persistence.PlanAggregateMapper;
-import com.bob.mta.modules.plan.persistence.PlanEntity;
-import com.bob.mta.modules.plan.persistence.PlanPersistenceMapper;
-import com.bob.mta.modules.plan.repository.PlanSearchCriteria;
+import com.bob.mta.modules.plan.persistence.PlanPersistencePlanRepository;
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.ArgumentCaptor;
-import org.mockito.Captor;
-import org.mockito.InjectMocks;
-import org.mockito.Mock;
-import org.mockito.junit.jupiter.MockitoExtension;
+import org.junit.jupiter.api.TestInstance;
+import org.junit.jupiter.api.TestInstance.Lifecycle;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.test.context.DynamicPropertyRegistry;
+import org.springframework.test.context.DynamicPropertySource;
+import org.testcontainers.containers.PostgreSQLContainer;
+import org.testcontainers.junit.jupiter.Container;
+import org.testcontainers.junit.jupiter.Testcontainers;
 
+import javax.sql.DataSource;
 import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.never;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.verifyNoMoreInteractions;
-import static org.mockito.Mockito.when;
 
-@ExtendWith(MockitoExtension.class)
+@Testcontainers
+@SpringBootTest
+@TestInstance(Lifecycle.PER_CLASS)
 class PlanPersistencePlanRepositoryTest {
 
-    @Mock
-    private PlanAggregateMapper mapper;
+    @Container
+    static final PostgreSQLContainer<?> POSTGRES = new PostgreSQLContainer<>("postgres:15-alpine")
+            .withDatabaseName("bobmta")
+            .withUsername("bobmta")
+            .withPassword("secret");
 
-    @InjectMocks
+    @DynamicPropertySource
+    static void datasourceProperties(DynamicPropertyRegistry registry) {
+        registry.add("spring.datasource.url", POSTGRES::getJdbcUrl);
+        registry.add("spring.datasource.username", POSTGRES::getUsername);
+        registry.add("spring.datasource.password", POSTGRES::getPassword);
+        registry.add("spring.datasource.driver-class-name", POSTGRES::getDriverClassName);
+    }
+
+    private static final String[] DROP_STATEMENTS = {
+            "DROP TABLE IF EXISTS mt_plan_activity",
+            "DROP TABLE IF EXISTS mt_plan_node_attachment",
+            "DROP TABLE IF EXISTS mt_plan_node_execution",
+            "DROP TABLE IF EXISTS mt_plan_node",
+            "DROP TABLE IF EXISTS mt_plan_participant",
+            "DROP TABLE IF EXISTS mt_plan_reminder_rule",
+            "DROP TABLE IF EXISTS mt_plan",
+            "DROP SEQUENCE IF EXISTS mt_plan_id_seq",
+            "DROP SEQUENCE IF EXISTS mt_plan_node_id_seq",
+            "DROP SEQUENCE IF EXISTS mt_plan_reminder_id_seq"
+    };
+
+    private static final String[] CREATE_STATEMENTS = {
+            "CREATE SEQUENCE IF NOT EXISTS mt_plan_id_seq START WITH 1",
+            "CREATE SEQUENCE IF NOT EXISTS mt_plan_node_id_seq START WITH 1",
+            "CREATE SEQUENCE IF NOT EXISTS mt_plan_reminder_id_seq START WITH 1",
+            "CREATE TABLE IF NOT EXISTS mt_plan (" +
+                    "plan_id VARCHAR(64) PRIMARY KEY, " +
+                    "tenant_id VARCHAR(64), " +
+                    "customer_id VARCHAR(64), " +
+                    "owner_id VARCHAR(64), " +
+                    "title VARCHAR(255) NOT NULL, " +
+                    "description TEXT, " +
+                    "status VARCHAR(32) NOT NULL, " +
+                    "planned_start_time TIMESTAMPTZ, " +
+                    "planned_end_time TIMESTAMPTZ, " +
+                    "actual_start_time TIMESTAMPTZ, " +
+                    "actual_end_time TIMESTAMPTZ, " +
+                    "cancel_reason TEXT, " +
+                    "canceled_by VARCHAR(64), " +
+                    "canceled_at TIMESTAMPTZ, " +
+                    "timezone VARCHAR(64), " +
+                    "created_at TIMESTAMPTZ, " +
+                    "updated_at TIMESTAMPTZ, " +
+                    "reminder_updated_at TIMESTAMPTZ, " +
+                    "reminder_updated_by VARCHAR(64))",
+            "CREATE TABLE IF NOT EXISTS mt_plan_participant (" +
+                    "plan_id VARCHAR(64) NOT NULL, " +
+                    "participant_id VARCHAR(64) NOT NULL, " +
+                    "PRIMARY KEY (plan_id, participant_id))",
+            "CREATE TABLE IF NOT EXISTS mt_plan_node (" +
+                    "plan_id VARCHAR(64) NOT NULL, " +
+                    "node_id VARCHAR(64) NOT NULL, " +
+                    "parent_node_id VARCHAR(64), " +
+                    "name VARCHAR(255) NOT NULL, " +
+                    "type VARCHAR(64) NOT NULL, " +
+                    "assignee VARCHAR(64), " +
+                    "order_index INT NOT NULL, " +
+                    "expected_duration_minutes INT, " +
+                    "action_type VARCHAR(64), " +
+                    "completion_threshold INT, " +
+                    "action_ref VARCHAR(255), " +
+                    "description TEXT, " +
+                    "PRIMARY KEY (plan_id, node_id))",
+            "CREATE TABLE IF NOT EXISTS mt_plan_node_execution (" +
+                    "plan_id VARCHAR(64) NOT NULL, " +
+                    "node_id VARCHAR(64) NOT NULL, " +
+                    "status VARCHAR(32) NOT NULL, " +
+                    "start_time TIMESTAMPTZ, " +
+                    "end_time TIMESTAMPTZ, " +
+                    "operator_id VARCHAR(64), " +
+                    "result_summary TEXT, " +
+                    "execution_log TEXT, " +
+                    "PRIMARY KEY (plan_id, node_id))",
+            "CREATE TABLE IF NOT EXISTS mt_plan_node_attachment (" +
+                    "plan_id VARCHAR(64) NOT NULL, " +
+                    "node_id VARCHAR(64) NOT NULL, " +
+                    "file_id VARCHAR(128) NOT NULL, " +
+                    "PRIMARY KEY (plan_id, node_id, file_id))",
+            "CREATE TABLE IF NOT EXISTS mt_plan_activity (" +
+                    "plan_id VARCHAR(64) NOT NULL, " +
+                    "activity_id VARCHAR(64) NOT NULL, " +
+                    "activity_type VARCHAR(64) NOT NULL, " +
+                    "occurred_at TIMESTAMPTZ NOT NULL, " +
+                    "actor_id VARCHAR(64), " +
+                    "message_key VARCHAR(255), " +
+                    "reference_id VARCHAR(64), " +
+                    "attributes JSONB, " +
+                    "PRIMARY KEY (plan_id, activity_id))",
+            "CREATE TABLE IF NOT EXISTS mt_plan_reminder_rule (" +
+                    "plan_id VARCHAR(64) NOT NULL, " +
+                    "rule_id VARCHAR(64) NOT NULL, " +
+                    "trigger VARCHAR(64) NOT NULL, " +
+                    "offset_minutes INT NOT NULL, " +
+                    "channels JSONB, " +
+                    "template_id VARCHAR(64), " +
+                    "recipients JSONB, " +
+                    "description TEXT, " +
+                    "active BOOLEAN NOT NULL, " +
+                    "PRIMARY KEY (plan_id, rule_id))"
+    };
+
+    private static final List<String> TABLES = List.of(
+            "mt_plan_activity",
+            "mt_plan_node_attachment",
+            "mt_plan_node_execution",
+            "mt_plan_node",
+            "mt_plan_participant",
+            "mt_plan_reminder_rule",
+            "mt_plan"
+    );
+
+    @Autowired
     private PlanPersistencePlanRepository repository;
 
-    @Captor
-    private ArgumentCaptor<List<?>> listCaptor;
+    @Autowired
+    private JdbcTemplate jdbcTemplate;
 
-    private Plan samplePlan;
-    private PlanAggregate aggregate;
+    @Autowired
+    private DataSource dataSource;
+
+    @BeforeAll
+    void initializeSchema() {
+        // Ensure container is started
+        assertThat(dataSource).isNotNull();
+        runStatements(DROP_STATEMENTS);
+        runStatements(CREATE_STATEMENTS);
+    }
 
     @BeforeEach
-    void setUp() {
-        samplePlan = buildSamplePlan();
-        aggregate = PlanPersistenceMapper.toAggregate(samplePlan);
+    void cleanDatabase() {
+        TABLES.forEach(table -> jdbcTemplate.execute("DELETE FROM " + table));
+        jdbcTemplate.execute("ALTER SEQUENCE mt_plan_id_seq RESTART WITH 1");
+        jdbcTemplate.execute("ALTER SEQUENCE mt_plan_node_id_seq RESTART WITH 1");
+        jdbcTemplate.execute("ALTER SEQUENCE mt_plan_reminder_id_seq RESTART WITH 1");
     }
 
     @Test
-    void shouldLoadPlanById() {
-        when(mapper.findPlanById("plan-1")).thenReturn(aggregate.plan());
-        when(mapper.findParticipantsByPlanIds(List.of("plan-1"))).thenReturn(aggregate.participants());
-        when(mapper.findNodesByPlanIds(List.of("plan-1"))).thenReturn(aggregate.nodes());
-        when(mapper.findExecutionsByPlanIds(List.of("plan-1"))).thenReturn(aggregate.executions());
-        when(mapper.findAttachmentsByPlanIds(List.of("plan-1"))).thenReturn(aggregate.attachments());
-        when(mapper.findActivitiesByPlanIds(List.of("plan-1"))).thenReturn(aggregate.activities());
-        when(mapper.findReminderRulesByPlanIds(List.of("plan-1"))).thenReturn(aggregate.reminderRules());
+    void shouldPersistAndLoadFullAggregate() {
+        OffsetDateTime now = OffsetDateTime.of(2024, 5, 1, 10, 0, 0, 0, ZoneOffset.UTC);
+        String planId = repository.nextPlanId();
+        String rootNodeId = repository.nextNodeId();
+        String childNodeId = repository.nextNodeId();
+        String reminderId = repository.nextReminderId();
 
-        Optional<Plan> result = repository.findById("plan-1");
+        PlanNode child = new PlanNode(childNodeId, "Child", "TASK", "operator-b", 1,
+                30, PlanNodeActionType.MANUAL, 80, "child-action", "Child description", List.of());
+        PlanNode root = new PlanNode(rootNodeId, "Root", "TASK", "operator-a", 0,
+                90, PlanNodeActionType.API_CALL, 60, "root-action", "Root description", List.of(child));
 
-        assertThat(result).isPresent();
-        assertThat(result.get().getId()).isEqualTo("plan-1");
-        assertThat(result.get().getNodes()).hasSize(1);
-        verify(mapper).findPlanById("plan-1");
-        verify(mapper).findParticipantsByPlanIds(List.of("plan-1"));
-        verify(mapper).findNodesByPlanIds(List.of("plan-1"));
-        verify(mapper).findExecutionsByPlanIds(List.of("plan-1"));
-        verify(mapper).findAttachmentsByPlanIds(List.of("plan-1"));
-        verify(mapper).findActivitiesByPlanIds(List.of("plan-1"));
-        verify(mapper).findReminderRulesByPlanIds(List.of("plan-1"));
+        PlanNodeExecution rootExecution = new PlanNodeExecution(rootNodeId, PlanNodeStatus.DONE,
+                now.minusHours(2), now.minusHours(1), "user-1", "completed", "log-entry",
+                List.of("file-1", "file-2"));
+        PlanNodeExecution childExecution = new PlanNodeExecution(childNodeId, PlanNodeStatus.IN_PROGRESS,
+                now.minusHours(1), null, "user-2", "running", null,
+                List.of("file-3"));
+
+        PlanActivity activity = new PlanActivity(PlanActivityType.PLAN_CREATED, now.minusMinutes(30),
+                "system", "plan.created", "ref-1", Map.of("source", "test"));
+
+        PlanReminderRule rule = new PlanReminderRule(reminderId, PlanReminderTrigger.BEFORE_START, 45,
+                List.of("EMAIL", "SMS"), "template-1", List.of("user-1", "user-2"),
+                "Primary reminder", true);
+        PlanReminderPolicy policy = new PlanReminderPolicy(List.of(rule), now.minusMinutes(45), "scheduler");
+
+        Plan plan = new Plan(planId, "tenant-1", "Persistence Plan", "Detailed plan",
+                "customer-7", "owner-1", List.of("participant-1", "participant-2"), PlanStatus.SCHEDULED,
+                now.plusDays(1), now.plusDays(2), now.minusDays(2), now.minusDays(1),
+                null, null, null, "UTC", List.of(root), List.of(rootExecution, childExecution),
+                now.minusDays(3), now.minusHours(1), List.of(activity), policy);
+
+        repository.save(plan);
+
+        Plan reloaded = repository.findById(planId).orElseThrow();
+        assertThat(reloaded.getId()).isEqualTo(planId);
+        assertThat(reloaded.getParticipants()).containsExactly("participant-1", "participant-2");
+        assertThat(reloaded.getNodes()).hasSize(1);
+        PlanNode persistedRoot = reloaded.getNodes().get(0);
+        assertThat(persistedRoot.getId()).isEqualTo(rootNodeId);
+        assertThat(persistedRoot.getChildren()).hasSize(1);
+        assertThat(persistedRoot.getChildren().get(0).getId()).isEqualTo(childNodeId);
+
+        Map<String, PlanNodeExecution> executionsByNode = reloaded.getExecutions().stream()
+                .collect(Collectors.toMap(PlanNodeExecution::getNodeId, exec -> exec));
+        assertThat(executionsByNode.get(rootNodeId).getStatus()).isEqualTo(PlanNodeStatus.DONE);
+        assertThat(executionsByNode.get(rootNodeId).getFileIds()).containsExactly("file-1", "file-2");
+        assertThat(executionsByNode.get(childNodeId).getFileIds()).containsExactly("file-3");
+
+        assertThat(reloaded.getActivities()).hasSize(1);
+        assertThat(reloaded.getActivities().get(0).getAttributes()).containsEntry("source", "test");
+
+        PlanReminderPolicy persistedPolicy = reloaded.getReminderPolicy();
+        assertThat(persistedPolicy.getUpdatedAt()).isEqualTo(policy.getUpdatedAt());
+        assertThat(persistedPolicy.getUpdatedBy()).isEqualTo("scheduler");
+        assertThat(persistedPolicy.getRules()).hasSize(1);
+        PlanReminderRule persistedRule = persistedPolicy.getRules().get(0);
+        assertThat(persistedRule.getId()).isEqualTo(reminderId);
+        assertThat(persistedRule.getTrigger()).isEqualTo(PlanReminderTrigger.BEFORE_START);
+        assertThat(persistedRule.getChannels()).containsExactly("EMAIL", "SMS");
+        assertThat(persistedRule.getRecipients()).containsExactly("user-1", "user-2");
     }
 
     @Test
-    void shouldReturnEmptyWhenPlanNotFound() {
-        when(mapper.findPlanById("missing")).thenReturn(null);
+    void shouldReplaceAssociationsOnUpdate() {
+        OffsetDateTime now = OffsetDateTime.of(2024, 6, 1, 8, 0, 0, 0, ZoneOffset.UTC);
+        String planId = repository.nextPlanId();
+        Plan initialPlan = new Plan(planId, "tenant-1", "Initial", "",
+                "customer-1", "owner-1", List.of("p1"), PlanStatus.SCHEDULED,
+                now.plusDays(1), now.plusDays(2), null, null, null, null, null,
+                "UTC", List.of(), List.of(), now.minusDays(1), now.minusHours(1), List.of(),
+                PlanReminderPolicy.empty());
 
-        Optional<Plan> result = repository.findById("missing");
+        repository.save(initialPlan);
 
-        assertThat(result).isEmpty();
-        verify(mapper).findPlanById("missing");
-        verifyNoMoreInteractions(mapper);
+        String newNodeId = repository.nextNodeId();
+        PlanNode newNode = new PlanNode(newNodeId, "Updated Node", "TASK", "owner-2", 0,
+                null, PlanNodeActionType.NONE, 100, null, "Updated", List.of());
+        PlanNodeExecution execution = new PlanNodeExecution(newNodeId, PlanNodeStatus.DONE,
+                now, now.plusHours(1), "owner-2", "done", null, List.of());
+        PlanReminderRule rule = new PlanReminderRule(repository.nextReminderId(), PlanReminderTrigger.BEFORE_END, 15,
+                List.of("EMAIL"), null, List.of(), "Updated rule", false);
+        PlanReminderPolicy reminderPolicy = new PlanReminderPolicy(List.of(rule), now, "owner-2");
+        Plan updatedPlan = new Plan(planId, "tenant-1", "Initial", "Updated description",
+                "customer-1", "owner-2", List.of("p2", "p3"), PlanStatus.IN_PROGRESS,
+                now.plusDays(3), now.plusDays(4), null, null, null, null, null,
+                "UTC", List.of(newNode), List.of(execution), now.minusDays(1), now,
+                List.of(new PlanActivity(PlanActivityType.PLAN_UPDATED, now, "owner-2",
+                        "plan.updated", null, Map.of())), reminderPolicy);
+
+        repository.save(updatedPlan);
+
+        Plan reloaded = repository.findById(planId).orElseThrow();
+        assertThat(reloaded.getOwner()).isEqualTo("owner-2");
+        assertThat(reloaded.getParticipants()).containsExactly("p2", "p3");
+        assertThat(reloaded.getNodes()).extracting(PlanNode::getId).containsExactly(newNodeId);
+        assertThat(reloaded.getExecutions()).hasSize(1);
+        assertThat(reloaded.getActivities()).hasSize(1);
+        assertThat(reloaded.getReminderPolicy().getRules()).hasSize(1);
+        assertThat(countRows("mt_plan_node_attachment")).isZero();
     }
 
     @Test
-    void shouldSaveNewPlan() {
-        when(mapper.findPlanById("plan-1")).thenReturn(null);
+    void shouldDeletePlanAndAssociations() {
+        OffsetDateTime now = OffsetDateTime.of(2024, 4, 1, 12, 0, 0, 0, ZoneOffset.UTC);
+        String planId = repository.nextPlanId();
+        Plan plan = new Plan(planId, "tenant-1", "To delete", "",
+                "customer-9", "owner-9", List.of("px"), PlanStatus.CANCELED,
+                now, now.plusHours(2), null, null, "reason", "owner-9", now,
+                "UTC", List.of(), List.of(), now.minusDays(2), now.minusHours(1), List.of(),
+                PlanReminderPolicy.empty());
 
-        repository.save(samplePlan);
+        repository.save(plan);
+        assertThat(repository.findById(planId)).isPresent();
 
-        verify(mapper).insertPlan(aggregate.plan());
-        verify(mapper, never()).updatePlan(any());
-        verify(mapper).insertParticipants(listCaptor.capture());
-        assertThat(listCaptor.getValue()).hasSize(2);
-        verify(mapper).insertNodes(any());
-        verify(mapper).insertExecutions(any());
-        verify(mapper).insertAttachments(any());
-        verify(mapper).insertActivities(any());
-        verify(mapper).insertReminderRules(any());
+        repository.delete(planId);
+        assertThat(repository.findById(planId)).isEmpty();
+        assertThat(TABLES.stream().map(this::countRows).collect(Collectors.toList()))
+                .allMatch(count -> count == 0L);
     }
 
     @Test
-    void shouldUpdateExistingPlan() {
-        PlanEntity existing = aggregate.plan();
-        when(mapper.findPlanById("plan-1")).thenReturn(existing);
+    void shouldMatchInMemoryPaginationAndCounts() {
+        OffsetDateTime base = OffsetDateTime.of(2024, 1, 1, 9, 0, 0, 0, ZoneOffset.UTC);
+        InMemoryPlanRepository memoryRepository = new InMemoryPlanRepository();
+        for (int index = 0; index < 5; index++) {
+            String planId = repository.nextPlanId();
+            OffsetDateTime start = base.plusDays(index);
+            Plan plan = new Plan(planId, "tenant-1", "Project-" + index, "Description " + index,
+                    "customer-" + (index % 2), "owner-" + (index % 3),
+                    List.of("participant-" + index), index % 2 == 0 ? PlanStatus.SCHEDULED : PlanStatus.IN_PROGRESS,
+                    start, start.plusHours(4), null, null, null, null, null, "UTC",
+                    List.of(), List.of(), start.minusDays(1), start.minusHours(1), List.of(),
+                    PlanReminderPolicy.empty());
+            repository.save(plan);
+            memoryRepository.save(plan);
+        }
 
-        repository.save(samplePlan);
-
-        verify(mapper).updatePlan(existing);
-        verify(mapper).deleteAttachments("plan-1");
-        verify(mapper).deleteExecutions("plan-1");
-        verify(mapper).deleteNodes("plan-1");
-        verify(mapper).deleteParticipants("plan-1");
-        verify(mapper).deleteActivities("plan-1");
-        verify(mapper).deleteReminderRules("plan-1");
-        verify(mapper).insertParticipants(any());
-        verify(mapper).insertNodes(any());
-        verify(mapper).insertExecutions(any());
-        verify(mapper).insertAttachments(any());
-        verify(mapper).insertActivities(any());
-        verify(mapper).insertReminderRules(any());
-    }
-
-    @Test
-    void shouldDeletePlan() {
-        repository.delete("plan-1");
-
-        verify(mapper).deleteAttachments("plan-1");
-        verify(mapper).deleteExecutions("plan-1");
-        verify(mapper).deleteNodes("plan-1");
-        verify(mapper).deleteParticipants("plan-1");
-        verify(mapper).deleteActivities("plan-1");
-        verify(mapper).deleteReminderRules("plan-1");
-        verify(mapper).deletePlan("plan-1");
-    }
-
-    @Test
-    void shouldFindPlansByCriteria() {
-        when(mapper.findPlans(any())).thenReturn(List.of(aggregate.plan()));
-        when(mapper.countPlans(any())).thenReturn(1);
-        when(mapper.findParticipantsByPlanIds(List.of("plan-1"))).thenReturn(aggregate.participants());
-        when(mapper.findNodesByPlanIds(List.of("plan-1"))).thenReturn(aggregate.nodes());
-        when(mapper.findExecutionsByPlanIds(List.of("plan-1"))).thenReturn(aggregate.executions());
-        when(mapper.findAttachmentsByPlanIds(List.of("plan-1"))).thenReturn(aggregate.attachments());
-        when(mapper.findActivitiesByPlanIds(List.of("plan-1"))).thenReturn(aggregate.activities());
-        when(mapper.findReminderRulesByPlanIds(List.of("plan-1"))).thenReturn(aggregate.reminderRules());
-
-        List<Plan> plans = repository.findByCriteria(PlanSearchCriteria.builder()
-                .tenantId("tenant-1")
-                .status(PlanStatus.IN_PROGRESS)
-                .build());
-
-        assertThat(plans).hasSize(1);
-        verify(mapper).findPlans(any());
-        verify(mapper).findParticipantsByPlanIds(List.of("plan-1"));
-        verify(mapper).findNodesByPlanIds(List.of("plan-1"));
-        verify(mapper).findExecutionsByPlanIds(List.of("plan-1"));
-        verify(mapper).findAttachmentsByPlanIds(List.of("plan-1"));
-        verify(mapper).findActivitiesByPlanIds(List.of("plan-1"));
-        verify(mapper).findReminderRulesByPlanIds(List.of("plan-1"));
-    }
-
-    @Test
-    void shouldCountPlansByCriteria() {
-        when(mapper.countPlans(any())).thenReturn(3);
-
-        int total = repository.countByCriteria(PlanSearchCriteria.builder()
-                .tenantId("tenant-1")
-                .build());
-
-        assertThat(total).isEqualTo(3);
-        verify(mapper).countPlans(any());
-    }
-
-    @Test
-    void shouldProvideSequenceDelegation() {
-        when(mapper.nextPlanId()).thenReturn("PLAN-100");
-        when(mapper.nextNodeId()).thenReturn("NODE-200");
-        when(mapper.nextReminderId()).thenReturn("REM-300");
-
-        assertThat(repository.nextPlanId()).isEqualTo("PLAN-100");
-        assertThat(repository.nextNodeId()).isEqualTo("NODE-200");
-        assertThat(repository.nextReminderId()).isEqualTo("REM-300");
-    }
-
-    private Plan buildSamplePlan() {
-        OffsetDateTime now = OffsetDateTime.now();
-        PlanNode childNode = new PlanNode(
-                "node-2",
-                "node-2-name",
-                "CHECK",
-                "assignee-2",
-                2,
-                30,
-                PlanNodeActionType.LINK,
-                80,
-                "action-2",
-                "description-2",
-                List.of()
+        List<PlanSearchCriteria> criteriaList = List.of(
+                PlanSearchCriteria.builder().tenantId("tenant-1").limit(2).offset(0).build(),
+                PlanSearchCriteria.builder().tenantId("tenant-1").limit(2).offset(2).build(),
+                PlanSearchCriteria.builder().tenantId("tenant-1").owner("owner-1").build(),
+                PlanSearchCriteria.builder().tenantId("tenant-1").keyword("Project-3").build(),
+                PlanSearchCriteria.builder().tenantId("tenant-1").status(PlanStatus.SCHEDULED).build()
         );
-        PlanNode rootNode = new PlanNode(
-                "node-1",
-                "node-1-name",
-                "CHECK",
-                "assignee-1",
-                1,
-                60,
-                PlanNodeActionType.REMOTE,
-                50,
-                "action-1",
-                "description-1",
-                List.of(childNode)
-        );
-        PlanNodeExecution executionOne = new PlanNodeExecution(
-                "node-1",
-                PlanNodeStatus.DONE,
-                now.minusHours(2),
-                now.minusHours(1),
-                "operator-1",
-                "result-1",
-                "log-1",
-                List.of("file-1")
-        );
-        PlanNodeExecution executionTwo = new PlanNodeExecution(
-                "node-2",
-                PlanNodeStatus.PENDING,
-                null,
-                null,
-                null,
-                null,
-                null,
-                List.of()
-        );
-        PlanActivity activity = new PlanActivity(
-                PlanActivityType.PLAN_CREATED,
-                now.minusDays(1),
-                "actor-1",
-                "message-1",
-                "reference-1",
-                Map.of("scope", "primary")
-        );
-        PlanReminderRule rule = new PlanReminderRule(
-                "rule-1",
-                PlanReminderTrigger.BEFORE_PLAN_START,
-                45,
-                List.of("EMAIL"),
-                "template-1",
-                List.of("OWNER"),
-                "description-1"
-        );
-        PlanReminderPolicy policy = new PlanReminderPolicy(List.of(rule), now.minusMinutes(10), "operator-2");
-        return new Plan(
-                "plan-1",
-                "tenant-1",
-                "title-1",
-                "description-1",
-                "customer-1",
-                "owner-1",
-                List.of("owner-1", "participant-1"),
-                PlanStatus.IN_PROGRESS,
-                now.plusDays(1),
-                now.plusDays(1).plusHours(4),
-                now.minusHours(3),
-                now.minusHours(1),
-                null,
-                null,
-                null,
-                "Asia/Tokyo",
-                List.of(rootNode),
-                List.of(executionOne, executionTwo),
-                now.minusDays(2),
-                now,
-                List.of(activity),
-                policy
-        );
+
+        for (PlanSearchCriteria criteria : criteriaList) {
+            List<String> persistenceIds = repository.findByCriteria(criteria).stream()
+                    .map(Plan::getId)
+                    .toList();
+            List<String> memoryIds = memoryRepository.findByCriteria(criteria).stream()
+                    .map(Plan::getId)
+                    .toList();
+            assertThat(persistenceIds).isEqualTo(memoryIds);
+            assertThat(repository.countByCriteria(criteria))
+                    .isEqualTo(memoryRepository.countByCriteria(criteria));
+        }
+    }
+
+    @Test
+    void shouldGenerateSequentialIdentifiers() {
+        String id1 = repository.nextPlanId();
+        String id2 = repository.nextPlanId();
+        assertThat(id1).startsWith("PLAN-");
+        assertThat(id2).isNotEqualTo(id1);
+
+        String node1 = repository.nextNodeId();
+        String node2 = repository.nextNodeId();
+        assertThat(node1).startsWith("NODE-");
+        assertThat(Set.of(node1, node2)).hasSize(2);
+
+        String reminder1 = repository.nextReminderId();
+        String reminder2 = repository.nextReminderId();
+        assertThat(reminder1).startsWith("REM-");
+        assertThat(reminder2).isNotEqualTo(reminder1);
+    }
+
+    private void runStatements(String[] statements) {
+        for (String statement : statements) {
+            jdbcTemplate.execute(statement);
+        }
+    }
+
+    private long countRows(String table) {
+        return jdbcTemplate.queryForObject("SELECT COUNT(1) FROM " + table, Long.class);
     }
 }
