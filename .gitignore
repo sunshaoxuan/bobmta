@@ -13,3 +13,7 @@ backend/target/
 
 # OS
 .DS_Store
+
+deploy/postgres/data/
+deploy/minio/data/
+deploy/certs/*.pem
