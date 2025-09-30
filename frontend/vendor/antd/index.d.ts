@@ -46,6 +46,33 @@ export interface SpaceProps extends React.HTMLAttributes<HTMLDivElement> {
 }
 export const Space: React.FC<SpaceProps>;
 
+export type MenuDividerItem = { type: 'divider'; key?: string };
+export type MenuOptionItem = {
+  key: string;
+  label: React.ReactNode;
+  disabled?: boolean;
+  onClick?: (event: React.MouseEvent<HTMLButtonElement>) => void;
+};
+export type MenuItem = MenuDividerItem | MenuOptionItem;
+export interface MenuProps extends React.HTMLAttributes<HTMLUListElement> {
+  items?: MenuItem[];
+  selectedKeys?: string[];
+  onClick?: (info: { key: string }) => void;
+  mode?: 'horizontal' | 'vertical';
+}
+export const Menu: React.FC<MenuProps>;
+
+export interface DropdownMenuProps {
+  items?: MenuItem[];
+  onClick?: (info: { key: string }) => void;
+}
+export interface DropdownProps extends React.HTMLAttributes<HTMLDivElement> {
+  menu?: DropdownMenuProps;
+  placement?: 'bottomLeft' | 'bottomRight';
+  children: React.ReactElement;
+}
+export const Dropdown: React.FC<DropdownProps>;
+
 export interface AlertProps extends React.HTMLAttributes<HTMLDivElement> {
   type?: 'success' | 'info' | 'warning' | 'error';
   message?: React.ReactNode;
@@ -174,6 +201,8 @@ export default {
   Alert,
   Button,
   Input,
+  Menu,
+  Dropdown,
   DatePicker,
   Select,
   Table,

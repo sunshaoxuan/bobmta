@@ -12,8 +12,10 @@ import {
   Button,
   Card,
   ConfigProvider,
+  Dropdown,
   Input,
   Layout,
+  Menu,
   Progress,
   Select,
   Space,
@@ -44,6 +46,10 @@ import {
   useSessionController,
   type SessionController,
 } from './state/session';
+import {
+  useNavigationController,
+  type NavigationController,
+} from './state/navigation';
 import { formatDateTime, formatPlanWindow } from './utils/planFormatting';
 import { formatApiErrorMessage } from './utils/apiErrors';
 import {
@@ -70,12 +76,13 @@ type AppViewProps = {
   client: ApiClient;
   localization: LocalizationState;
   session: SessionController;
+  navigation: NavigationController;
   planList: PlanListController;
   planDetail: PlanDetailController;
   router: HistoryRouter;
 };
 
-function AppView({ client, localization, session, planList, planDetail, router }: AppViewProps) {
+function AppView({ client, localization, session, navigation, planList, planDetail, router }: AppViewProps) {
   const { locale, translate, availableLocales, loading, setLocale } = localization;
   const { state: sessionState, login, logout } = session;
   const { state: planState, refresh, changePage, changePageSize, restore: restorePlanList } = planList;
@@ -424,27 +431,193 @@ function AppView({ client, localization, session, planList, planDetail, router }
     [availableLocales]
   );
 
+  const navigationState = navigation.state;
+  const normalizePathname = useCallback((pathname: string) => {
+    if (!pathname) {
+      return '/';
+    }
+    return pathname.startsWith('/') ? pathname : `/${pathname}`;
+  }, []);
+
+  const navigationPathMap = useMemo(() => {
+    const map = new Map<string, string>();
+    navigationState.items.forEach((item) => {
+      map.set(item.key, normalizePathname(item.path));
+    });
+    return map;
+  }, [navigationState.items, normalizePathname]);
+
+  const navigationMenuItems = useMemo(
+    () =>
+      navigationState.items.map((item) => ({
+        key: item.key,
+        label: translate(item.labelKey),
+      })),
+    [navigationState.items, translate]
+  );
+
+  const activeMenuKey = useMemo(() => {
+    if (navigationState.items.length === 0) {
+      return null;
+    }
+    const currentPath = normalizePathname(location.pathname);
+    let matchedKey: string | null = null;
+    let matchedLength = -1;
+    for (const item of navigationState.items) {
+      const candidate = normalizePathname(item.path);
+      if (currentPath === candidate || currentPath.startsWith(`${candidate}/`)) {
+        if (candidate.length > matchedLength) {
+          matchedKey = item.key;
+          matchedLength = candidate.length;
+        }
+      }
+    }
+    return matchedKey ?? navigationState.items[0]?.key ?? null;
+  }, [location.pathname, navigationState.items, normalizePathname]);
+
+  const allowedPaths = useMemo(
+    () => navigationState.items.map((item) => normalizePathname(item.path)),
+    [navigationState.items, normalizePathname]
+  );
+
+  useEffect(() => {
+    if (!sessionState.session) {
+      return;
+    }
+    if (navigationState.loading || navigationState.items.length === 0) {
+      return;
+    }
+    const currentPath = normalizePathname(location.pathname);
+    const authorized = allowedPaths.some((allowedPath) => {
+      if (currentPath === allowedPath) {
+        return true;
+      }
+      return currentPath.startsWith(`${allowedPath}/`);
+    });
+    if (authorized) {
+      return;
+    }
+    const fallbackPath = navigationState.items[0]?.path ?? '/';
+    const normalizedFallback = normalizePathname(fallbackPath);
+    if (currentPath === normalizedFallback) {
+      return;
+    }
+    navigate({ pathname: normalizedFallback }, { replace: true });
+  }, [
+    allowedPaths,
+    location.pathname,
+    navigate,
+    navigationState.items,
+    navigationState.loading,
+    normalizePathname,
+    sessionState.session,
+  ]);
+
+  const handleMenuClick = useCallback(
+    ({ key }: { key: string }) => {
+      const targetPath = navigationPathMap.get(key);
+      if (!targetPath) {
+        return;
+      }
+      const normalizedTarget = normalizePathname(targetPath);
+      if (normalizePathname(location.pathname) === normalizedTarget) {
+        return;
+      }
+      navigate({ pathname: normalizedTarget });
+    },
+    [location.pathname, navigate, navigationPathMap, normalizePathname]
+  );
+
+  const menuSelectedKeys = activeMenuKey ? [activeMenuKey] : [];
+
+  const userDisplayName = sessionState.session?.displayName ?? translate('navUserGuest');
+  const userInitial = useMemo(() => {
+    if (!sessionState.session) {
+      return '•';
+    }
+    const trimmed = sessionState.session.displayName.trim();
+    if (!trimmed) {
+      return '•';
+    }
+    return trimmed.charAt(0).toUpperCase();
+  }, [sessionState.session]);
+
+  const userMenuItems = useMemo(() => {
+    if (!sessionState.session) {
+      return [
+        {
+          key: 'guest',
+          label: translate('navUserGuest'),
+          disabled: true,
+        },
+      ];
+    }
+    return [
+      {
+        key: 'profile',
+        label: translate('authWelcome', { name: sessionState.session.displayName }),
+        disabled: true,
+      },
+      { type: 'divider' as const, key: 'divider' },
+      { key: 'logout', label: translate('authLogout') },
+    ];
+  }, [sessionState.session, translate]);
+
+  const handleUserMenuClick = useCallback(
+    ({ key }: { key: string }) => {
+      if (key === 'logout') {
+        logout();
+      }
+    },
+    [logout]
+  );
+
   return (
     <Layout className="app-layout">
       <Header className="app-header">
-        <div className="header-main">
-          <Title level={3} className="app-title">
-            {translate('appTitle')}
-          </Title>
-          <Paragraph className="app-subtitle">
-            {translate('appDescription')}
-          </Paragraph>
-        </div>
-        <Space align="center" size="middle">
-          <Text strong>{translate('localeLabel')}</Text>
-          <Select
-            className="locale-select"
-            value={locale}
-            onChange={(value: string) => setLocale(value as Locale)}
-            loading={loading}
-            options={localeOptions}
+        <div className="app-header-left">
+          <div className="app-brand">
+            <Title level={3} className="app-title">
+              {translate('appTitle')}
+            </Title>
+            <Paragraph className="app-subtitle">
+              {translate('appDescription')}
+            </Paragraph>
+          </div>
+          <Menu
+            mode="horizontal"
+            className="app-header-menu"
+            items={navigationMenuItems}
+            selectedKeys={menuSelectedKeys}
+            onClick={handleMenuClick}
           />
-        </Space>
+          {navigationState.error && (
+            <Tag color="volcano" className="nav-error-badge">
+              {translate('backendErrorNetwork')}
+            </Tag>
+          )}
+        </div>
+        <div className="app-header-right">
+          <Space align="center" size="middle" className="locale-switcher">
+            <Text strong>{translate('localeLabel')}</Text>
+            <Select
+              className="locale-select"
+              value={locale}
+              onChange={(value: string) => setLocale(value as Locale)}
+              loading={loading}
+              options={localeOptions}
+            />
+          </Space>
+          <Dropdown
+            menu={{ items: userMenuItems, onClick: handleUserMenuClick }}
+            placement="bottomRight"
+          >
+            <button type="button" className="user-dropdown-trigger">
+              <span className="user-avatar">{userInitial}</span>
+              <span className="user-name">{userDisplayName}</span>
+            </button>
+          </Dropdown>
+        </div>
       </Header>
       <Content className="app-content">
         <Space direction="vertical" size="large" style={{ width: '100%' }}>
@@ -615,6 +788,7 @@ function App() {
     [localization.locale]
   );
   const session = useSessionController(client);
+  const navigation = useNavigationController(client, session.state.session);
   const planList = usePlanListController(client, session.state.session);
   const planDetail = usePlanDetailController(client, session.state.session);
   const router = useHistoryRouter();
@@ -633,6 +807,7 @@ function App() {
         client={client}
         localization={localization}
         session={session}
+        navigation={navigation}
         planList={planList}
         planDetail={planDetail}
         router={router}
