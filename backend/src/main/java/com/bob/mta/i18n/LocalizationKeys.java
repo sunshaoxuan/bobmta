@@ -223,6 +223,28 @@ public final class LocalizationKeys {
         }
     }
 
+    public static final class PlanReminder {
+        public static final String TRIGGER_BEFORE_START = "plan.reminder.trigger.beforeStart";
+        public static final String TRIGGER_BEFORE_START_DESC = "plan.reminder.trigger.beforeStart.description";
+        public static final String TRIGGER_BEFORE_END = "plan.reminder.trigger.beforeEnd";
+        public static final String TRIGGER_BEFORE_END_DESC = "plan.reminder.trigger.beforeEnd.description";
+        public static final String CHANNEL_EMAIL = "plan.reminder.channel.email";
+        public static final String CHANNEL_EMAIL_DESC = "plan.reminder.channel.email.description";
+        public static final String CHANNEL_IM = "plan.reminder.channel.im";
+        public static final String CHANNEL_IM_DESC = "plan.reminder.channel.im.description";
+        public static final String CHANNEL_SMS = "plan.reminder.channel.sms";
+        public static final String CHANNEL_SMS_DESC = "plan.reminder.channel.sms.description";
+        public static final String RECIPIENT_OWNER = "plan.reminder.recipient.owner";
+        public static final String RECIPIENT_OWNER_DESC = "plan.reminder.recipient.owner.description";
+        public static final String RECIPIENT_PARTICIPANTS = "plan.reminder.recipient.participants";
+        public static final String RECIPIENT_PARTICIPANTS_DESC = "plan.reminder.recipient.participants.description";
+        public static final String RECIPIENT_CUSTOM = "plan.reminder.recipient.custom";
+        public static final String RECIPIENT_CUSTOM_DESC = "plan.reminder.recipient.custom.description";
+
+        private PlanReminder() {
+        }
+    }
+
     public static final class PlanSummary {
         public static final String RESPONSIBLE_LABEL = "plan.summary.responsible";
         public static final String STATUS_LABEL = "plan.summary.status";
