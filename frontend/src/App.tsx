@@ -35,6 +35,7 @@ import { type Locale } from './i18n/localization';
 import {
   usePlanListController,
   type PlanListController,
+  arePlanListFiltersEqual,
 } from './state/planList';
 import {
   usePlanDetailController,
@@ -55,6 +56,10 @@ import {
   parsePlanDetailUrlState,
   type PlanDetailUrlState,
 } from './utils/planDetailUrl';
+import {
+  buildPlanListSearch,
+  parsePlanListUrlState,
+} from './utils/planListUrl';
 import { useHistoryRouter, type HistoryRouter } from './router/router';
 import { buildPlanDetailPath, parsePlanRoute } from './router/planRoutes';
 
@@ -78,7 +83,7 @@ type AppViewProps = {
 function AppView({ client, localization, session, planList, planDetail, router }: AppViewProps) {
   const { locale, translate, availableLocales, loading, setLocale } = localization;
   const { state: sessionState, login, logout } = session;
-  const { state: planState, refresh, changePage, changePageSize } = planList;
+  const { state: planState, refresh, changePage, changePageSize, restore: restorePlanList } = planList;
   const {
     state: planDetailState,
     selectPlan: selectPlanDetail,
@@ -95,6 +100,7 @@ function AppView({ client, localization, session, planList, planDetail, router }
     initialUrlStateRef.current = parsePlanDetailUrlState(location.search);
   }
   const initialUrlState = initialUrlStateRef.current;
+  const planListUrlState = useMemo(() => parsePlanListUrlState(location.search), [location.search]);
   const previewPlanId = planRoute.type === 'detail' ? planRoute.planId : null;
   const [lastVisitedPlanId, setLastVisitedPlanId] = useState<string | null>(initialUrlState.planId);
   const pendingTimelineCategoryRef = useRef<{ value: string | null; pending: boolean }>({
@@ -102,6 +108,8 @@ function AppView({ client, localization, session, planList, planDetail, router }
     pending: initialUrlState.hasTimelineCategory,
   });
   const suppressedAutoOpenRef = useRef(false);
+  const planListSearchSyncSuppressedRef = useRef(false);
+  const lastPlanListSearchRef = useRef<string | null>(null);
   const planRecordSignature = useMemo(
     () => planState.records.map((record) => record.id).join('|'),
     [planState.records]
@@ -154,6 +162,66 @@ function AppView({ client, localization, session, planList, planDetail, router }
   useEffect(() => {
     suppressedAutoOpenRef.current = false;
   }, [planRecordSignature]);
+
+  useEffect(() => {
+    if (!sessionState.session) {
+      return;
+    }
+    const { filters: urlFilters, page: urlPage, pageSize: urlPageSize } = planListUrlState;
+    if (
+      arePlanListFiltersEqual(planState.filters, urlFilters) &&
+      planState.pagination.page === urlPage &&
+      planState.pagination.pageSize === urlPageSize
+    ) {
+      return;
+    }
+    planListSearchSyncSuppressedRef.current = true;
+    void restorePlanList({
+      filters: urlFilters,
+      page: urlPage,
+      pageSize: urlPageSize,
+    });
+  }, [
+    sessionState.session,
+    planListUrlState,
+    restorePlanList,
+    planState.filters,
+    planState.pagination.page,
+    planState.pagination.pageSize,
+  ]);
+
+  useEffect(() => {
+    if (!sessionState.session) {
+      lastPlanListSearchRef.current = location.search;
+      return;
+    }
+    if (planListSearchSyncSuppressedRef.current) {
+      planListSearchSyncSuppressedRef.current = false;
+      lastPlanListSearchRef.current = location.search;
+      return;
+    }
+    const nextSearch = buildPlanListSearch(location.search, {
+      filters: planState.filters,
+      page: planState.pagination.page,
+      pageSize: planState.pagination.pageSize,
+    });
+    if (nextSearch === location.search) {
+      lastPlanListSearchRef.current = nextSearch;
+      return;
+    }
+    if (lastPlanListSearchRef.current === nextSearch) {
+      return;
+    }
+    lastPlanListSearchRef.current = nextSearch;
+    navigate({ search: nextSearch }, { replace: true, preserveHash: true });
+  }, [
+    sessionState.session,
+    planState.filters,
+    planState.pagination.page,
+    planState.pagination.pageSize,
+    location.search,
+    navigate,
+  ]);
 
   useEffect(() => {
     if (!previewPlanId) {

@@ -109,6 +109,7 @@ export function PlanPreview({
 
   const timelineCategories = detailState.filters.timeline.categories;
   const timelineCategoryFilter = detailState.filters.timeline.activeCategory;
+
   const activeTimelineCategories = useMemo(
     () => (timelineCategoryFilter ? [timelineCategoryFilter] : []),
     [timelineCategoryFilter]
