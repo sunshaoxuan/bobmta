@@ -11,6 +11,24 @@ export type PlanListCacheEntry = {
   fetchedAt: string;
 };
 
+export function evictPlanListCacheEntries(
+  cache: Map<string, PlanListCacheEntry>,
+  limit: number
+): void {
+  if (cache.size <= limit) {
+    return;
+  }
+  const entries = Array.from(cache.entries()).sort((a, b) => {
+    const aTime = Date.parse(a[1].fetchedAt);
+    const bTime = Date.parse(b[1].fetchedAt);
+    return aTime - bTime;
+  });
+  while (entries.length > 0 && cache.size > limit) {
+    const [key] = entries.shift()!;
+    cache.delete(key);
+  }
+}
+
 export function createPlanListCacheKey(
   filters: PlanListFilters,
   page: number,
