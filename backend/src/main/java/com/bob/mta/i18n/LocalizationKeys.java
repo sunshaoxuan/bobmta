@@ -56,6 +56,17 @@ public final class LocalizationKeys {
         }
     }
 
+    public static final class PlanFilter {
+        public static final String STATUS_LABEL = "plan.filter.status.label";
+        public static final String OWNER_LABEL = "plan.filter.owner.label";
+        public static final String CUSTOMER_LABEL = "plan.filter.customer.label";
+        public static final String WINDOW_LABEL = "plan.filter.window.label";
+        public static final String WINDOW_HINT = "plan.filter.window.hint";
+
+        private PlanFilter() {
+        }
+    }
+
     public static final class Validation {
         public static final String MULTILINGUAL_DEFAULT_LOCALE_REQUIRED =
                 "validation.multilingual.defaultLocaleRequired";

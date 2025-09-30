@@ -15,6 +15,7 @@ import com.bob.mta.modules.plan.dto.CancelPlanRequest;
 import com.bob.mta.modules.plan.dto.CompleteNodeRequest;
 import com.bob.mta.modules.plan.dto.PlanActivityResponse;
 import com.bob.mta.modules.plan.dto.PlanDetailResponse;
+import com.bob.mta.modules.plan.dto.PlanFilterOptionsResponse;
 import com.bob.mta.modules.plan.dto.PlanHandoverRequest;
 import com.bob.mta.modules.plan.dto.PlanNodeAttachmentResponse;
 import com.bob.mta.modules.plan.dto.PlanNodeHandoverRequest;
@@ -140,6 +141,45 @@ class PlanControllerTest {
 
         assertThat(analytics.getTotalPlans()).isGreaterThanOrEqualTo(2);
         assertThat(analytics.getUpcomingPlans()).isNotEmpty();
+    }
+
+    @Test
+    void filterOptionsShouldExposeDictionaryMetadata() {
+        OffsetDateTime start = OffsetDateTime.now().plusDays(2);
+        OffsetDateTime end = start.plusHours(4);
+        planService.createPlan(new CreatePlanCommand(
+                "tenant-888",
+                "冬季巡检",
+                "冬季专项巡检计划",
+                "cust-888",
+                "winter-lead",
+                start,
+                end,
+                "Asia/Tokyo",
+                List.of("winter-lead", "observer"),
+                List.of(new PlanNodeCommand(null, "巡检准备", "CHECKLIST", "winter-lead", 1, 120,
+                        PlanNodeActionType.NONE, 100, null, "", List.of()))
+        ));
+
+        var options = controller.filterOptions(null).getData();
+
+        assertThat(options.getStatuses())
+                .anySatisfy(option -> {
+                    if ("DESIGN".equals(option.getValue())) {
+                        assertThat(option.getLabel()).contains("设计");
+                        assertThat(option.getCount()).isGreaterThanOrEqualTo(1);
+                    }
+                });
+        assertThat(options.getOwners())
+                .extracting(PlanFilterOptionsResponse.Option::getValue)
+                .contains("winter-lead");
+        assertThat(options.getCustomers())
+                .extracting(PlanFilterOptionsResponse.Option::getValue)
+                .contains("cust-888");
+        assertThat(options.getPlannedWindow()).isNotNull();
+        assertThat(options.getPlannedWindow().getLabel()).isNotBlank();
+        assertThat(options.getPlannedWindow().getStart()).isNotNull();
+        assertThat(options.getPlannedWindow().getEnd()).isNotNull();
     }
 
     @Test

@@ -56,4 +56,6 @@ public interface PlanService {
     List<PlanActivityDescriptor> describeActivities();
 
     PlanReminderConfigurationDescriptor describeReminderOptions();
+
+    PlanFilterDescriptor describePlanFilters(String tenantId);
 }

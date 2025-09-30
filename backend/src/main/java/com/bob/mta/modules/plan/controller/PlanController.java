@@ -21,6 +21,7 @@ import com.bob.mta.modules.plan.dto.PlanNodeHandoverRequest;
 import com.bob.mta.modules.plan.dto.PlanNodeRequest;
 import com.bob.mta.modules.plan.dto.PlanNodeStartRequest;
 import com.bob.mta.modules.plan.dto.PlanHandoverRequest;
+import com.bob.mta.modules.plan.dto.PlanFilterOptionsResponse;
 import com.bob.mta.modules.plan.dto.PlanReminderPolicyRequest;
 import com.bob.mta.modules.plan.dto.PlanReminderPolicyResponse;
 import com.bob.mta.modules.plan.dto.PlanReminderPreviewResponse;
@@ -98,6 +99,14 @@ public class PlanController {
                                                         @RequestParam(required = false) OffsetDateTime to) {
         return ApiResponse.success(PlanAnalyticsResponse.from(
                 planService.getAnalytics(tenantId, customerId, from, to)));
+    }
+
+    @PreAuthorize("hasAnyRole('ADMIN','OPERATOR')")
+    @GetMapping("/filter-options")
+    public ApiResponse<PlanFilterOptionsResponse> filterOptions(
+            @RequestParam(required = false) String tenantId) {
+        return ApiResponse.success(PlanFilterOptionsResponse.from(
+                planService.describePlanFilters(tenantId)));
     }
 
     @PreAuthorize("hasAnyRole('ADMIN','OPERATOR')")

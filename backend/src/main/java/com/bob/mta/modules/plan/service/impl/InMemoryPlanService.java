@@ -3,6 +3,7 @@ package com.bob.mta.modules.plan.service.impl;
 import com.bob.mta.common.exception.BusinessException;
 import com.bob.mta.common.exception.ErrorCode;
 import com.bob.mta.common.i18n.MessageResolver;
+import com.bob.mta.i18n.LocalizationKeys;
 import com.bob.mta.modules.file.service.FileService;
 import com.bob.mta.modules.plan.domain.Plan;
 import com.bob.mta.modules.plan.domain.PlanActivity;
@@ -21,6 +22,7 @@ import com.bob.mta.modules.plan.repository.PlanAnalyticsRepository;
 import com.bob.mta.modules.plan.repository.PlanRepository;
 import com.bob.mta.modules.plan.repository.PlanSearchCriteria;
 import com.bob.mta.modules.plan.service.PlanActivityDescriptor;
+import com.bob.mta.modules.plan.service.PlanFilterDescriptor;
 import com.bob.mta.modules.plan.service.PlanReminderConfigurationDescriptor;
 import com.bob.mta.modules.plan.service.PlanService;
 import com.bob.mta.modules.plan.service.PlanSearchResult;
@@ -44,6 +46,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.function.Function;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 @Service
 @Transactional(readOnly = true)
@@ -51,6 +54,14 @@ public class InMemoryPlanService implements PlanService {
 
     private static final DateTimeFormatter ICS_FORMATTER = DateTimeFormatter.ofPattern("yyyyMMdd'T'HHmmss'Z'", Locale.US)
             .withZone(ZoneOffset.UTC);
+
+    private static final List<PlanStatus> STATUS_ORDER = List.of(
+            PlanStatus.DESIGN,
+            PlanStatus.SCHEDULED,
+            PlanStatus.IN_PROGRESS,
+            PlanStatus.COMPLETED,
+            PlanStatus.CANCELED
+    );
 
     private static final List<PlanActivityDescriptor> ACTIVITY_DESCRIPTORS = List.of(
             descriptor(PlanActivityType.PLAN_CREATED,
@@ -551,6 +562,74 @@ public class InMemoryPlanService implements PlanService {
     }
 
     @Override
+    public PlanFilterDescriptor describePlanFilters(String tenantId) {
+        Stream<Plan> scopedStream = planRepository.findAll().stream();
+        if (StringUtils.hasText(tenantId)) {
+            scopedStream = scopedStream.filter(plan -> tenantId.equals(plan.getTenantId()));
+        }
+        List<Plan> scopedPlans = scopedStream.toList();
+
+        Map<PlanStatus, Long> statusCounts = scopedPlans.stream()
+                .collect(Collectors.groupingBy(Plan::getStatus, Collectors.counting()));
+
+        List<PlanFilterDescriptor.Option> statusOptions = STATUS_ORDER.stream()
+                .map(status -> new PlanFilterDescriptor.Option(
+                        status.name(),
+                        message(statusLabelKey(status)),
+                        statusCounts.getOrDefault(status, 0L)))
+                .toList();
+
+        Map<String, Long> ownerCounts = scopedPlans.stream()
+                .map(Plan::getOwner)
+                .filter(StringUtils::hasText)
+                .collect(Collectors.groupingBy(Function.identity(), Collectors.counting()));
+
+        List<PlanFilterDescriptor.Option> ownerOptions = ownerCounts.entrySet().stream()
+                .sorted(Map.Entry.<String, Long>comparingByValue(Comparator.reverseOrder())
+                        .thenComparing(Map.Entry.comparingByKey()))
+                .map(entry -> new PlanFilterDescriptor.Option(entry.getKey(), entry.getKey(), entry.getValue()))
+                .toList();
+
+        Map<String, Long> customerCounts = scopedPlans.stream()
+                .map(Plan::getCustomerId)
+                .filter(StringUtils::hasText)
+                .collect(Collectors.groupingBy(Function.identity(), Collectors.counting()));
+
+        List<PlanFilterDescriptor.Option> customerOptions = customerCounts.entrySet().stream()
+                .sorted(Map.Entry.<String, Long>comparingByValue(Comparator.reverseOrder())
+                        .thenComparing(Map.Entry.comparingByKey()))
+                .map(entry -> new PlanFilterDescriptor.Option(entry.getKey(), entry.getKey(), entry.getValue()))
+                .toList();
+
+        OffsetDateTime earliestStart = scopedPlans.stream()
+                .map(Plan::getPlannedStartTime)
+                .filter(Objects::nonNull)
+                .min(OffsetDateTime::compareTo)
+                .orElse(null);
+        OffsetDateTime latestEnd = scopedPlans.stream()
+                .map(Plan::getPlannedEndTime)
+                .filter(Objects::nonNull)
+                .max(OffsetDateTime::compareTo)
+                .orElse(null);
+
+        PlanFilterDescriptor.DateRange window = (earliestStart != null || latestEnd != null)
+                ? new PlanFilterDescriptor.DateRange(earliestStart, latestEnd)
+                : null;
+
+        return new PlanFilterDescriptor(
+                message(LocalizationKeys.PlanFilter.STATUS_LABEL),
+                statusOptions,
+                message(LocalizationKeys.PlanFilter.OWNER_LABEL),
+                ownerOptions,
+                message(LocalizationKeys.PlanFilter.CUSTOMER_LABEL),
+                customerOptions,
+                message(LocalizationKeys.PlanFilter.WINDOW_LABEL),
+                message(LocalizationKeys.PlanFilter.WINDOW_HINT),
+                window
+        );
+    }
+
+    @Override
     public PlanReminderConfigurationDescriptor describeReminderOptions() {
         List<PlanReminderConfigurationDescriptor.Option> triggers = List.of(
                 new PlanReminderConfigurationDescriptor.Option(
@@ -941,6 +1020,16 @@ public class InMemoryPlanService implements PlanService {
 
     private String nextReminderId() {
         return planRepository.nextReminderId();
+    }
+
+    private String statusLabelKey(PlanStatus status) {
+        return switch (status) {
+            case DESIGN -> LocalizationKeys.Frontend.PLAN_STATUS_DESIGN;
+            case SCHEDULED -> LocalizationKeys.Frontend.PLAN_STATUS_SCHEDULED;
+            case IN_PROGRESS -> LocalizationKeys.Frontend.PLAN_STATUS_IN_PROGRESS;
+            case COMPLETED -> LocalizationKeys.Frontend.PLAN_STATUS_COMPLETED;
+            case CANCELED -> LocalizationKeys.Frontend.PLAN_STATUS_CANCELLED;
+        };
     }
 
     private String message(String code, Object... args) {
