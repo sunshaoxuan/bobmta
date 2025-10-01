@@ -5,7 +5,7 @@ import com.bob.mta.modules.plan.domain.Plan;
 import java.util.List;
 import java.util.Optional;
 
-public interface PlanRepository extends PlanReminderPolicyRepository, PlanTimelineRepository, PlanAttachmentRepository {
+public interface PlanRepository {
 
     List<Plan> findAll();
 
