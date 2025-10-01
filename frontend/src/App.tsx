@@ -130,6 +130,7 @@ function AppView({ client, localization, session, navigation, planList, planDeta
   });
   const [pingError, setPingError] = useState<ApiError | null>(null);
   const [ping, setPing] = useState<{ status: string } | null>(null);
+  const [routeForbidden, setRouteForbidden] = useState(false);
   const describeRemoteError = useCallback(
     (error: ApiError | null) => formatApiErrorMessage(error, translate),
     [translate]
@@ -267,6 +268,9 @@ function AppView({ client, localization, session, navigation, planList, planDeta
       }
       return;
     }
+    if (routeForbidden) {
+      return;
+    }
     if (planState.records.length === 0) {
       if (previewPlanId) {
         navigate({ pathname: '/' }, { replace: true, preserveSearch: true, preserveHash: true });
@@ -295,6 +299,7 @@ function AppView({ client, localization, session, navigation, planList, planDeta
     );
   }, [
     sessionState.session,
+    routeForbidden,
     planState.records,
     planState.recordIndex,
     previewPlanId,
@@ -509,11 +514,12 @@ function AppView({ client, localization, session, navigation, planList, planDeta
 
   const headerMenuItems = useMemo(
     () =>
-      sessionState.navigation.items.map((item) => ({
+      sessionState.navigation.config.map((item) => ({
         key: item.key,
         label: translate(item.labelKey),
+        roles: item.roles,
       })),
-    [sessionState.navigation.items, translate]
+    [sessionState.navigation.config, translate]
   );
 
   const sessionUserMenuItems = useMemo<MenuProps['items']>(() => {
@@ -548,38 +554,26 @@ function AppView({ client, localization, session, navigation, planList, planDeta
     return matchedKey ?? navigationState.items[0]?.key ?? null;
   }, [location.pathname, navigationState.items, normalizePathname]);
 
-  const allowedPaths = useMemo(
-    () => navigationState.items.map((item) => normalizePathname(item.path)),
-    [navigationState.items, normalizePathname]
-  );
-
   useEffect(() => {
     if (!sessionState.session) {
+      setRouteForbidden(false);
       return;
     }
     if (navigationState.loading || navigationState.items.length === 0) {
+      setRouteForbidden(false);
       return;
     }
     const currentPath = normalizePathname(location.pathname);
-    const authorized = allowedPaths.some((allowedPath) => {
-      if (currentPath === allowedPath) {
+    const authorized = navigationState.items.some((item) => {
+      const candidate = normalizePathname(item.path);
+      if (currentPath === candidate) {
         return true;
       }
-      return currentPath.startsWith(`${allowedPath}/`);
+      return currentPath.startsWith(`${candidate}/`);
     });
-    if (authorized) {
-      return;
-    }
-    const fallbackPath = navigationState.items[0]?.path ?? '/';
-    const normalizedFallback = normalizePathname(fallbackPath);
-    if (currentPath === normalizedFallback) {
-      return;
-    }
-    navigate({ pathname: normalizedFallback }, { replace: true });
+    setRouteForbidden(!authorized);
   }, [
-    allowedPaths,
     location.pathname,
-    navigate,
     navigationState.items,
     navigationState.loading,
     normalizePathname,
@@ -657,7 +651,7 @@ function AppView({ client, localization, session, navigation, planList, planDeta
       />
       <Content className="app-content">
         <Space direction="vertical" size="large" style={{ width: '100%' }}>
-          {navigationState.forbidden && (
+          {(navigationState.forbidden || routeForbidden) && (
             <Alert
               type="error"
               showIcon
@@ -665,163 +659,172 @@ function AppView({ client, localization, session, navigation, planList, planDeta
               description={translate('navAccessDeniedDescription')}
             />
           )}
-          <Card title={translate('backendStatus')} bordered={false} className="card-block status-card">
-            <Space direction="vertical" size="middle" style={{ width: '100%' }}>
-              {ping && (
-                <Alert
-                  type="success"
-                  showIcon
-                  message={translate('backendSuccess', { status: ping.status })}
-                />
-              )}
-              {pingErrorDetail && (
-                <Alert
-                  type="error"
-                  showIcon
-                  message={translate('backendError', { error: pingErrorDetail })}
-                />
-              )}
-              {!ping && !pingErrorDetail && (
-                <Alert type="info" showIcon message={translate('backendPending')} />
-              )}
-            </Space>
-          </Card>
 
-          <div ref={authSectionRef} style={{ width: '100%' }}>
-            <Card title={translate('authSectionTitle')} bordered={false} className="card-block">
-              {sessionState.session ? (
+          {routeForbidden ? null : (
+            <>
+              <Card
+                title={translate('backendStatus')}
+                bordered={false}
+                className="card-block status-card"
+              >
                 <Space direction="vertical" size="middle" style={{ width: '100%' }}>
-                  <Alert
-                    type="success"
-                    showIcon
-                  message={translate('authWelcome', {
-                    name: sessionState.session.displayName,
-                  })}
-                />
-                <Text type="secondary">
-                  {translate('authTokenExpiry', {
-                    time: formatDateTime(sessionState.session.expiresAt, locale),
-                  })}
-                </Text>
-                {sessionState.session.roles.length > 0 && (
-                  <Space size="small" wrap>
-                    {sessionState.session.roles.map((role) => (
-                      <Tag key={role} color="geekblue">
-                        {role}
-                      </Tag>
-                    ))}
-                  </Space>
-                )}
-                <Button type="text" onClick={logout} className="logout-button">
-                  {translate('authLogout')}
-                </Button>
-              </Space>
-            ) : (
-              <Space direction="vertical" size="middle" style={{ width: '100%' }}>
-                <Input
-                  size="large"
-                  placeholder={translate('authUsernameLabel')}
-                  autoComplete="username"
-                  value={credentials.username}
-                  onChange={(event: Event & { target: HTMLInputElement }) =>
-                    setCredentials((current) => ({ ...current, username: event.target.value }))
-                  }
-                  onPressEnter={() => {
-                    if (!authButtonDisabled) {
-                      login(credentials);
-                    }
-                  }}
-                />
-                <Input.Password
-                  size="large"
-                  placeholder={translate('authPasswordLabel')}
-                  autoComplete="current-password"
-                  value={credentials.password}
-                  onChange={(event: Event & { target: HTMLInputElement }) =>
-                    setCredentials((current) => ({ ...current, password: event.target.value }))
-                  }
-                  onPressEnter={() => {
-                    if (!authButtonDisabled) {
-                      login(credentials);
-                    }
-                  }}
-                />
-                <Button
-                  type="primary"
-                  block
-                  size="large"
-                  loading={sessionState.status === 'loading'}
-                  onClick={() => login(credentials)}
-                  disabled={authButtonDisabled}
-                >
-                  {sessionState.status === 'loading'
-                    ? translate('authLoggingIn')
-                    : translate('authSubmit')}
-                </Button>
-                {authErrorDetail && (
-                  <Alert
-                    type="error"
-                    showIcon
-                    message={translate('authError', { error: authErrorDetail })}
-                  />
-                )}
-              </Space>
-              )}
-            </Card>
-          </div>
+                  {ping && (
+                    <Alert
+                      type="success"
+                      showIcon
+                      message={translate('backendSuccess', { status: ping.status })}
+                    />
+                  )}
+                  {pingErrorDetail && (
+                    <Alert
+                      type="error"
+                      showIcon
+                      message={translate('backendError', { error: pingErrorDetail })}
+                    />
+                  )}
+                  {!ping && !pingErrorDetail && (
+                    <Alert type="info" showIcon message={translate('backendPending')} />
+                  )}
+                </Space>
+              </Card>
 
-          <PlanListBoard
-            translate={translate}
-            locale={locale}
-            sessionActive={Boolean(sessionState.session)}
-            planState={planState}
-            planColumns={planColumns}
-            planErrorDetail={planErrorDetail}
-            lastUpdatedLabel={lastUpdatedLabel}
-            onRefreshList={() => {
-              void refresh();
-            }}
-            isRefreshDisabled={!sessionState.session}
-            onApplyFilters={(filters) => {
-              void planList.applyFilters(filters);
-            }}
-            onResetFilters={() => {
-              void planList.resetFilters();
-            }}
-            onChangePage={(page) => {
-              void changePage(page);
-            }}
-            onChangePageSize={(size) => {
-              void changePageSize(size);
-            }}
-            selectedPlanId={previewPlanId}
-            previewPlan={previewPlan}
-            planDetailState={planDetailState}
-            planDetailErrorDetail={planDetailErrorDetail}
-            onRefreshDetail={() => {
-              void refreshPlanDetail();
-            }}
-            onClosePreview={() => {
-              suppressedAutoOpenRef.current = true;
-              navigate({ pathname: '/' }, { preserveSearch: true, preserveHash: true });
-            }}
-            onSelectPlan={(planId) => {
-              suppressedAutoOpenRef.current = false;
-              setLastVisitedPlanId(planId);
-              navigate(
-                { pathname: buildPlanDetailPath(planId) },
-                { preserveSearch: true, preserveHash: true }
-              );
-            }}
-            onExecuteNodeAction={executeNodeAction}
-            onUpdateReminder={updatePlanReminder}
-            currentUserName={sessionState.session?.displayName ?? null}
-            onTimelineCategoryChange={setTimelineCategoryFilter}
-            viewMode={viewMode}
-            onChangeViewMode={(mode) => {
-              setViewMode(mode);
-            }}
-          />
+              <div ref={authSectionRef} style={{ width: '100%' }}>
+                <Card title={translate('authSectionTitle')} bordered={false} className="card-block">
+                  {sessionState.session ? (
+                    <Space direction="vertical" size="middle" style={{ width: '100%' }}>
+                      <Alert
+                        type="success"
+                        showIcon
+                        message={translate('authWelcome', {
+                          name: sessionState.session.displayName,
+                        })}
+                      />
+                      <Text type="secondary">
+                        {translate('authTokenExpiry', {
+                          time: formatDateTime(sessionState.session.expiresAt, locale),
+                        })}
+                      </Text>
+                      {sessionState.session.roles.length > 0 && (
+                        <Space size="small" wrap>
+                          {sessionState.session.roles.map((role) => (
+                            <Tag key={role} color="geekblue">
+                              {role}
+                            </Tag>
+                          ))}
+                        </Space>
+                      )}
+                      <Button type="text" onClick={logout} className="logout-button">
+                        {translate('authLogout')}
+                      </Button>
+                    </Space>
+                  ) : (
+                    <Space direction="vertical" size="middle" style={{ width: '100%' }}>
+                      <Input
+                        size="large"
+                        placeholder={translate('authUsernameLabel')}
+                        autoComplete="username"
+                        value={credentials.username}
+                        onChange={(event: Event & { target: HTMLInputElement }) =>
+                          setCredentials((current) => ({ ...current, username: event.target.value }))
+                        }
+                        onPressEnter={() => {
+                          if (!authButtonDisabled) {
+                            login(credentials);
+                          }
+                        }}
+                      />
+                      <Input.Password
+                        size="large"
+                        placeholder={translate('authPasswordLabel')}
+                        autoComplete="current-password"
+                        value={credentials.password}
+                        onChange={(event: Event & { target: HTMLInputElement }) =>
+                          setCredentials((current) => ({ ...current, password: event.target.value }))
+                        }
+                        onPressEnter={() => {
+                          if (!authButtonDisabled) {
+                            login(credentials);
+                          }
+                        }}
+                      />
+                      <Button
+                        type="primary"
+                        block
+                        size="large"
+                        loading={sessionState.status === 'loading'}
+                        onClick={() => login(credentials)}
+                        disabled={authButtonDisabled}
+                      >
+                        {sessionState.status === 'loading'
+                          ? translate('authLoggingIn')
+                          : translate('authSubmit')}
+                      </Button>
+                      {authErrorDetail && (
+                        <Alert
+                          type="error"
+                          showIcon
+                          message={translate('authError', { error: authErrorDetail })}
+                        />
+                      )}
+                    </Space>
+                  )}
+                </Card>
+              </div>
+
+              <PlanListBoard
+                translate={translate}
+                locale={locale}
+                sessionActive={Boolean(sessionState.session)}
+                planState={planState}
+                planColumns={planColumns}
+                planErrorDetail={planErrorDetail}
+                lastUpdatedLabel={lastUpdatedLabel}
+                onRefreshList={() => {
+                  void refresh();
+                }}
+                isRefreshDisabled={!sessionState.session}
+                onApplyFilters={(filters) => {
+                  void planList.applyFilters(filters);
+                }}
+                onResetFilters={() => {
+                  void planList.resetFilters();
+                }}
+                onChangePage={(page) => {
+                  void changePage(page);
+                }}
+                onChangePageSize={(size) => {
+                  void changePageSize(size);
+                }}
+                selectedPlanId={previewPlanId}
+                previewPlan={previewPlan}
+                planDetailState={planDetailState}
+                planDetailErrorDetail={planDetailErrorDetail}
+                onRefreshDetail={() => {
+                  void refreshPlanDetail();
+                }}
+                onClosePreview={() => {
+                  suppressedAutoOpenRef.current = true;
+                  navigate({ pathname: '/' }, { preserveSearch: true, preserveHash: true });
+                }}
+                onSelectPlan={(planId) => {
+                  suppressedAutoOpenRef.current = false;
+                  setLastVisitedPlanId(planId);
+                  navigate(
+                    { pathname: buildPlanDetailPath(planId) },
+                    { preserveSearch: true, preserveHash: true }
+                  );
+                }}
+                onExecuteNodeAction={executeNodeAction}
+                onUpdateReminder={updatePlanReminder}
+                currentUserName={sessionState.session?.displayName ?? null}
+                onTimelineCategoryChange={setTimelineCategoryFilter}
+                viewMode={viewMode}
+                onChangeViewMode={(mode) => {
+                  setViewMode(mode);
+                }}
+              />
+            </>
+          )}
         </Space>
       </Content>
     </Layout>
