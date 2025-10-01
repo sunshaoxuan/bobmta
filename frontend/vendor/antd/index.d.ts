@@ -161,6 +161,61 @@ export interface EmptyProps extends React.HTMLAttributes<HTMLDivElement> {
 }
 export const Empty: React.FC<EmptyProps>;
 
+export interface ListProps<T> extends React.HTMLAttributes<HTMLDivElement> {
+  dataSource?: T[];
+  renderItem?: (item: T, index: number) => React.ReactNode;
+  header?: React.ReactNode;
+  itemLayout?: 'horizontal' | 'vertical';
+}
+export interface ListItemProps extends React.HTMLAttributes<HTMLDivElement> {}
+export interface ListComponent {
+  <T>(props: ListProps<T>): React.ReactElement;
+  Item: React.FC<ListItemProps>;
+}
+export const List: ListComponent;
+
+export interface TabsItem {
+  key: string;
+  label: React.ReactNode;
+  children?: React.ReactNode;
+}
+export interface TabsProps extends React.HTMLAttributes<HTMLDivElement> {
+  items?: TabsItem[];
+  activeKey?: string;
+  onChange?: (key: string) => void;
+}
+export const Tabs: React.FC<TabsProps>;
+
+export interface TreeNode {
+  key: string;
+  title: React.ReactNode;
+  children?: TreeNode[];
+}
+export interface TreeProps extends React.HTMLAttributes<HTMLDivElement> {
+  treeData?: TreeNode[];
+  defaultExpandAll?: boolean;
+  showLine?: boolean;
+  selectable?: boolean;
+}
+export const Tree: React.FC<TreeProps>;
+
+export type CalendarMode = 'month' | 'year';
+export interface CalendarValue {
+  format: (pattern: string) => string;
+  toDate: () => Date;
+}
+export interface CalendarCellInfo {
+  type: 'date' | 'month';
+  originNode: React.ReactNode;
+}
+export interface CalendarProps extends React.HTMLAttributes<HTMLDivElement> {
+  mode?: CalendarMode;
+  fullscreen?: boolean;
+  onPanelChange?: (value: CalendarValue, mode: CalendarMode) => void;
+  cellRender?: (value: CalendarValue, info: CalendarCellInfo) => React.ReactNode;
+}
+export const Calendar: React.FC<CalendarProps>;
+
 export interface TableColumnType<T> {
   title?: React.ReactNode;
   dataIndex?: keyof T | string;
@@ -229,4 +284,8 @@ export default {
   Progress,
   Empty,
   Pagination,
+  List,
+  Tabs,
+  Tree,
+  Calendar,
 };

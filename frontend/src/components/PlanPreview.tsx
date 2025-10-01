@@ -103,13 +103,8 @@ export function PlanPreview({
   const detailStatus = isActiveDetail ? detailState.status : 'idle';
   const detailError = isActiveDetail ? detailState.error : null;
   const detailOrigin = isActiveDetail ? detailState.origin : null;
-  const fallbackContext = deriveFallbackContext(plan);
-  const mode = detail
-    ? detailState.mode ?? PLAN_STATUS_MODE[detail.status]
-    : fallbackContext.mode;
-  const currentNodeId = isActiveDetail
-    ? detailState.currentNodeId
-    : fallbackContext.currentNodeId;
+  const previewContext = isActiveDetail ? detailState.context : deriveFallbackContext(plan);
+  const { mode, currentNodeId } = previewContext;
   const [editingNodeId, setEditingNodeId] = useState<string | null>(null);
   const modeSections = MODE_SECTION_CONFIG[mode];
   const lastUpdatedLabel =

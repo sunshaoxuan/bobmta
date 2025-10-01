@@ -1,3 +1,7 @@
+:root {
+  --app-header-offset: 140px;
+}
+
 .app-layout {
   min-height: 100vh;
   background: radial-gradient(circle at top left, #f7faff 0%, #eef3ff 35%, #ffffff 100%);
@@ -275,7 +279,7 @@
 }
 
 .app-content {
-  padding: 140px 32px 40px;
+  padding: var(--app-header-offset) 32px 40px;
   max-width: 1120px;
   margin: 0 auto;
   width: 100%;
@@ -806,6 +810,10 @@
 }
 
 @media (max-width: 768px) {
+  :root {
+    --app-header-offset: 120px;
+  }
+
   .app-header {
     flex-direction: column;
     align-items: flex-start;
@@ -817,7 +825,7 @@
   }
 
   .app-content {
-    padding: 24px 16px;
+    padding: var(--app-header-offset) 16px 24px;
   }
 
   .plan-filters {

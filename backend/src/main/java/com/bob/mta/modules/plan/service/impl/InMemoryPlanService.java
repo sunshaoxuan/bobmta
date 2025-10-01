@@ -29,11 +29,13 @@ import com.bob.mta.modules.plan.repository.PlanAggregateRepository;
 import com.bob.mta.modules.plan.repository.PlanAnalyticsQuery;
 import com.bob.mta.modules.plan.repository.PlanAnalyticsRepository;
 import com.bob.mta.modules.plan.repository.PlanAttachmentRepository;
+import com.bob.mta.modules.plan.repository.PlanBoardQuery;
 import com.bob.mta.modules.plan.repository.PlanReminderPolicyRepository;
 import com.bob.mta.modules.plan.repository.PlanRepository;
 import com.bob.mta.modules.plan.repository.PlanSearchCriteria;
 import com.bob.mta.modules.plan.repository.PlanTimelineRepository;
 import com.bob.mta.modules.plan.service.PlanActivityDescriptor;
+import com.bob.mta.modules.plan.service.PlanBoardView;
 import com.bob.mta.modules.plan.service.PlanFilterDescriptor;
 import com.bob.mta.modules.plan.service.PlanReminderConfigurationDescriptor;
 import com.bob.mta.modules.plan.service.PlanService;
@@ -48,11 +50,17 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
+import java.time.DayOfWeek;
+import java.time.Duration;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.time.format.DateTimeFormatter;
+import java.time.temporal.ChronoUnit;
+import java.time.temporal.TemporalAdjusters;
+import java.time.temporal.WeekFields;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.DoubleSummaryStatistics;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
@@ -88,6 +96,10 @@ public class InMemoryPlanService implements PlanService {
             PlanStatus.SCHEDULED,
             PlanStatus.IN_PROGRESS
     );
+
+    private static final Comparator<PlanBoardView.PlanCard> BOARD_PLAN_COMPARATOR = Comparator
+            .comparing(PlanBoardView.PlanCard::getPlannedStartTime, Comparator.nullsLast(Comparator.naturalOrder()))
+            .thenComparing(PlanBoardView.PlanCard::getId, Comparator.nullsLast(Comparator.naturalOrder()));
 
     private static final List<PlanActivityDescriptor> ACTIVITY_DESCRIPTORS = List.of(
             descriptor(PlanActivityType.PLAN_CREATED,
@@ -677,6 +689,190 @@ public class InMemoryPlanService implements PlanService {
                 .dueSoonMinutes(1440)
                 .build();
         return planAnalyticsRepository.summarize(query);
+    }
+
+    @Override
+    public PlanBoardView getPlanBoard(PlanBoardQuery query) {
+        Objects.requireNonNull(query, "query");
+        PlanSearchCriteria criteria = query.toCriteria();
+        List<Plan> candidates = plans().findByCriteria(criteria);
+        if (query.hasCustomerFilter() && query.getCustomerIds().size() != 1) {
+            Set<String> allowed = new LinkedHashSet<>(query.getCustomerIds());
+            candidates = candidates.stream()
+                    .filter(plan -> plan.getCustomerId() != null && allowed.contains(plan.getCustomerId()))
+                    .toList();
+        }
+        return buildBoardView(candidates, query);
+    }
+
+    private PlanBoardView buildBoardView(List<Plan> plans, PlanBoardQuery query) {
+        PlanBoardView.Metrics metrics = computeMetrics(plans);
+        List<PlanBoardView.CustomerGroup> customerGroups = aggregateCustomers(plans);
+        List<PlanBoardView.TimeBucket> buckets = aggregateBuckets(plans, query.getGranularity());
+        return new PlanBoardView(customerGroups, buckets, metrics, query.getGranularity());
+    }
+
+    private List<PlanBoardView.CustomerGroup> aggregateCustomers(List<Plan> plans) {
+        if (plans == null || plans.isEmpty()) {
+            return List.of();
+        }
+        Map<String, List<Plan>> groups = plans.stream()
+                .collect(Collectors.groupingBy(plan -> plan.getCustomerId() == null
+                        ? "UNKNOWN"
+                        : plan.getCustomerId()));
+        return groups.entrySet().stream()
+                .sorted((left, right) -> Integer.compare(right.getValue().size(), left.getValue().size()))
+                .map(entry -> toCustomerGroup(entry.getKey(), entry.getValue()))
+                .toList();
+    }
+
+    private PlanBoardView.CustomerGroup toCustomerGroup(String customerId, List<Plan> plans) {
+        long total = plans.size();
+        long active = plans.stream().filter(this::isActivePlan).count();
+        long completed = plans.stream().filter(plan -> plan.getStatus() == PlanStatus.COMPLETED).count();
+        double avgProgress = roundAverage(plans.stream().mapToInt(Plan::getProgress).average().orElse(0));
+        OffsetDateTime earliest = plans.stream()
+                .map(Plan::getPlannedStartTime)
+                .filter(Objects::nonNull)
+                .min(OffsetDateTime::compareTo)
+                .orElse(null);
+        OffsetDateTime latest = plans.stream()
+                .map(Plan::getPlannedEndTime)
+                .filter(Objects::nonNull)
+                .max(OffsetDateTime::compareTo)
+                .orElse(null);
+        List<PlanBoardView.PlanCard> cards = plans.stream()
+                .map(this::toPlanCard)
+                .sorted(BOARD_PLAN_COMPARATOR)
+                .toList();
+        return new PlanBoardView.CustomerGroup(customerId, null, total, active, completed, avgProgress,
+                earliest, latest, cards);
+    }
+
+    private List<PlanBoardView.TimeBucket> aggregateBuckets(List<Plan> plans, PlanBoardQuery.TimeGranularity granularity) {
+        if (plans == null || plans.isEmpty()) {
+            return List.of();
+        }
+        Map<OffsetDateTime, List<Plan>> bucketMap = new HashMap<>();
+        for (Plan plan : plans) {
+            OffsetDateTime plannedStart = plan.getPlannedStartTime();
+            if (plannedStart == null) {
+                continue;
+            }
+            OffsetDateTime bucketStart = normalizeBucketStart(plannedStart, granularity);
+            bucketMap.computeIfAbsent(bucketStart, key -> new ArrayList<>()).add(plan);
+        }
+        return bucketMap.entrySet().stream()
+                .sorted(Map.Entry.comparingByKey())
+                .map(entry -> toBucket(entry.getKey(), entry.getValue(), granularity))
+                .toList();
+    }
+
+    private PlanBoardView.TimeBucket toBucket(OffsetDateTime bucketStart, List<Plan> plans,
+                                              PlanBoardQuery.TimeGranularity granularity) {
+        OffsetDateTime bucketEnd = normalizeBucketEnd(bucketStart, granularity);
+        String bucketLabel = formatBucketLabel(bucketStart, granularity);
+        long total = plans.size();
+        long active = plans.stream().filter(this::isActivePlan).count();
+        long completed = plans.stream().filter(plan -> plan.getStatus() == PlanStatus.COMPLETED).count();
+        long overdue = plans.stream().filter(this::isOverduePlan).count();
+        List<PlanBoardView.PlanCard> cards = plans.stream()
+                .map(this::toPlanCard)
+                .sorted(BOARD_PLAN_COMPARATOR)
+                .toList();
+        return new PlanBoardView.TimeBucket(bucketLabel, bucketStart, bucketEnd, total, active, completed, overdue, cards);
+    }
+
+    private PlanBoardView.Metrics computeMetrics(List<Plan> plans) {
+        if (plans == null || plans.isEmpty()) {
+            return new PlanBoardView.Metrics(0, 0, 0, 0, 0, 0);
+        }
+        long total = plans.size();
+        long active = plans.stream().filter(this::isActivePlan).count();
+        long completed = plans.stream().filter(plan -> plan.getStatus() == PlanStatus.COMPLETED).count();
+        long overdue = plans.stream().filter(this::isOverduePlan).count();
+        double avgProgress = roundAverage(plans.stream().mapToInt(Plan::getProgress).average().orElse(0));
+        DoubleSummaryStatistics durations = plans.stream()
+                .map(plan -> durationHours(plan.getPlannedStartTime(), plan.getPlannedEndTime()))
+                .filter(Objects::nonNull)
+                .mapToDouble(Double::doubleValue)
+                .summaryStatistics();
+        double avgDuration = durations.getCount() == 0 ? 0 : roundAverage(durations.getAverage());
+        return new PlanBoardView.Metrics(total, active, completed, overdue, avgProgress, avgDuration);
+    }
+
+    private PlanBoardView.PlanCard toPlanCard(Plan plan) {
+        return new PlanBoardView.PlanCard(
+                plan.getId(),
+                plan.getTitle(),
+                plan.getStatus(),
+                plan.getOwner(),
+                plan.getCustomerId(),
+                plan.getPlannedStartTime(),
+                plan.getPlannedEndTime(),
+                plan.getTimezone(),
+                plan.getProgress()
+        );
+    }
+
+    private OffsetDateTime normalizeBucketStart(OffsetDateTime time, PlanBoardQuery.TimeGranularity granularity) {
+        return switch (granularity) {
+            case DAY -> time.truncatedTo(ChronoUnit.DAYS);
+            case WEEK -> time.with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY)).truncatedTo(ChronoUnit.DAYS);
+            case MONTH -> time.withDayOfMonth(1).truncatedTo(ChronoUnit.DAYS);
+            case YEAR -> time.withDayOfYear(1).truncatedTo(ChronoUnit.DAYS);
+        };
+    }
+
+    private OffsetDateTime normalizeBucketEnd(OffsetDateTime start, PlanBoardQuery.TimeGranularity granularity) {
+        return switch (granularity) {
+            case DAY -> start.plusDays(1);
+            case WEEK -> start.plusWeeks(1);
+            case MONTH -> start.plusMonths(1);
+            case YEAR -> start.plusYears(1);
+        };
+    }
+
+    private String formatBucketLabel(OffsetDateTime start, PlanBoardQuery.TimeGranularity granularity) {
+        return switch (granularity) {
+            case DAY -> start.toLocalDate().toString();
+            case WEEK -> {
+                int week = start.get(WeekFields.ISO.weekOfWeekBasedYear());
+                yield start.getYear() + "-W" + String.format(Locale.ROOT, "%02d", week);
+            }
+            case MONTH -> String.format(Locale.ROOT, "%d-%02d", start.getYear(), start.getMonthValue());
+            case YEAR -> Integer.toString(start.getYear());
+        };
+    }
+
+    private boolean isActivePlan(Plan plan) {
+        return plan.getStatus() == PlanStatus.SCHEDULED || plan.getStatus() == PlanStatus.IN_PROGRESS;
+    }
+
+    private boolean isOverduePlan(Plan plan) {
+        if (!isActivePlan(plan)) {
+            return false;
+        }
+        OffsetDateTime plannedEnd = plan.getPlannedEndTime();
+        return plannedEnd != null && plannedEnd.isBefore(OffsetDateTime.now());
+    }
+
+    private Double durationHours(OffsetDateTime start, OffsetDateTime end) {
+        if (start == null || end == null) {
+            return null;
+        }
+        double minutes = Duration.between(start, end).toMinutes();
+        if (minutes <= 0) {
+            return 0.0;
+        }
+        return minutes / 60.0;
+    }
+
+    private double roundAverage(double value) {
+        if (Double.isNaN(value) || Double.isInfinite(value)) {
+            return 0;
+        }
+        return Math.round(value * 10.0) / 10.0;
     }
 
     @Override

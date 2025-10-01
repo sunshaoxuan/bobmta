@@ -1,4 +1,4 @@
-import React from '../../vendor/react/index.js';
+import React, { useMemo } from '../../vendor/react/index.js';
 import {
   Button,
   Dropdown,
@@ -14,6 +14,12 @@ import {
 const { Header } = Layout;
 const { Title, Paragraph, Text } = Typography;
 
+type HeaderNavMenuItem = {
+  key: string;
+  label: string;
+  roles?: string[];
+};
+
 type HeaderNavProps = {
   title: string;
   subtitle: string;
@@ -23,8 +29,8 @@ type HeaderNavProps = {
   localeOptions: Array<{ label: string; value: string }>;
   localeLoading: boolean;
   onLocaleChange: (value: string) => void;
-  menuItems: MenuProps['items'];
-  menuSelectedKeys: MenuProps['selectedKeys'];
+  menuItems: HeaderNavMenuItem[];
+  menuSelectedKeys?: MenuProps['selectedKeys'];
   onMenuClick: MenuProps['onClick'];
   navigationErrorLabel: string | null;
   isAuthenticated: boolean;
@@ -57,7 +63,55 @@ export function HeaderNav({
   onUserMenuClick,
   onLoginClick,
 }: HeaderNavProps) {
-  const showMenu = isAuthenticated && Boolean(menuItems && menuItems.length > 0);
+  const normalizedUserRoles = useMemo(
+    () =>
+      Array.from(
+        new Set(
+          userRoles
+            .map((role) => role.trim().toUpperCase())
+            .filter((role) => role.length > 0)
+        )
+      ),
+    [userRoles]
+  );
+
+  const visibleMenuItems = useMemo(() => {
+    if (!menuItems || menuItems.length === 0) {
+      return [] as HeaderNavMenuItem[];
+    }
+    if (normalizedUserRoles.length === 0) {
+      return menuItems.filter((item) => !item.roles || item.roles.length === 0);
+    }
+    const allowedRoles = new Set(normalizedUserRoles);
+    return menuItems.filter((item) => {
+      if (!item.roles || item.roles.length === 0) {
+        return true;
+      }
+      return item.roles.some((role) => allowedRoles.has(role.toUpperCase()));
+    });
+  }, [menuItems, normalizedUserRoles]);
+
+  const antMenuItems = useMemo(
+    () =>
+      visibleMenuItems.map((item) => ({
+        key: item.key,
+        label: item.label,
+      })),
+    [visibleMenuItems]
+  ) as NonNullable<MenuProps['items']>;
+
+  const selectedMenuKeys = useMemo<MenuProps['selectedKeys']>(
+    () => {
+      if (!menuSelectedKeys || menuSelectedKeys.length === 0) {
+        return [];
+      }
+      const visibleKeys = new Set(visibleMenuItems.map((item) => item.key));
+      return menuSelectedKeys.filter((key) => visibleKeys.has(key));
+    },
+    [menuSelectedKeys, visibleMenuItems]
+  );
+
+  const showMenu = isAuthenticated && antMenuItems.length > 0;
   const primaryRole = isAuthenticated && userRoles.length > 0 ? userRoles[0] : null;
   const secondaryRoleCount = primaryRole ? Math.max(userRoles.length - 1, 0) : 0;
   const roleBadgeLabel = primaryRole
@@ -82,8 +136,8 @@ export function HeaderNav({
           <Menu
             mode="horizontal"
             className="app-header-menu"
-            items={menuItems}
-            selectedKeys={menuSelectedKeys}
+            items={antMenuItems}
+            selectedKeys={selectedMenuKeys}
             onClick={onMenuClick}
           />
         )}
