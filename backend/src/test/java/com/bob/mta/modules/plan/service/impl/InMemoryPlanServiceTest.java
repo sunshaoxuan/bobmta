@@ -15,12 +15,14 @@ import com.bob.mta.modules.plan.domain.PlanReminderSchedule;
 import com.bob.mta.modules.plan.domain.PlanReminderTrigger;
 import com.bob.mta.modules.plan.domain.PlanNodeActionType;
 import com.bob.mta.modules.plan.domain.PlanNodeExecution;
-import com.bob.mta.modules.plan.domain.PlanStatus;
 import com.bob.mta.modules.plan.domain.PlanAnalytics;
+import com.bob.mta.modules.plan.domain.PlanStatus;
+import com.bob.mta.modules.plan.repository.PlanBoardQuery;
 import com.bob.mta.modules.plan.repository.InMemoryPlanAnalyticsRepository;
 import com.bob.mta.modules.plan.repository.InMemoryPlanRepository;
 import com.bob.mta.modules.plan.service.command.CreatePlanCommand;
 import com.bob.mta.modules.plan.service.command.PlanNodeCommand;
+import com.bob.mta.modules.plan.service.PlanBoardView;
 import com.bob.mta.i18n.Localization;
 import com.bob.mta.i18n.LocalizationKeys;
 import org.junit.jupiter.api.AfterEach;
@@ -586,5 +588,128 @@ class InMemoryPlanServiceTest {
         assertThat(analytics.getTotalPlans()).isGreaterThanOrEqualTo(1);
         assertThat(analytics.getRiskPlans())
                 .allSatisfy(plan -> assertThat(plan.getOwner()).isEqualTo("owner-focus"));
+    }
+
+    @Test
+    @DisplayName("plan board aggregates by tenant and customer")
+    void boardShouldAggregateCustomersAndBuckets() {
+        OffsetDateTime pastStart = OffsetDateTime.now().minusDays(2);
+        CreatePlanCommand overdue = new CreatePlanCommand(
+                "tenant-board-service",
+                "历史巡检",
+                "计划已经超时",
+                "cust-board-alpha",
+                "board-owner",
+                pastStart,
+                pastStart.plusHours(2),
+                "Asia/Shanghai",
+                List.of("board-owner"),
+                List.of(new PlanNodeCommand(null, "巡检执行", "CHECKLIST", "board-owner", 1, 30,
+                        PlanNodeActionType.NONE, 100, null, "", List.of()))
+        );
+        var overduePlan = service.createPlan(overdue);
+        service.publishPlan(overduePlan.getId(), "board-owner");
+
+        OffsetDateTime futureStart = OffsetDateTime.now().plusDays(3);
+        CreatePlanCommand upcoming = new CreatePlanCommand(
+                "tenant-board-service",
+                "例行维护",
+                "计划在未来执行",
+                "cust-board-beta",
+                "board-owner",
+                futureStart,
+                futureStart.plusHours(3),
+                "Asia/Shanghai",
+                List.of("board-owner"),
+                List.of(new PlanNodeCommand(null, "维护操作", "CHECKLIST", "board-owner", 1, 45,
+                        PlanNodeActionType.NONE, 100, null, "", List.of()))
+        );
+        var upcomingPlan = service.createPlan(upcoming);
+        service.publishPlan(upcomingPlan.getId(), "board-owner");
+
+        CreatePlanCommand otherTenant = new CreatePlanCommand(
+                "tenant-board-exclude",
+                "其他租户计划",
+                "不应出现在聚合中",
+                "cust-ignore",
+                "board-owner",
+                futureStart,
+                futureStart.plusHours(1),
+                "Asia/Shanghai",
+                List.of("board-owner"),
+                List.of(new PlanNodeCommand(null, "检查步骤", "CHECKLIST", "board-owner", 1, 20,
+                        PlanNodeActionType.NONE, 100, null, "", List.of()))
+        );
+        service.createPlan(otherTenant);
+
+        PlanBoardQuery query = PlanBoardQuery.builder()
+                .tenantId("tenant-board-service")
+                .granularity(PlanBoardQuery.TimeGranularity.DAY)
+                .build();
+
+        PlanBoardView board = service.getPlanBoard(query);
+
+        assertThat(board.getMetrics().getTotalPlans()).isEqualTo(2);
+        assertThat(board.getMetrics().getOverduePlans()).isGreaterThanOrEqualTo(1);
+        assertThat(board.getCustomerGroups())
+                .extracting(PlanBoardView.CustomerGroup::getCustomerId)
+                .containsExactlyInAnyOrder("cust-board-alpha", "cust-board-beta");
+        assertThat(board.getTimeBuckets())
+                .extracting(PlanBoardView.TimeBucket::getBucketId)
+                .contains(pastStart.toLocalDate().toString(), futureStart.toLocalDate().toString());
+    }
+
+    @Test
+    @DisplayName("plan board can filter by multiple customers")
+    void boardShouldFilterCustomersByList() {
+        OffsetDateTime base = OffsetDateTime.now().plusDays(5);
+        CreatePlanCommand first = new CreatePlanCommand(
+                "tenant-board-filter",
+                "Filter A",
+                "仅用于过滤测试",
+                "cust-filter-a",
+                "board-filter",
+                base,
+                base.plusHours(2),
+                "Asia/Shanghai",
+                List.of("board-filter"),
+                List.of(new PlanNodeCommand(null, "准备", "CHECKLIST", "board-filter", 1, 20,
+                        PlanNodeActionType.NONE, 100, null, "", List.of()))
+        );
+        service.publishPlan(service.createPlan(first).getId(), "board-filter");
+
+        OffsetDateTime secondStart = base.plusDays(1);
+        CreatePlanCommand second = new CreatePlanCommand(
+                "tenant-board-filter",
+                "Filter B",
+                "用于断言聚合",
+                "cust-filter-b",
+                "board-filter",
+                secondStart,
+                secondStart.plusHours(3),
+                "Asia/Shanghai",
+                List.of("board-filter"),
+                List.of(new PlanNodeCommand(null, "实施", "CHECKLIST", "board-filter", 1, 25,
+                        PlanNodeActionType.NONE, 100, null, "", List.of()))
+        );
+        var secondPlan = service.createPlan(second);
+        service.publishPlan(secondPlan.getId(), "board-filter");
+
+        PlanBoardQuery query = PlanBoardQuery.builder()
+                .tenantId("tenant-board-filter")
+                .customerIds(List.of("cust-filter-b", "cust-filter-missing"))
+                .granularity(PlanBoardQuery.TimeGranularity.WEEK)
+                .build();
+
+        PlanBoardView board = service.getPlanBoard(query);
+
+        assertThat(board.getCustomerGroups())
+                .extracting(PlanBoardView.CustomerGroup::getCustomerId)
+                .containsExactly("cust-filter-b");
+        assertThat(board.getMetrics().getTotalPlans()).isEqualTo(1);
+        assertThat(board.getTimeBuckets()).hasSize(1);
+        assertThat(board.getTimeBuckets().get(0).getPlans())
+                .extracting(PlanBoardView.PlanCard::getId)
+                .containsExactly(secondPlan.getId());
     }
 }

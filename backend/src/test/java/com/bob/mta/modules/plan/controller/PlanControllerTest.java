@@ -15,6 +15,7 @@ import com.bob.mta.modules.plan.domain.PlanNodeActionType;
 import com.bob.mta.modules.plan.dto.CancelPlanRequest;
 import com.bob.mta.modules.plan.dto.CompleteNodeRequest;
 import com.bob.mta.modules.plan.dto.PlanActivityResponse;
+import com.bob.mta.modules.plan.dto.PlanBoardResponse;
 import com.bob.mta.modules.plan.dto.PlanDetailResponse;
 import com.bob.mta.modules.plan.dto.PlanFilterOptionsResponse;
 import com.bob.mta.modules.plan.dto.PlanHandoverRequest;
@@ -27,6 +28,7 @@ import com.bob.mta.modules.plan.dto.PlanReminderUpdateRequest;
 import com.bob.mta.modules.plan.dto.PlanSummaryResponse;
 import com.bob.mta.modules.plan.repository.InMemoryPlanAnalyticsRepository;
 import com.bob.mta.modules.plan.repository.InMemoryPlanRepository;
+import com.bob.mta.modules.plan.repository.PlanBoardQuery;
 import com.bob.mta.modules.plan.service.impl.InMemoryPlanService;
 import com.bob.mta.modules.plan.service.command.CreatePlanCommand;
 import com.bob.mta.modules.plan.service.command.PlanNodeCommand;
@@ -188,6 +190,59 @@ class PlanControllerTest {
         assertThat(analytics.getOwnerLoads().get(0).getOwnerId()).isEqualTo("controller-owner");
         assertThat(analytics.getUpcomingPlans())
                 .allSatisfy(plan -> assertThat(plan.getOwner()).isEqualTo("controller-owner"));
+    }
+
+    @Test
+    void boardShouldReturnAggregatedView() {
+        OffsetDateTime start = OffsetDateTime.now().plusDays(1);
+        CreatePlanCommand first = new CreatePlanCommand(
+                "tenant-controller-board",
+                "控制层看板计划A",
+                "board view sample",
+                "cust-board-1",
+                "controller-board-owner",
+                start,
+                start.plusHours(3),
+                "Asia/Shanghai",
+                List.of("controller-board-owner"),
+                List.of(new PlanNodeCommand(null, "准备阶段", "CHECKLIST", "controller-board-owner", 1, 30,
+                        PlanNodeActionType.NONE, 100, null, "", List.of()))
+        );
+        var firstPlan = planService.createPlan(first);
+        planService.publishPlan(firstPlan.getId(), "controller-board-owner");
+
+        CreatePlanCommand second = new CreatePlanCommand(
+                "tenant-controller-board",
+                "控制层看板计划B",
+                "board view sample",
+                "cust-board-2",
+                "controller-board-owner",
+                start.plusDays(1),
+                start.plusDays(1).plusHours(2),
+                "Asia/Shanghai",
+                List.of("controller-board-owner"),
+                List.of(new PlanNodeCommand(null, "执行阶段", "CHECKLIST", "controller-board-owner", 1, 45,
+                        PlanNodeActionType.NONE, 100, null, "", List.of()))
+        );
+        var secondPlan = planService.createPlan(second);
+        planService.publishPlan(secondPlan.getId(), "controller-board-owner");
+
+        ApiResponse<PlanBoardResponse> response = controller.board(
+                "tenant-controller-board",
+                List.of("cust-board-1", "cust-board-2"),
+                null,
+                List.of(PlanStatus.SCHEDULED),
+                null,
+                null,
+                PlanBoardQuery.TimeGranularity.DAY);
+
+        PlanBoardResponse board = response.getData();
+        assertThat(board.getMetrics().getTotalPlans()).isEqualTo(2);
+        assertThat(board.getCustomerGroups()).hasSize(2);
+        assertThat(board.getTimeBuckets()).isNotEmpty();
+        assertThat(board.getTimeBuckets().get(0).getPlans())
+                .extracting(PlanBoardResponse.PlanCardResponse::getCustomerId)
+                .containsAnyOf("cust-board-1", "cust-board-2");
     }
 
     @Test
