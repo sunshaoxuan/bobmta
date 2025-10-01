@@ -41,6 +41,8 @@ CREATE INDEX IF NOT EXISTS idx_mt_plan_tenant_start ON mt_plan (tenant_id, plann
 CREATE INDEX IF NOT EXISTS idx_mt_plan_tenant_end ON mt_plan (tenant_id, planned_end_time);
 CREATE INDEX IF NOT EXISTS idx_mt_plan_customer_status ON mt_plan (customer_id, status);
 CREATE INDEX IF NOT EXISTS idx_mt_plan_owner_status ON mt_plan (owner_id, status);
+CREATE INDEX IF NOT EXISTS idx_mt_plan_tenant_owner_end ON mt_plan (tenant_id, owner_id, planned_end_time);
+CREATE INDEX IF NOT EXISTS idx_mt_plan_status_end ON mt_plan (status, planned_end_time);
 
 -- 参与者 ----------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS mt_plan_participant (
@@ -89,6 +91,7 @@ CREATE TABLE IF NOT EXISTS mt_plan_node_execution (
 );
 
 CREATE INDEX IF NOT EXISTS idx_mt_plan_node_execution_status ON mt_plan_node_execution (status);
+CREATE INDEX IF NOT EXISTS idx_mt_plan_node_execution_plan_status ON mt_plan_node_execution (plan_id, status);
 
 -- 节点附件 --------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS mt_plan_node_attachment (
@@ -115,6 +118,7 @@ CREATE TABLE IF NOT EXISTS mt_plan_activity (
 );
 
 CREATE INDEX IF NOT EXISTS idx_mt_plan_activity_occurred ON mt_plan_activity (plan_id, occurred_at DESC);
+CREATE INDEX IF NOT EXISTS idx_mt_plan_activity_type ON mt_plan_activity (plan_id, activity_type, occurred_at DESC);
 
 -- 提醒策略 --------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS mt_plan_reminder_rule (
