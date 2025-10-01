@@ -42,6 +42,8 @@ CREATE INDEX IF NOT EXISTS idx_mt_plan_tenant_end ON mt_plan (tenant_id, planned
 CREATE INDEX IF NOT EXISTS idx_mt_plan_customer_status ON mt_plan (customer_id, status);
 CREATE INDEX IF NOT EXISTS idx_mt_plan_owner_status ON mt_plan (owner_id, status);
 CREATE INDEX IF NOT EXISTS idx_mt_plan_tenant_owner_end ON mt_plan (tenant_id, owner_id, planned_end_time);
+CREATE INDEX IF NOT EXISTS idx_mt_plan_tenant_customer_start ON mt_plan (tenant_id, customer_id, planned_start_time);
+CREATE INDEX IF NOT EXISTS idx_mt_plan_tenant_status_end ON mt_plan (tenant_id, status, planned_end_time);
 CREATE INDEX IF NOT EXISTS idx_mt_plan_status_end ON mt_plan (status, planned_end_time);
 
 -- 参与者 ----------------------------------------------------------------------
@@ -136,6 +138,7 @@ CREATE TABLE IF NOT EXISTS mt_plan_reminder_rule (
 );
 
 CREATE INDEX IF NOT EXISTS idx_mt_plan_reminder_active ON mt_plan_reminder_rule (plan_id, active);
+CREATE INDEX IF NOT EXISTS idx_mt_plan_reminder_trigger ON mt_plan_reminder_rule (plan_id, trigger);
 
 -- 文件元数据 ------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS mt_file_metadata (

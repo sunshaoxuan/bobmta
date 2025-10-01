@@ -7,9 +7,11 @@ package com.bob.mta.modules.plan.domain;
  */
 public enum PlanNodeActionType {
     NONE,
+    MANUAL,
     REMOTE,
     EMAIL,
     IM,
     LINK,
-    FILE
+    FILE,
+    API_CALL
 }
