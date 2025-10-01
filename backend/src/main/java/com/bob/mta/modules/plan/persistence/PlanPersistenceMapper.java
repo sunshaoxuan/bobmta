@@ -10,6 +10,7 @@ import com.bob.mta.modules.plan.domain.PlanReminderRule;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -69,36 +70,10 @@ public final class PlanPersistenceMapper {
                         .map(fileId -> new PlanNodeAttachmentEntity(plan.getId(), execution.getNodeId(), fileId)))
                 .collect(Collectors.toList());
 
-        List<PlanActivityEntity> activities = new ArrayList<>();
-        List<PlanActivity> domainActivities = plan.getActivities();
-        for (int index = 0; index < domainActivities.size(); index++) {
-            PlanActivity activity = domainActivities.get(index);
-            String activityId = plan.getId() + "-activity-" + (index + 1);
-            activities.add(new PlanActivityEntity(
-                    plan.getId(),
-                    activityId,
-                    activity.getType(),
-                    activity.getOccurredAt(),
-                    activity.getActor(),
-                    activity.getMessage(),
-                    activity.getReferenceId(),
-                    activity.getAttributes()
-            ));
-        }
+        List<PlanActivityEntity> activities = toActivityEntities(plan.getId(), plan.getActivities());
 
-        List<PlanReminderRuleEntity> reminderRules = plan.getReminderPolicy().getRules().stream()
-                .map(rule -> new PlanReminderRuleEntity(
-                        plan.getId(),
-                        rule.getId(),
-                        rule.getTrigger(),
-                        rule.getOffsetMinutes(),
-                        rule.getChannels(),
-                        rule.getTemplateId(),
-                        rule.getRecipients(),
-                        rule.getDescription(),
-                        rule.isActive()
-                ))
-                .collect(Collectors.toList());
+        List<PlanReminderRuleEntity> reminderRules = toReminderRuleEntities(plan.getId(),
+                plan.getReminderPolicy().getRules());
 
         return new PlanAggregate(planEntity, participants, nodeEntities, executions, attachments, activities, reminderRules);
     }
@@ -111,11 +86,7 @@ public final class PlanPersistenceMapper {
                 .map(PlanParticipantEntity::participantId)
                 .collect(Collectors.toList());
 
-        Map<String, List<String>> attachmentsByNode = aggregate.attachments().stream()
-                .collect(Collectors.groupingBy(
-                        PlanNodeAttachmentEntity::nodeId,
-                        Collectors.mapping(PlanNodeAttachmentEntity::fileId, Collectors.toCollection(ArrayList::new))
-                ));
+        Map<String, List<String>> attachmentsByNode = toAttachmentMap(aggregate.attachments());
 
         List<PlanNodeExecution> executions = aggregate.executions().stream()
                 .map(execution -> new PlanNodeExecution(
@@ -132,37 +103,9 @@ public final class PlanPersistenceMapper {
 
         List<PlanNode> nodes = buildNodeTree(aggregate.nodes());
 
-        List<PlanActivity> activities = aggregate.activities().stream()
-                .sorted(Comparator.comparing(PlanActivityEntity::occurredAt)
-                        .thenComparing(PlanActivityEntity::activityId))
-                .map(activity -> new PlanActivity(
-                        activity.type(),
-                        activity.occurredAt(),
-                        activity.actor(),
-                        activity.message(),
-                        activity.referenceId(),
-                        activity.attributes()
-                ))
-                .collect(Collectors.toList());
+        List<PlanActivity> activities = toActivities(aggregate.activities());
 
-        List<PlanReminderRule> reminderRules = aggregate.reminderRules().stream()
-                .map(rule -> new PlanReminderRule(
-                        rule.ruleId(),
-                        rule.trigger(),
-                        rule.offsetMinutes(),
-                        rule.channels(),
-                        rule.templateId(),
-                        rule.recipients(),
-                        rule.description(),
-                        rule.active()
-                ))
-                .collect(Collectors.toList());
-
-        PlanReminderPolicy reminderPolicy = new PlanReminderPolicy(
-                reminderRules,
-                entity.reminderUpdatedAt(),
-                entity.reminderUpdatedBy()
-        );
+        PlanReminderPolicy reminderPolicy = toReminderPolicy(entity, aggregate.reminderRules());
 
         return new Plan(
                 entity.id(),
@@ -248,5 +191,122 @@ public final class PlanPersistenceMapper {
                 entity.description(),
                 children
         );
+    }
+
+    public static List<PlanActivityEntity> toActivityEntities(String planId, List<PlanActivity> activities) {
+        if (activities == null || activities.isEmpty()) {
+            return List.of();
+        }
+        List<PlanActivityEntity> entities = new ArrayList<>();
+        for (int index = 0; index < activities.size(); index++) {
+            PlanActivity activity = activities.get(index);
+            String activityId = planId + "-activity-" + (index + 1);
+            entities.add(new PlanActivityEntity(
+                    planId,
+                    activityId,
+                    activity.getType(),
+                    activity.getOccurredAt(),
+                    activity.getActor(),
+                    activity.getMessage(),
+                    activity.getReferenceId(),
+                    activity.getAttributes()
+            ));
+        }
+        return entities;
+    }
+
+    public static List<PlanActivity> toActivities(List<PlanActivityEntity> entities) {
+        if (entities == null || entities.isEmpty()) {
+            return List.of();
+        }
+        return entities.stream()
+                .sorted(Comparator.comparing(PlanActivityEntity::occurredAt)
+                        .thenComparing(PlanActivityEntity::activityId))
+                .map(activity -> new PlanActivity(
+                        activity.type(),
+                        activity.occurredAt(),
+                        activity.actor(),
+                        activity.message(),
+                        activity.referenceId(),
+                        activity.attributes()
+                ))
+                .collect(Collectors.toList());
+    }
+
+    public static List<PlanReminderRuleEntity> toReminderRuleEntities(String planId, List<PlanReminderRule> rules) {
+        if (rules == null || rules.isEmpty()) {
+            return List.of();
+        }
+        return rules.stream()
+                .map(rule -> new PlanReminderRuleEntity(
+                        planId,
+                        rule.getId(),
+                        rule.getTrigger(),
+                        rule.getOffsetMinutes(),
+                        rule.getChannels(),
+                        rule.getTemplateId(),
+                        rule.getRecipients(),
+                        rule.getDescription(),
+                        rule.isActive()
+                ))
+                .collect(Collectors.toList());
+    }
+
+    public static PlanReminderPolicy toReminderPolicy(PlanEntity entity, List<PlanReminderRuleEntity> reminderRules) {
+        List<PlanReminderRule> rules = toReminderRules(reminderRules);
+        return new PlanReminderPolicy(rules, entity.reminderUpdatedAt(), entity.reminderUpdatedBy());
+    }
+
+    public static Map<String, List<String>> toAttachmentMap(List<PlanNodeAttachmentEntity> attachments) {
+        if (attachments == null || attachments.isEmpty()) {
+            return Map.of();
+        }
+        Map<String, List<String>> grouped = new LinkedHashMap<>();
+        for (PlanNodeAttachmentEntity attachment : attachments) {
+            grouped.computeIfAbsent(attachment.nodeId(), key -> new ArrayList<>())
+                    .add(attachment.fileId());
+        }
+        return grouped.entrySet().stream()
+                .collect(Collectors.toMap(Map.Entry::getKey,
+                        entry -> List.copyOf(entry.getValue()),
+                        (left, right) -> left,
+                        LinkedHashMap::new));
+    }
+
+    public static List<PlanNodeAttachmentEntity> toAttachmentEntities(String planId,
+                                                                      Map<String, List<String>> attachments) {
+        if (attachments == null || attachments.isEmpty()) {
+            return List.of();
+        }
+        List<PlanNodeAttachmentEntity> entities = new ArrayList<>();
+        attachments.forEach((nodeId, fileIds) -> {
+            if (nodeId == null || fileIds == null || fileIds.isEmpty()) {
+                return;
+            }
+            for (String fileId : fileIds) {
+                if (fileId != null) {
+                    entities.add(new PlanNodeAttachmentEntity(planId, nodeId, fileId));
+                }
+            }
+        });
+        return entities;
+    }
+
+    private static List<PlanReminderRule> toReminderRules(List<PlanReminderRuleEntity> reminderRules) {
+        if (reminderRules == null || reminderRules.isEmpty()) {
+            return List.of();
+        }
+        return reminderRules.stream()
+                .map(rule -> new PlanReminderRule(
+                        rule.ruleId(),
+                        rule.trigger(),
+                        rule.offsetMinutes(),
+                        rule.channels(),
+                        rule.templateId(),
+                        rule.recipients(),
+                        rule.description(),
+                        rule.active()
+                ))
+                .collect(Collectors.toList());
     }
 }

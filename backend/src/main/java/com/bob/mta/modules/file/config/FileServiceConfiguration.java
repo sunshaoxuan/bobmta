@@ -5,6 +5,7 @@ import com.bob.mta.modules.file.service.impl.InMemoryFileService;
 import com.bob.mta.modules.file.service.impl.MinioFileService;
 import io.minio.MinioClient;
 import java.time.Duration;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
@@ -14,12 +15,6 @@ import org.springframework.util.StringUtils;
 @Configuration
 @EnableConfigurationProperties(FileStorageProperties.class)
 public class FileServiceConfiguration {
-
-    @Bean
-    @ConditionalOnProperty(prefix = "app.file", name = "storage", havingValue = "IN_MEMORY", matchIfMissing = true)
-    public FileService inMemoryFileService() {
-        return new InMemoryFileService();
-    }
 
     @Bean
     @ConditionalOnProperty(prefix = "app.file", name = "storage", havingValue = "MINIO")
@@ -38,14 +33,18 @@ public class FileServiceConfiguration {
     }
 
     @Bean
-    @ConditionalOnProperty(prefix = "app.file", name = "storage", havingValue = "MINIO")
-    public FileService minioFileService(MinioClient minioClient, FileStorageProperties properties) {
+    public FileService fileService(FileStorageProperties properties,
+                                   ObjectProvider<MinioClient> minioClientProvider) {
+        MinioClient client = minioClientProvider.getIfAvailable();
+        if (client == null) {
+            return new InMemoryFileService();
+        }
         int expirySeconds = properties.getMinio().getDownloadExpirySeconds();
         if (expirySeconds <= 0) {
             throw new IllegalStateException("MinIO presigned URL expiry must be positive");
         }
         long maxSupported = Duration.ofDays(7).getSeconds();
         int boundedExpiry = (int) Math.min(expirySeconds, maxSupported);
-        return new MinioFileService(minioClient, Duration.ofSeconds(boundedExpiry));
+        return new MinioFileService(client, Duration.ofSeconds(boundedExpiry));
     }
 }
