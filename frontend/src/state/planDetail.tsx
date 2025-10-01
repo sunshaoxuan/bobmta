@@ -11,8 +11,8 @@ import {
   updatePlanReminder,
   type PlanNodeActionKind,
   type PlanNodeActionRequest,
-} from '../api/plans';
-import type { ApiClient, ApiError } from '../api/client';
+} from '../api/plans.js';
+import type { ApiClient, ApiError } from '../api/client.js';
 import type {
   LoginResponse,
   PlanDetail,
@@ -20,7 +20,7 @@ import type {
   PlanReminderSummary,
   PlanTimelineEntry,
   PlanStatus,
-} from '../api/types';
+} from '../api/types.js';
 import {
   PLAN_DETAIL_CACHE_LIMIT,
   PLAN_DETAIL_CACHE_TTL_MS,
@@ -28,17 +28,17 @@ import {
   evictPlanDetailCacheEntries,
   isPlanDetailCacheEntryFresh,
   prunePlanDetailCache,
-} from './planDetailCache';
-import { normalizePlanDetailPayload } from './planDetailNormalizer';
+} from './planDetailCache.js';
+import { normalizePlanDetailPayload } from './planDetailNormalizer.js';
 import {
   applyTimelineCategorySelection,
   derivePlanDetailFilters,
   INITIAL_PLAN_DETAIL_FILTERS,
   type PlanDetailFilterSnapshot,
   type PlanDetailFilters,
-} from './planDetailFilters';
-import { PLAN_STATUS_MODE, type PlanViewMode } from '../constants/planMode';
-import { findCurrentPlanNodeId } from '../utils/planNodes';
+} from './planDetailFilters.js';
+import { PLAN_STATUS_MODE, type PlanViewMode } from '../constants/planMode.js';
+import { findCurrentPlanNodeId } from '../utils/planNodes.js';
 
 export type PlanDetailContext = {
   planStatus: PlanStatus | null;

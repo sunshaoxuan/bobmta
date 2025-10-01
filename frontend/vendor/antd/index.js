@@ -333,6 +333,105 @@ export const Button = ({
   );
 };
 
+const normalizeSegmentedOptions = (options = []) => {
+  if (!Array.isArray(options)) {
+    return [];
+  }
+  return options
+    .map((option) => {
+      if (option == null) {
+        return null;
+      }
+      if (typeof option === 'string' || typeof option === 'number') {
+        return { label: option, value: option };
+      }
+      if (typeof option === 'object' && 'value' in option) {
+        return {
+          label: option.label ?? option.value,
+          value: option.value,
+          disabled: option.disabled ?? false,
+        };
+      }
+      return null;
+    })
+    .filter(Boolean);
+};
+
+export const Segmented = ({
+  options = [],
+  value,
+  defaultValue,
+  onChange,
+  size = 'middle',
+  block = false,
+  className = '',
+  style,
+}) => {
+  const normalizedOptions = normalizeSegmentedOptions(options);
+  const [internalValue, setInternalValue] = useState(() => {
+    if (typeof value !== 'undefined') {
+      return value;
+    }
+    if (typeof defaultValue !== 'undefined') {
+      return defaultValue;
+    }
+    return normalizedOptions[0]?.value ?? null;
+  });
+
+  useEffect(() => {
+    if (typeof value !== 'undefined') {
+      setInternalValue(value);
+    }
+  }, [value]);
+
+  const currentValue = typeof value !== 'undefined' ? value : internalValue;
+
+  const handleSelect = (nextValue) => {
+    if (typeof value === 'undefined') {
+      setInternalValue(nextValue);
+    }
+    onChange?.(nextValue);
+  };
+
+  return (
+    <div
+      className={classNames(
+        'antd-segmented',
+        `antd-segmented-${size}`,
+        block ? 'antd-segmented-block' : '',
+        className,
+      )}
+      style={style}
+      role="tablist"
+    >
+      {normalizedOptions.map((option) => {
+        const active = option.value === currentValue;
+        return (
+          <button
+            key={option.value}
+            type="button"
+            className={classNames(
+              'antd-segmented-item',
+              active ? 'antd-segmented-item-active' : '',
+              option.disabled ? 'antd-segmented-item-disabled' : '',
+            )}
+            onClick={() => {
+              if (!option.disabled) {
+                handleSelect(option.value);
+              }
+            }}
+            disabled={option.disabled}
+            role="tab"
+            aria-selected={active}
+          >
+            <span className="antd-segmented-item-label">{option.label}</span>
+          </button>
+        );
+      })}
+    </div>
+  );
+};
+
 const InputBase = forwardRef(
   (
     {
@@ -716,6 +815,7 @@ export default {
   Space,
   Alert,
   Button,
+  Segmented,
   Input,
   DatePicker,
   Select,

@@ -88,6 +88,24 @@ export interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElemen
 }
 export const Button: React.FC<ButtonProps>;
 
+export type SegmentedOption =
+  | string
+  | number
+  | {
+      label?: React.ReactNode;
+      value: string | number;
+      disabled?: boolean;
+    };
+export interface SegmentedProps extends React.HTMLAttributes<HTMLDivElement> {
+  options?: SegmentedOption[];
+  value?: string | number | null;
+  defaultValue?: string | number | null;
+  onChange?: (value: string | number | null) => void;
+  size?: 'small' | 'middle' | 'large';
+  block?: boolean;
+}
+export const Segmented: React.FC<SegmentedProps>;
+
 export interface InputProps extends React.InputHTMLAttributes<HTMLInputElement> {
   size?: 'small' | 'middle' | 'large';
   block?: boolean;
@@ -200,6 +218,7 @@ export default {
   Space,
   Alert,
   Button,
+  Segmented,
   Input,
   Menu,
   Dropdown,

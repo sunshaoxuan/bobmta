@@ -20,6 +20,9 @@ const MOCK_PLANS: PlanSummary[] = [
     plannedEndTime: '2025-10-01T05:00:00+09:00',
     participants: ['Tanaka', 'Suzuki', 'Li'],
     progress: 45,
+    customer: { id: 'CUST-101', name: '北見工業大学' },
+    customerId: 'CUST-101',
+    customerName: '北見工業大学',
   },
   {
     id: 'PLN-2025-002',
@@ -30,6 +33,9 @@ const MOCK_PLANS: PlanSummary[] = [
     plannedEndTime: '2025-10-03T12:00:00+09:00',
     participants: ['Suzuki', 'Wang'],
     progress: 0,
+    customer: { id: 'CUST-205', name: '北海データリンク' },
+    customerId: 'CUST-205',
+    customerName: '北海データリンク',
   },
   {
     id: 'PLN-2025-003',
@@ -40,6 +46,9 @@ const MOCK_PLANS: PlanSummary[] = [
     plannedEndTime: '2025-10-11T02:00:00+09:00',
     participants: ['Wang', 'Zhang'],
     progress: 5,
+    customer: { id: 'CUST-318', name: '札幌メディカル' },
+    customerId: 'CUST-318',
+    customerName: '札幌メディカル',
   },
   {
     id: 'PLN-2025-004',
@@ -50,6 +59,9 @@ const MOCK_PLANS: PlanSummary[] = [
     plannedEndTime: '2025-09-15T11:30:00+09:00',
     participants: ['Li', 'Tanaka'],
     progress: 100,
+    customer: { id: 'CUST-410', name: '函館通信' },
+    customerId: 'CUST-410',
+    customerName: '函館通信',
   },
   {
     id: 'PLN-2025-005',
@@ -60,6 +72,9 @@ const MOCK_PLANS: PlanSummary[] = [
     plannedEndTime: '2025-10-01T02:00:00+09:00',
     participants: ['Chen', 'Suzuki', 'Abe'],
     progress: 60,
+    customer: { id: 'CUST-512', name: '帯広物流' },
+    customerId: 'CUST-512',
+    customerName: '帯広物流',
   },
   {
     id: 'PLN-2025-006',
@@ -70,6 +85,9 @@ const MOCK_PLANS: PlanSummary[] = [
     plannedEndTime: '2025-09-20T17:00:00+09:00',
     participants: ['Abe', 'Tanaka'],
     progress: 10,
+    customer: { id: 'CUST-777', name: '北方システム' },
+    customerId: 'CUST-777',
+    customerName: '北方システム',
   },
 ];
 
