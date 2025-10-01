@@ -5,6 +5,7 @@ import {
   flattenPlanNodes,
   getActionablePlanNodes,
   getPrimaryActionForStatus,
+  collectCompletedPlanNodeIds,
 } from '../dist/utils/planNodes.js';
 
 describe('planNodes utilities', () => {
@@ -67,5 +68,12 @@ describe('planNodes utilities', () => {
     assert.equal(getPrimaryActionForStatus('DONE'), null);
     assert.equal(getPrimaryActionForStatus('CANCELLED'), null);
     assert.equal(getPrimaryActionForStatus('SKIPPED'), null);
+  });
+
+  it('collects completed node identifiers to support execution locking', () => {
+    const completed = collectCompletedPlanNodeIds(tree);
+
+    assert.equal(completed.has('child-2'), true);
+    assert.equal(completed.has('child-2-1'), false);
   });
 });

@@ -67,6 +67,8 @@ export type PlanDetailState = {
   origin: 'cache' | 'network' | null;
   mutation: PlanDetailMutationState;
   filters: PlanDetailFilters;
+  mode: PlanViewMode;
+  currentNodeId: string | null;
   context: PlanDetailContext;
 };
 
@@ -139,6 +141,8 @@ const INITIAL_MUTATION_STATE: PlanDetailMutationState = {
   completedAt: null,
 };
 
+const INITIAL_CONTEXT = derivePlanDetailContext(null);
+
 const INITIAL_STATE: PlanDetailState = {
   activePlanId: null,
   detail: null,
@@ -150,7 +154,9 @@ const INITIAL_STATE: PlanDetailState = {
   origin: null,
   mutation: INITIAL_MUTATION_STATE,
   filters: INITIAL_PLAN_DETAIL_FILTERS,
-  context: derivePlanDetailContext(null),
+  mode: INITIAL_CONTEXT.mode,
+  currentNodeId: INITIAL_CONTEXT.currentNodeId,
+  context: INITIAL_CONTEXT,
 };
 
 export function usePlanDetailController(
@@ -182,6 +188,7 @@ export function usePlanDetailController(
       const { filters, snapshot } = derivePlanDetailFilters(payload, previousSnapshot);
       snapshotStore.set(planId, snapshot);
 
+      const context = derivePlanDetailContext(payload.detail);
       setState((current) => ({
         ...current,
         activePlanId: planId,
@@ -193,7 +200,9 @@ export function usePlanDetailController(
         lastUpdated: new Date(fetchedAt).toISOString(),
         origin,
         filters,
-        context: derivePlanDetailContext(payload.detail),
+        mode: context.mode,
+        currentNodeId: context.currentNodeId,
+        context,
       }));
     },
     []

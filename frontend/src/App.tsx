@@ -777,83 +777,58 @@ function AppView({ client, localization, session, navigation, planList, planDeta
             </Card>
           </div>
 
-          <div className="plan-view-toggle">
-            <Segmented
-              size="small"
-              value={viewMode}
-              options={planViewOptions}
-              onChange={(nextValue) => {
-                if (typeof nextValue === 'string') {
-                  setViewMode(nextValue as PlanListViewMode);
-                }
-              }}
-            />
-          </div>
-
-          {viewMode === 'table' && (
-            <PlanListBoard
-              translate={translate}
-              locale={locale}
-              sessionActive={Boolean(sessionState.session)}
-              planState={planState}
-              planColumns={planColumns}
-              planErrorDetail={planErrorDetail}
-              lastUpdatedLabel={lastUpdatedLabel}
-              onRefreshList={() => {
-                void refresh();
-              }}
-              isRefreshDisabled={!sessionState.session}
-              onApplyFilters={(filters) => {
-                void planList.applyFilters(filters);
-              }}
-              onResetFilters={() => {
-                void planList.resetFilters();
-              }}
-              onChangePage={(page) => {
-                void changePage(page);
-              }}
-              onChangePageSize={(size) => {
-                void changePageSize(size);
-              }}
-              selectedPlanId={previewPlanId}
-              previewPlan={previewPlan}
-              planDetailState={planDetailState}
-              planDetailErrorDetail={planDetailErrorDetail}
-              onRefreshDetail={() => {
-                void refreshPlanDetail();
-              }}
-              onClosePreview={() => {
-                suppressedAutoOpenRef.current = true;
-                navigate({ pathname: '/' }, { preserveSearch: true, preserveHash: true });
-              }}
-              onSelectPlan={(planId) => {
-                suppressedAutoOpenRef.current = false;
-                setLastVisitedPlanId(planId);
-                navigate(
-                  { pathname: buildPlanDetailPath(planId) },
-                  { preserveSearch: true, preserveHash: true }
-                );
-              }}
-              onExecuteNodeAction={executeNodeAction}
-              onUpdateReminder={updatePlanReminder}
-              currentUserName={sessionState.session?.displayName ?? null}
-              onTimelineCategoryChange={setTimelineCategoryFilter}
-            />
-          )}
-          {viewMode === 'customer' && (
-            <PlanByCustomerView
-              plans={planState.records}
-              groups={planState.customerGroups}
-              translate={translate}
-            />
-          )}
-          {viewMode === 'calendar' && (
-            <PlanCalendarView
-              plans={planState.records}
-              events={planState.calendarEvents}
-              translate={translate}
-            />
-          )}
+          <PlanListBoard
+            translate={translate}
+            locale={locale}
+            sessionActive={Boolean(sessionState.session)}
+            planState={planState}
+            planColumns={planColumns}
+            planErrorDetail={planErrorDetail}
+            lastUpdatedLabel={lastUpdatedLabel}
+            onRefreshList={() => {
+              void refresh();
+            }}
+            isRefreshDisabled={!sessionState.session}
+            onApplyFilters={(filters) => {
+              void planList.applyFilters(filters);
+            }}
+            onResetFilters={() => {
+              void planList.resetFilters();
+            }}
+            onChangePage={(page) => {
+              void changePage(page);
+            }}
+            onChangePageSize={(size) => {
+              void changePageSize(size);
+            }}
+            selectedPlanId={previewPlanId}
+            previewPlan={previewPlan}
+            planDetailState={planDetailState}
+            planDetailErrorDetail={planDetailErrorDetail}
+            onRefreshDetail={() => {
+              void refreshPlanDetail();
+            }}
+            onClosePreview={() => {
+              suppressedAutoOpenRef.current = true;
+              navigate({ pathname: '/' }, { preserveSearch: true, preserveHash: true });
+            }}
+            onSelectPlan={(planId) => {
+              suppressedAutoOpenRef.current = false;
+              setLastVisitedPlanId(planId);
+              navigate(
+                { pathname: buildPlanDetailPath(planId) },
+                { preserveSearch: true, preserveHash: true }
+              );
+            }}
+            onExecuteNodeAction={executeNodeAction}
+            onUpdateReminder={updatePlanReminder}
+            currentUserName={sessionState.session?.displayName ?? null}
+            onTimelineCategoryChange={setTimelineCategoryFilter}
+            viewMode={viewMode}
+            onChangeViewMode={(mode) => {
+              setViewMode(mode);
+            }}
+          />
         </Space>
       </Content>
     </Layout>

@@ -25,7 +25,7 @@ import type {
 import type { Locale, UiMessageKey } from '../i18n/localization';
 import type { LocalizationState } from '../i18n/useLocalization';
 import { PLAN_STATUS_COLOR, PLAN_STATUS_LABEL } from '../constants/planStatus';
-import { PLAN_MODE_LABEL, PLAN_STATUS_MODE } from '../constants/planMode';
+import { PLAN_MODE_LABEL, PLAN_STATUS_MODE, type PlanViewMode } from '../constants/planMode';
 import { PLAN_REMINDER_CHANNEL_COLOR, PLAN_REMINDER_CHANNEL_LABEL } from '../constants/planReminder';
 import { formatDateTime, formatPlanWindow } from '../utils/planFormatting';
 import type { PlanDetailState } from '../state/planDetail';
@@ -85,7 +85,9 @@ export function PlanPreview({
   const detailStatus = isActiveDetail ? detailState.status : 'idle';
   const detailError = isActiveDetail ? detailState.error : null;
   const detailOrigin = isActiveDetail ? detailState.origin : null;
-  const viewContext = isActiveDetail ? detailState.context : deriveFallbackContext(plan);
+  const fallbackContext = deriveFallbackContext(plan);
+  const mode = detail ? PLAN_STATUS_MODE[detail.status] : fallbackContext.mode;
+  const currentNodeId = isActiveDetail ? detailState.currentNodeId : fallbackContext.currentNodeId;
   const [editingNodeId, setEditingNodeId] = useState<string | null>(null);
   const lastUpdatedLabel =
     isActiveDetail && detailState.lastUpdated
@@ -116,8 +118,8 @@ export function PlanPreview({
   const timelineCategoryFilter = detailState.filters.timeline.activeCategory;
 
   const actionableNodes: PlanNodeWithPath[] = useMemo(
-    () => (viewContext.mode === 'execution' ? getActionablePlanNodes(nodes) : []),
-    [nodes, viewContext.mode]
+    () => (mode === 'execution' ? getActionablePlanNodes(nodes) : []),
+    [mode, nodes]
   );
   const nodeLookup = useMemo(() => {
     const map = new Map<string, PlanNodeWithPath>();
@@ -127,12 +129,14 @@ export function PlanPreview({
     return map;
   }, [nodes]);
   const completedNodeIds = useMemo(() => collectCompletedPlanNodeIds(nodes), [nodes]);
+  const currentNodeName = currentNodeId ? nodeLookup.get(currentNodeId)?.node.name ?? null : null;
+  const totalNodeCount = nodeLookup.size;
 
   useEffect(() => {
-    if (viewContext.mode !== 'design') {
+    if (mode !== 'design') {
       setEditingNodeId(null);
     }
-  }, [viewContext.mode]);
+  }, [mode]);
 
   const mutation = detailState.mutation;
   const nodeMutationContext = mutation.context?.type === 'node' ? mutation.context : null;
@@ -197,7 +201,7 @@ export function PlanPreview({
   };
 
   const handleNodeEdit = (node: PlanNode) => {
-    if (viewContext.mode !== 'design') {
+    if (mode !== 'design') {
       return;
     }
     setEditingNodeId((current) => (current === node.id ? null : node.id));
@@ -445,8 +449,8 @@ export function PlanPreview({
               <Tag color={PLAN_STATUS_COLOR[plan.status]}>
                 {translate(PLAN_STATUS_LABEL[plan.status])}
               </Tag>
-              <Tag color={viewContext.mode === 'design' ? 'purple' : 'geekblue'}>
-                {translate(PLAN_MODE_LABEL[viewContext.mode])}
+              <Tag color={mode === 'design' ? 'purple' : 'geekblue'}>
+                {translate(PLAN_MODE_LABEL[mode])}
               </Tag>
             </Space>
           </div>
@@ -545,15 +549,23 @@ export function PlanPreview({
               errorDetail={detailErrorDetail}
               emptyMessage={translate('planDetailNodesEmpty')}
               className="plan-preview-nodes-section"
+              helper={renderModeAwareHelper({
+                mode,
+                helper: null,
+                translate,
+                currentNodeName,
+                completedCount: completedNodeIds.size,
+                totalCount: totalNodeCount,
+              })}
             >
               <PlanNodeTree
                 nodes={nodes}
                 translate={translate}
                 locale={locale}
-                mode={viewContext.mode}
-                currentNodeId={viewContext.currentNodeId}
+                mode={mode}
+                currentNodeId={currentNodeId}
                 completedNodeIds={completedNodeIds}
-                onEditNode={viewContext.mode === 'design' ? handleNodeEdit : undefined}
+                onEditNode={mode === 'design' ? handleNodeEdit : undefined}
                 editingNodeId={editingNodeId}
               />
             </PlanDetailSection>
@@ -563,16 +575,27 @@ export function PlanPreview({
               error={detailError}
               translate={translate}
               empty={
-                viewContext.mode === 'execution'
+                mode === 'execution'
                   ? actionableNodes.length === 0
                   : detailStatus === 'success' && actionableNodes.length === 0
               }
               onRetry={onRefreshDetail}
               errorDetail={detailErrorDetail}
               emptyMessage={translate('planDetailActionsEmpty')}
-              helper={actionHelper}
+              helper={
+                mode === 'execution'
+                  ? renderModeAwareHelper({
+                      mode,
+                      helper: actionHelper,
+                      translate,
+                      currentNodeName,
+                      completedCount: completedNodeIds.size,
+                      totalCount: totalNodeCount,
+                    })
+                  : actionHelper
+              }
             >
-              {viewContext.mode === 'execution' ? (
+              {mode === 'execution' ? (
                 <PlanNodeActions
                   candidates={actionableNodes}
                   translate={translate}
@@ -581,9 +604,7 @@ export function PlanPreview({
                   pendingStatus={pendingNodeStatus}
                 />
               ) : (
-                <Paragraph type="secondary" className="plan-node-action-helper">
-                  {translate('planDetailModeDesignHint')}
-                </Paragraph>
+                <DesignModePanel translate={translate} />
               )}
               {actionDialog ? (
                 <NodeActionForm
@@ -716,6 +737,94 @@ type ReminderEditorState = {
   active: boolean;
   offsetMinutes: number;
 };
+
+type ModeAwareHelperOptions = {
+  mode: PlanViewMode;
+  translate: LocalizationState['translate'];
+  helper: ReactNode | null;
+  currentNodeName: string | null;
+  completedCount: number;
+  totalCount: number;
+};
+
+function renderModeAwareHelper({
+  mode,
+  translate,
+  helper,
+  currentNodeName,
+  completedCount,
+  totalCount,
+}: ModeAwareHelperOptions): ReactNode {
+  const modePanel =
+    mode === 'design' ? (
+      <DesignModePanel translate={translate} />
+    ) : (
+      <ExecutionModePanel
+        translate={translate}
+        currentNodeName={currentNodeName}
+        completedCount={completedCount}
+        totalCount={totalCount}
+      />
+    );
+
+  if (!helper) {
+    return modePanel;
+  }
+
+  return (
+    <Space direction="vertical" size="small" style={{ width: '100%' }}>
+      {modePanel}
+      {helper}
+    </Space>
+  );
+}
+
+type ModePanelProps = {
+  translate: LocalizationState['translate'];
+};
+
+export function DesignModePanel({ translate }: ModePanelProps) {
+  return (
+    <Paragraph type="secondary" className="plan-node-action-helper plan-mode-panel plan-mode-panel-design">
+      {translate('planDetailModeDesignHint')}
+    </Paragraph>
+  );
+}
+
+type ExecutionModePanelProps = {
+  translate: LocalizationState['translate'];
+  currentNodeName: string | null;
+  completedCount: number;
+  totalCount: number;
+};
+
+export function ExecutionModePanel({
+  translate,
+  currentNodeName,
+  completedCount,
+  totalCount,
+}: ExecutionModePanelProps) {
+  if (totalCount === 0) {
+    return null;
+  }
+
+  return (
+    <Space size={8} wrap className="plan-mode-panel plan-mode-panel-execution">
+      {currentNodeName ? (
+        <Tag color="volcano">
+          {translate('planDetailNodeCurrentTag')}
+          <span className="plan-mode-panel-value"> {currentNodeName}</span>
+        </Tag>
+      ) : null}
+      <Tag color="default">
+        {translate('planPreviewProgressLabel')}
+        <span className="plan-mode-panel-value">
+          {` ${completedCount}/${totalCount}`}
+        </span>
+      </Tag>
+    </Space>
+  );
+}
 
 type NodeActionFormProps = {
   dialog: NodeActionDialogState;

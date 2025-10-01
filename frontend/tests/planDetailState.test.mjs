@@ -65,3 +65,26 @@ test('derivePlanDetailContext returns null current node when all nodes are compl
   assert.equal(context.mode, 'execution');
   assert.equal(context.currentNodeId, null);
 });
+
+test('derivePlanDetailContext returns execution mode for scheduled plans awaiting start', () => {
+  const detail = createDetail({
+    status: 'SCHEDULED',
+    nodes: [
+      { id: 'NODE-1', name: 'Pending Node', order: 1, status: 'PENDING', actionType: 'MANUAL' },
+      { id: 'NODE-2', name: 'Future Node', order: 2, status: 'PENDING', actionType: 'MANUAL' },
+    ],
+  });
+  const context = derivePlanDetailContext(detail);
+
+  assert.equal(context.planStatus, 'SCHEDULED');
+  assert.equal(context.mode, 'execution');
+  assert.equal(context.currentNodeId, 'NODE-2');
+});
+
+test('derivePlanDetailContext defaults to design mode when detail is missing', () => {
+  const context = derivePlanDetailContext(null);
+
+  assert.equal(context.planStatus, null);
+  assert.equal(context.mode, 'design');
+  assert.equal(context.currentNodeId, null);
+});
