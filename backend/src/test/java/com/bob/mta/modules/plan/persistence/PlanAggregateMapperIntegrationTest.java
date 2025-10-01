@@ -1,5 +1,15 @@
 package com.bob.mta.modules.plan.persistence;
 
+import com.bob.mta.modules.plan.domain.Plan;
+import com.bob.mta.modules.plan.domain.PlanActivity;
+import com.bob.mta.modules.plan.domain.PlanActivityType;
+import com.bob.mta.modules.plan.domain.PlanNode;
+import com.bob.mta.modules.plan.domain.PlanNodeActionType;
+import com.bob.mta.modules.plan.domain.PlanNodeExecution;
+import com.bob.mta.modules.plan.domain.PlanNodeStatus;
+import com.bob.mta.modules.plan.domain.PlanReminderPolicy;
+import com.bob.mta.modules.plan.domain.PlanReminderRule;
+import com.bob.mta.modules.plan.domain.PlanReminderTrigger;
 import com.bob.mta.modules.plan.domain.PlanStatus;
 import org.flywaydb.core.Flyway;
 import org.junit.jupiter.api.BeforeAll;
@@ -169,6 +179,125 @@ class PlanAggregateMapperIntegrationTest {
 
         long overdue = mapper.countOverduePlans(analyticsParameters);
         assertThat(overdue).isEqualTo(2L);
+    }
+
+    @Test
+    void shouldSupportFullAggregateCrudOperations() {
+        OffsetDateTime now = OffsetDateTime.of(2024, 7, 1, 8, 0, 0, 0, ZoneOffset.UTC);
+        String planId = "PLAN-CRUD-001";
+        String rootNodeId = "NODE-ROOT-001";
+        String childNodeId = "NODE-CHILD-001";
+        String reminderId = "REM-001";
+
+        PlanNode child = new PlanNode(childNodeId, "Review checklist", "TASK", "operator-b", 1,
+                45, PlanNodeActionType.MANUAL, 80, "child-action", "Confirm readiness", List.of());
+        PlanNode root = new PlanNode(rootNodeId, "Kickoff workflow", "TASK", "operator-a", 0,
+                90, PlanNodeActionType.API_CALL, 100, "root-action", "Execute kickoff", List.of(child));
+
+        PlanNodeExecution rootExecution = new PlanNodeExecution(rootNodeId, PlanNodeStatus.DONE,
+                now.minusHours(3), now.minusHours(2), "operator-a", "completed", "root-log",
+                List.of("file-root-1", "file-root-2"));
+        PlanNodeExecution childExecution = new PlanNodeExecution(childNodeId, PlanNodeStatus.IN_PROGRESS,
+                now.minusHours(1), null, "operator-b", "running", null,
+                List.of("file-child-1"));
+
+        PlanActivity activity = new PlanActivity(PlanActivityType.PLAN_CREATED, now.minusMinutes(30),
+                "system", "plan.created", "ref-activity", Map.of("source", "crud-test"));
+
+        PlanReminderRule reminderRule = new PlanReminderRule(reminderId, PlanReminderTrigger.BEFORE_START, 30,
+                List.of("EMAIL", "SMS"), "template-1", List.of("operator-a", "operator-b"),
+                "Primary reminder", true);
+        PlanReminderPolicy reminderPolicy = new PlanReminderPolicy(List.of(reminderRule),
+                now.minusMinutes(45), "scheduler-service");
+
+        Plan plan = new Plan(planId, "tenant-crud", "Full CRUD validation", "Ensure mapper CRUD works",
+                "customer-77", "owner-99", List.of("participant-1", "participant-2"), PlanStatus.SCHEDULED,
+                now.plusHours(1), now.plusHours(5), now.minusDays(1), now.minusHours(10),
+                "initial-reason", "owner-99", now.minusHours(11), "UTC",
+                List.of(root), List.of(rootExecution, childExecution),
+                now.minusDays(2), now.minusMinutes(10), List.of(activity), reminderPolicy);
+
+        PlanAggregate aggregate = PlanPersistenceMapper.toAggregate(plan);
+
+        mapper.insertPlan(aggregate.plan());
+        mapper.insertParticipants(new java.util.ArrayList<>(aggregate.participants()));
+        mapper.insertNodes(new java.util.ArrayList<>(aggregate.nodes()));
+        mapper.insertExecutions(new java.util.ArrayList<>(aggregate.executions()));
+        mapper.insertAttachments(new java.util.ArrayList<>(aggregate.attachments()));
+        mapper.insertActivities(new java.util.ArrayList<>(aggregate.activities()));
+        mapper.insertReminderRules(new java.util.ArrayList<>(aggregate.reminderRules()));
+
+        PlanEntity persistedPlan = mapper.findPlanById(planId);
+        assertThat(persistedPlan).isNotNull();
+        assertThat(persistedPlan.title()).isEqualTo("Full CRUD validation");
+        assertThat(persistedPlan.status()).isEqualTo(PlanStatus.SCHEDULED);
+
+        List<PlanParticipantEntity> participants = mapper.findParticipantsByPlanIds(List.of(planId));
+        assertThat(participants).extracting(PlanParticipantEntity::participantId)
+                .containsExactlyInAnyOrder("participant-1", "participant-2");
+
+        List<PlanNodeEntity> nodes = mapper.findNodesByPlanIds(List.of(planId));
+        assertThat(nodes).extracting(PlanNodeEntity::nodeId)
+                .containsExactly(rootNodeId, childNodeId);
+        assertThat(nodes).filteredOn(node -> node.nodeId().equals(childNodeId))
+                .single().satisfies(node -> assertThat(node.parentNodeId()).isEqualTo(rootNodeId));
+
+        List<PlanNodeExecutionEntity> executions = mapper.findExecutionsByPlanIds(List.of(planId));
+        assertThat(executions).hasSize(2);
+        assertThat(executions).filteredOn(exec -> exec.nodeId().equals(rootNodeId))
+                .single().satisfies(exec -> {
+                    assertThat(exec.status()).isEqualTo(PlanNodeStatus.DONE);
+                    assertThat(exec.operator()).isEqualTo("operator-a");
+                    assertThat(exec.result()).isEqualTo("completed");
+                });
+
+        List<PlanNodeAttachmentEntity> attachments = mapper.findAttachmentsByPlanIds(List.of(planId));
+        assertThat(attachments).extracting(PlanNodeAttachmentEntity::fileId)
+                .containsExactlyInAnyOrder("file-root-1", "file-root-2", "file-child-1");
+
+        List<PlanActivityEntity> activities = mapper.findActivitiesByPlanIds(List.of(planId));
+        assertThat(activities).hasSize(1);
+        assertThat(activities.get(0).attributes()).containsEntry("source", "crud-test");
+
+        List<PlanReminderRuleEntity> rules = mapper.findReminderRulesByPlanIds(List.of(planId));
+        assertThat(rules).single().satisfies(rule -> {
+            assertThat(rule.ruleId()).isEqualTo(reminderId);
+            assertThat(rule.channels()).containsExactly("EMAIL", "SMS");
+            assertThat(rule.recipients()).containsExactly("operator-a", "operator-b");
+        });
+
+        PlanEntity updatedEntity = new PlanEntity(planId, "tenant-crud", "customer-77", "owner-100",
+                "Updated CRUD title", "Updated description", PlanStatus.IN_PROGRESS,
+                plan.getPlannedStartTime(), plan.getPlannedEndTime(), plan.getActualStartTime(), plan.getActualEndTime(),
+                "updated-reason", "owner-100", now.minusHours(1), "UTC",
+                plan.getCreatedAt(), now, persistedPlan.reminderUpdatedAt(), persistedPlan.reminderUpdatedBy());
+        mapper.updatePlan(updatedEntity);
+
+        mapper.updateReminderAudit(planId, now, "auditor");
+
+        PlanEntity updatedPlan = mapper.findPlanById(planId);
+        assertThat(updatedPlan.owner()).isEqualTo("owner-100");
+        assertThat(updatedPlan.title()).isEqualTo("Updated CRUD title");
+        assertThat(updatedPlan.status()).isEqualTo(PlanStatus.IN_PROGRESS);
+        assertThat(updatedPlan.cancelReason()).isEqualTo("updated-reason");
+        assertThat(updatedPlan.reminderUpdatedBy()).isEqualTo("auditor");
+        assertThat(updatedPlan.reminderUpdatedAt()).isEqualTo(now);
+
+        mapper.deleteAttachments(planId);
+        mapper.deleteExecutions(planId);
+        mapper.deleteNodes(planId);
+        mapper.deleteParticipants(planId);
+        mapper.deleteActivities(planId);
+        mapper.deleteReminderRules(planId);
+        mapper.deletePlan(planId);
+
+        assertThat(mapper.findPlanById(planId)).isNull();
+        assertThat(mapper.findParticipantsByPlanIds(List.of(planId))).isEmpty();
+        assertThat(mapper.findNodesByPlanIds(List.of(planId))).isEmpty();
+        assertThat(mapper.findExecutionsByPlanIds(List.of(planId))).isEmpty();
+        assertThat(mapper.findAttachmentsByPlanIds(List.of(planId))).isEmpty();
+        assertThat(mapper.findActivitiesByPlanIds(List.of(planId))).isEmpty();
+        assertThat(mapper.findReminderRulesByPlanIds(List.of(planId))).isEmpty();
     }
 
     private void insertPlan(String planId,
