@@ -16,6 +16,8 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.support.TransactionTemplate;
 import org.testcontainers.containers.PostgreSQLContainer;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
@@ -23,11 +25,13 @@ import org.testcontainers.junit.jupiter.Testcontainers;
 import java.sql.Timestamp;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 @Testcontainers
 @SpringBootTest
@@ -57,6 +61,11 @@ class PlanAggregateMapperIntegrationTest {
     @Autowired
     private Flyway flyway;
 
+    @Autowired
+    private PlatformTransactionManager transactionManager;
+
+    private TransactionTemplate transactionTemplate;
+
     @BeforeAll
     void migrateDatabase() {
         flyway.clean();
@@ -69,6 +78,7 @@ class PlanAggregateMapperIntegrationTest {
         jdbcTemplate.execute("ALTER SEQUENCE mt_plan_id_seq RESTART WITH 1");
         jdbcTemplate.execute("ALTER SEQUENCE mt_plan_node_id_seq RESTART WITH 1");
         jdbcTemplate.execute("ALTER SEQUENCE mt_plan_reminder_id_seq RESTART WITH 1");
+        transactionTemplate = new TransactionTemplate(transactionManager);
     }
 
     @Test
@@ -290,6 +300,65 @@ class PlanAggregateMapperIntegrationTest {
         assertThat(reminderRule.trigger()).isEqualTo(PlanReminderTrigger.BEFORE_PLAN_START);
         assertThat(reminderRule.channels()).containsExactlyInAnyOrder("EMAIL", "IM");
         assertThat(reminderRule.recipients()).containsExactly("owner-z");
+    }
+
+    @Test
+    void shouldRollbackPlanWriteWhenTransactionFails() {
+        OffsetDateTime now = OffsetDateTime.of(2024, 9, 1, 0, 0, 0, 0, ZoneOffset.UTC);
+        String planId = "PLAN-TX-001";
+
+        PlanEntity plan = new PlanEntity(
+                planId,
+                "tenant-tx",
+                "customer-z",
+                "owner-zeta",
+                "事务回滚验证",
+                "当事务失败时不应残留部分写入。",
+                PlanStatus.SCHEDULED,
+                now.plusHours(2),
+                now.plusHours(5),
+                null,
+                null,
+                null,
+                null,
+                null,
+                "Asia/Shanghai",
+                now.minusDays(1),
+                now.minusDays(1),
+                null,
+                null
+        );
+
+        PlanParticipantEntity participant = new PlanParticipantEntity(planId, "user-rollback");
+        PlanNodeEntity node = new PlanNodeEntity(planId, "NODE-TX-1", null, "校验节点", "TASK", "user-rollback", 0,
+                30, PlanNodeActionType.MANUAL, 100, "tx-check", "确保步骤具备幂等性");
+        PlanNodeExecutionEntity execution = new PlanNodeExecutionEntity(planId, "NODE-TX-1", PlanNodeStatus.IN_PROGRESS,
+                now.minusHours(1), null, "user-rollback", "开始执行", "log-tx");
+        PlanNodeAttachmentEntity attachment = new PlanNodeAttachmentEntity(planId, "NODE-TX-1", "file-tx-proof");
+        PlanActivityEntity activity = new PlanActivityEntity(planId, "ACT-TX-1", PlanActivityType.PLAN_UPDATED,
+                now.minusMinutes(30), "owner-zeta", "plan.activity.planUpdated", "NODE-TX-1", Map.of("field", "value"));
+        PlanReminderRuleEntity reminderRule = new PlanReminderRuleEntity(planId, "REM-TX-1",
+                PlanReminderTrigger.BEFORE_PLAN_START, 45, List.of("EMAIL"), "tmpl-tx",
+                List.of("owner-zeta"), "事务测试提醒", true);
+
+        assertThatThrownBy(() -> transactionTemplate.executeWithoutResult(status -> {
+            mapper.insertPlan(plan);
+            mapper.insertParticipants(new ArrayList<>(List.of(participant)));
+            mapper.insertNodes(new ArrayList<>(List.of(node)));
+            mapper.insertExecutions(new ArrayList<>(List.of(execution)));
+            mapper.insertAttachments(new ArrayList<>(List.of(attachment)));
+            mapper.insertActivities(new ArrayList<>(List.of(activity)));
+            mapper.insertReminderRules(new ArrayList<>(List.of(reminderRule)));
+            throw new RuntimeException("simulate failure");
+        })).isInstanceOf(RuntimeException.class);
+
+        assertThat(mapper.findPlanById(planId)).isNull();
+        assertThat(mapper.findParticipantsByPlanIds(List.of(planId))).isEmpty();
+        assertThat(mapper.findNodesByPlanIds(List.of(planId))).isEmpty();
+        assertThat(mapper.findExecutionsByPlanIds(List.of(planId))).isEmpty();
+        assertThat(mapper.findAttachmentsByPlanIds(List.of(planId))).isEmpty();
+        assertThat(mapper.findActivitiesByPlanIds(List.of(planId))).isEmpty();
+        assertThat(mapper.findReminderRulesByPlanIds(List.of(planId))).isEmpty();
     }
 
     private void insertPlan(String planId,
