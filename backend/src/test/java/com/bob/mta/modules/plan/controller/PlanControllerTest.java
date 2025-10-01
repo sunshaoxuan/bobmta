@@ -26,10 +26,13 @@ import com.bob.mta.modules.plan.dto.PlanReminderPolicyRequest;
 import com.bob.mta.modules.plan.dto.PlanReminderRuleRequest;
 import com.bob.mta.modules.plan.dto.PlanReminderUpdateRequest;
 import com.bob.mta.modules.plan.dto.PlanSummaryResponse;
+import com.bob.mta.modules.plan.repository.InMemoryPlanActionHistoryRepository;
 import com.bob.mta.modules.plan.repository.InMemoryPlanAnalyticsRepository;
 import com.bob.mta.modules.plan.repository.InMemoryPlanRepository;
 import com.bob.mta.modules.plan.repository.PlanBoardQuery;
 import com.bob.mta.modules.plan.service.impl.InMemoryPlanService;
+import com.bob.mta.modules.plan.service.impl.RecordingNotificationGateway;
+import com.bob.mta.modules.plan.service.impl.TestTemplateService;
 import com.bob.mta.modules.plan.service.command.CreatePlanCommand;
 import com.bob.mta.modules.plan.service.command.PlanNodeCommand;
 import com.bob.mta.i18n.LocalizationKeys;
@@ -55,6 +58,9 @@ class PlanControllerTest {
     private InMemoryFileService fileService;
     private InMemoryAuditService auditService;
     private MessageResolver messageResolver;
+    private InMemoryPlanActionHistoryRepository actionHistoryRepository;
+    private TestTemplateService templateService;
+    private RecordingNotificationGateway notificationGateway;
 
     @BeforeEach
     void setUp() {
@@ -62,8 +68,12 @@ class PlanControllerTest {
         fileService = new InMemoryFileService();
         planRepository = new InMemoryPlanRepository();
         messageResolver = TestMessageResolverFactory.create();
+        actionHistoryRepository = new InMemoryPlanActionHistoryRepository();
+        templateService = new TestTemplateService();
+        notificationGateway = new RecordingNotificationGateway();
         planService = new InMemoryPlanService(fileService, planRepository,
-                new InMemoryPlanAnalyticsRepository(planRepository), messageResolver);
+                new InMemoryPlanAnalyticsRepository(planRepository), actionHistoryRepository,
+                templateService, notificationGateway, messageResolver);
         auditService = new InMemoryAuditService();
         AuditRecorder recorder = new AuditRecorder(auditService, new ObjectMapper());
         controller = new PlanController(planService, recorder, fileService, messageResolver);

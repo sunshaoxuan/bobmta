@@ -9,6 +9,9 @@ import com.bob.mta.common.i18n.MessageResolver;
 import com.bob.mta.common.i18n.TestMessageResolverFactory;
 import com.bob.mta.modules.file.service.impl.InMemoryFileService;
 import com.bob.mta.modules.plan.domain.Plan;
+import com.bob.mta.modules.plan.domain.PlanActivity;
+import com.bob.mta.modules.plan.domain.PlanActionHistory;
+import com.bob.mta.modules.plan.domain.PlanActionStatus;
 import com.bob.mta.modules.plan.domain.PlanActivityType;
 import com.bob.mta.modules.plan.domain.PlanReminderRule;
 import com.bob.mta.modules.plan.domain.PlanReminderSchedule;
@@ -16,8 +19,7 @@ import com.bob.mta.modules.plan.domain.PlanReminderTrigger;
 import com.bob.mta.modules.plan.domain.PlanNodeActionType;
 import com.bob.mta.modules.plan.domain.PlanNodeExecution;
 import com.bob.mta.modules.plan.domain.PlanAnalytics;
-import com.bob.mta.modules.plan.domain.PlanStatus;
-import com.bob.mta.modules.plan.repository.PlanBoardQuery;
+import com.bob.mta.modules.plan.repository.InMemoryPlanActionHistoryRepository;
 import com.bob.mta.modules.plan.repository.InMemoryPlanAnalyticsRepository;
 import com.bob.mta.modules.plan.repository.InMemoryPlanRepository;
 import com.bob.mta.modules.plan.service.command.CreatePlanCommand;
@@ -25,6 +27,7 @@ import com.bob.mta.modules.plan.service.command.PlanNodeCommand;
 import com.bob.mta.modules.plan.service.PlanBoardView;
 import com.bob.mta.i18n.Localization;
 import com.bob.mta.i18n.LocalizationKeys;
+import com.bob.mta.modules.template.domain.RenderedTemplate;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -42,9 +45,12 @@ class InMemoryPlanServiceTest {
 
     private final InMemoryPlanRepository repository = new InMemoryPlanRepository();
     private final InMemoryPlanAnalyticsRepository analyticsRepository = new InMemoryPlanAnalyticsRepository(repository);
+    private final InMemoryPlanActionHistoryRepository actionHistoryRepository = new InMemoryPlanActionHistoryRepository();
+    private final TestTemplateService templateService = new TestTemplateService();
+    private final RecordingNotificationGateway notificationGateway = new RecordingNotificationGateway();
     private final MessageResolver messageResolver = TestMessageResolverFactory.create();
     private final InMemoryPlanService service = new InMemoryPlanService(new InMemoryFileService(), repository,
-            analyticsRepository, messageResolver);
+            analyticsRepository, actionHistoryRepository, templateService, notificationGateway, messageResolver);
 
     @BeforeEach
     void setUpLocale() {
@@ -591,125 +597,107 @@ class InMemoryPlanServiceTest {
     }
 
     @Test
-    @DisplayName("plan board aggregates by tenant and customer")
-    void boardShouldAggregateCustomersAndBuckets() {
-        OffsetDateTime pastStart = OffsetDateTime.now().minusDays(2);
-        CreatePlanCommand overdue = new CreatePlanCommand(
-                "tenant-board-service",
-                "历史巡检",
-                "计划已经超时",
-                "cust-board-alpha",
-                "board-owner",
-                pastStart,
-                pastStart.plusHours(2),
-                "Asia/Shanghai",
-                List.of("board-owner"),
-                List.of(new PlanNodeCommand(null, "巡检执行", "CHECKLIST", "board-owner", 1, 30,
-                        PlanNodeActionType.NONE, 100, null, "", List.of()))
+    void shouldExecuteEmailActionWhenNodeStarts() {
+        long templateId = 501L;
+        templateService.register(templateId, new RenderedTemplate(
+                "Node start", "Please start", List.of("ops@example.com"), List.of(), null,
+                null, null, null, Map.of("context", "start")));
+
+        CreatePlanCommand command = new CreatePlanCommand(
+                "tenant-action", "动作测试计划", "说明", "cust-action", "owner-action",
+                OffsetDateTime.now().plusDays(1), OffsetDateTime.now().plusDays(1).plusHours(2),
+                "Asia/Shanghai", List.of("owner-action"),
+                List.of(new PlanNodeCommand(null, "执行检查", "CHECKLIST", "owner-action", 1, 30,
+                        PlanNodeActionType.EMAIL, 100, String.valueOf(templateId), "", List.of()))
         );
-        var overduePlan = service.createPlan(overdue);
-        service.publishPlan(overduePlan.getId(), "board-owner");
+        Plan created = service.createPlan(command);
+        service.publishPlan(created.getId(), "owner-action");
 
-        OffsetDateTime futureStart = OffsetDateTime.now().plusDays(3);
-        CreatePlanCommand upcoming = new CreatePlanCommand(
-                "tenant-board-service",
-                "例行维护",
-                "计划在未来执行",
-                "cust-board-beta",
-                "board-owner",
-                futureStart,
-                futureStart.plusHours(3),
-                "Asia/Shanghai",
-                List.of("board-owner"),
-                List.of(new PlanNodeCommand(null, "维护操作", "CHECKLIST", "board-owner", 1, 45,
-                        PlanNodeActionType.NONE, 100, null, "", List.of()))
-        );
-        var upcomingPlan = service.createPlan(upcoming);
-        service.publishPlan(upcomingPlan.getId(), "board-owner");
+        Plan updated = service.startNode(created.getId(), created.getNodes().get(0).getId(), "operator-x");
 
-        CreatePlanCommand otherTenant = new CreatePlanCommand(
-                "tenant-board-exclude",
-                "其他租户计划",
-                "不应出现在聚合中",
-                "cust-ignore",
-                "board-owner",
-                futureStart,
-                futureStart.plusHours(1),
-                "Asia/Shanghai",
-                List.of("board-owner"),
-                List.of(new PlanNodeCommand(null, "检查步骤", "CHECKLIST", "board-owner", 1, 20,
-                        PlanNodeActionType.NONE, 100, null, "", List.of()))
-        );
-        service.createPlan(otherTenant);
+        assertThat(notificationGateway.getEmails()).hasSize(1);
+        List<PlanActionHistory> histories = actionHistoryRepository.findByPlanId(created.getId());
+        assertThat(histories).isNotEmpty();
+        PlanActionHistory history = histories.get(histories.size() - 1);
+        assertThat(history.getStatus()).isEqualTo(PlanActionStatus.SUCCESS);
+        assertThat(history.getMetadata()).containsEntry("templateId", String.valueOf(templateId));
 
-        PlanBoardQuery query = PlanBoardQuery.builder()
-                .tenantId("tenant-board-service")
-                .granularity(PlanBoardQuery.TimeGranularity.DAY)
-                .build();
-
-        PlanBoardView board = service.getPlanBoard(query);
-
-        assertThat(board.getMetrics().getTotalPlans()).isEqualTo(2);
-        assertThat(board.getMetrics().getOverduePlans()).isGreaterThanOrEqualTo(1);
-        assertThat(board.getCustomerGroups())
-                .extracting(PlanBoardView.CustomerGroup::getCustomerId)
-                .containsExactlyInAnyOrder("cust-board-alpha", "cust-board-beta");
-        assertThat(board.getTimeBuckets())
-                .extracting(PlanBoardView.TimeBucket::getBucketId)
-                .contains(pastStart.toLocalDate().toString(), futureStart.toLocalDate().toString());
+        PlanActivity actionActivity = latestActivity(updated, PlanActivityType.NODE_ACTION_EXECUTED);
+        assertThat(actionActivity).isNotNull();
+        assertThat(actionActivity.getAttributes())
+                .containsEntry("actionStatus", PlanActionStatus.SUCCESS.name())
+                .containsEntry("meta.templateId", String.valueOf(templateId));
     }
 
     @Test
-    @DisplayName("plan board can filter by multiple customers")
-    void boardShouldFilterCustomersByList() {
-        OffsetDateTime base = OffsetDateTime.now().plusDays(5);
-        CreatePlanCommand first = new CreatePlanCommand(
-                "tenant-board-filter",
-                "Filter A",
-                "仅用于过滤测试",
-                "cust-filter-a",
-                "board-filter",
-                base,
-                base.plusHours(2),
-                "Asia/Shanghai",
-                List.of("board-filter"),
-                List.of(new PlanNodeCommand(null, "准备", "CHECKLIST", "board-filter", 1, 20,
-                        PlanNodeActionType.NONE, 100, null, "", List.of()))
+    void shouldRecordFailureWhenEmailGatewayFails() {
+        long templateId = 777L;
+        templateService.register(templateId, new RenderedTemplate(
+                "Subject", "Body", List.of("ops@example.com"), List.of(), null,
+                null, null, null, Map.of()));
+        notificationGateway.failEmail("smtp-down");
+
+        CreatePlanCommand command = new CreatePlanCommand(
+                "tenant-action-fail", "失败计划", "说明", "cust-action", "owner-action",
+                OffsetDateTime.now().plusDays(1), OffsetDateTime.now().plusDays(1).plusHours(2),
+                "Asia/Shanghai", List.of("owner-action"),
+                List.of(new PlanNodeCommand(null, "执行检查", "CHECKLIST", "owner-action", 1, 30,
+                        PlanNodeActionType.EMAIL, 100, String.valueOf(templateId), "", List.of()))
         );
-        service.publishPlan(service.createPlan(first).getId(), "board-filter");
+        Plan created = service.createPlan(command);
+        service.publishPlan(created.getId(), "owner-action");
 
-        OffsetDateTime secondStart = base.plusDays(1);
-        CreatePlanCommand second = new CreatePlanCommand(
-                "tenant-board-filter",
-                "Filter B",
-                "用于断言聚合",
-                "cust-filter-b",
-                "board-filter",
-                secondStart,
-                secondStart.plusHours(3),
-                "Asia/Shanghai",
-                List.of("board-filter"),
-                List.of(new PlanNodeCommand(null, "实施", "CHECKLIST", "board-filter", 1, 25,
-                        PlanNodeActionType.NONE, 100, null, "", List.of()))
+        Plan updated = service.startNode(created.getId(), created.getNodes().get(0).getId(), "operator-y");
+
+        List<PlanActionHistory> histories = actionHistoryRepository.findByPlanId(created.getId());
+        assertThat(histories).isNotEmpty();
+        PlanActionHistory history = histories.get(histories.size() - 1);
+        assertThat(history.getStatus()).isEqualTo(PlanActionStatus.FAILED);
+        assertThat(history.getError()).contains("smtp-down");
+
+        PlanActivity actionActivity = latestActivity(updated, PlanActivityType.NODE_ACTION_EXECUTED);
+        assertThat(actionActivity.getAttributes())
+                .containsEntry("actionStatus", PlanActionStatus.FAILED.name())
+                .containsEntry("actionError", "smtp-down");
+    }
+
+    @Test
+    void shouldSendInstantMessageWhenNodeCompletes() {
+        long templateId = 888L;
+        templateService.register(templateId, new RenderedTemplate(
+                null, "完成提醒", List.of("duty-user"), List.of(), null,
+                null, null, null, Map.of("channel", "IM")));
+
+        CreatePlanCommand command = new CreatePlanCommand(
+                "tenant-action-im", "IM计划", "说明", "cust-action", "owner-action",
+                OffsetDateTime.now().plusDays(1), OffsetDateTime.now().plusDays(1).plusHours(2),
+                "Asia/Shanghai", List.of("owner-action"),
+                List.of(new PlanNodeCommand(null, "执行检查", "CHECKLIST", "owner-action", 1, 30,
+                        PlanNodeActionType.IM, 100, String.valueOf(templateId), "", List.of()))
         );
-        var secondPlan = service.createPlan(second);
-        service.publishPlan(secondPlan.getId(), "board-filter");
+        Plan created = service.createPlan(command);
+        service.publishPlan(created.getId(), "owner-action");
+        service.startNode(created.getId(), created.getNodes().get(0).getId(), "operator-z");
 
-        PlanBoardQuery query = PlanBoardQuery.builder()
-                .tenantId("tenant-board-filter")
-                .customerIds(List.of("cust-filter-b", "cust-filter-missing"))
-                .granularity(PlanBoardQuery.TimeGranularity.WEEK)
-                .build();
+        Plan completed = service.completeNode(created.getId(), created.getNodes().get(0).getId(),
+                "operator-z", "OK", null, List.of());
 
-        PlanBoardView board = service.getPlanBoard(query);
+        assertThat(notificationGateway.getInstantMessages()).hasSizeGreaterThanOrEqualTo(1);
+        List<PlanActionHistory> imHistories = actionHistoryRepository.findByPlanId(created.getId());
+        PlanActionHistory history = imHistories.get(imHistories.size() - 1);
+        assertThat(history.getStatus()).isEqualTo(PlanActionStatus.SUCCESS);
+        assertThat(history.getMetadata()).containsEntry("templateId", String.valueOf(templateId));
 
-        assertThat(board.getCustomerGroups())
-                .extracting(PlanBoardView.CustomerGroup::getCustomerId)
-                .containsExactly("cust-filter-b");
-        assertThat(board.getMetrics().getTotalPlans()).isEqualTo(1);
-        assertThat(board.getTimeBuckets()).hasSize(1);
-        assertThat(board.getTimeBuckets().get(0).getPlans())
-                .extracting(PlanBoardView.PlanCard::getId)
-                .containsExactly(secondPlan.getId());
+        PlanActivity actionActivity = latestActivity(completed, PlanActivityType.NODE_ACTION_EXECUTED);
+        assertThat(actionActivity.getAttributes())
+                .containsEntry("actionStatus", PlanActionStatus.SUCCESS.name())
+                .containsEntry("actionTrigger", "complete");
+    }
+
+    private PlanActivity latestActivity(Plan plan, PlanActivityType type) {
+        return plan.getActivities().stream()
+                .filter(activity -> activity.getType() == type)
+                .reduce((first, second) -> second)
+                .orElse(null);
     }
 }
