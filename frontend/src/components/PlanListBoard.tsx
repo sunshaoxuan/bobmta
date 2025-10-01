@@ -6,6 +6,7 @@ import {
   Pagination,
   Segmented,
   Space,
+  Tabs,
   Table,
   Tag,
   Typography,
@@ -118,92 +119,111 @@ export function PlanListBoard({
     [translate]
   );
 
-  const renderView = () => {
-    if (viewMode === 'customer') {
-      return (
-        <PlanByCustomerView
-          translate={translate}
-          groups={planState.customerGroups}
-          plans={planState.records}
-        />
-      );
-    }
-    if (viewMode === 'calendar') {
-      return (
-        <PlanCalendarView
-          translate={translate}
-          events={planState.calendarEvents}
-          plans={planState.records}
-        />
-      );
-    }
-    return (
-      <>
-        <Table<PlanSummary>
-          rowKey="id"
-          dataSource={planState.records}
-          columns={planColumns}
-          pagination={false}
-          rowClassName={(record: PlanSummary) =>
-            ['plan-table-row', selectedPlanId === record.id ? 'plan-table-row-active' : '']
-              .filter(Boolean)
-              .join(' ')
-          }
-          onRow={(record: PlanSummary) => ({
-            onClick: () => {
-              onSelectPlan(record.id);
-            },
-          })}
-          loading={{
-            spinning: planState.status === 'loading',
-            tip: translate('planLoading'),
-          }}
-          locale={{ emptyText: translate('planEmpty') }}
-          scroll={{ x: true }}
-        />
-        {planState.pagination.total > 0 && (
-          <div className="plan-pagination">
-            {paginationLabel && <Text type="secondary">{paginationLabel}</Text>}
-            <Pagination
-              current={planState.pagination.page + 1}
-              pageSize={planState.pagination.pageSize}
-              total={planState.pagination.total}
-              showSizeChanger
-              pageSizeOptions={['10', '20', '50']}
-              onChange={(page) => {
-                onChangePage(page - 1);
-              }}
-              onShowSizeChange={(_, size) => {
-                onChangePageSize(size);
-              }}
-            />
-          </div>
-        )}
-        {planState.records.length > 0 && (
-          <PlanPreview
-            plan={previewPlan}
-            translate={translate}
-            locale={locale}
-            onClose={onClosePreview}
-            detailState={planDetailState}
-            onRefreshDetail={onRefreshDetail}
-            detailErrorDetail={planDetailErrorDetail}
-            onExecuteNodeAction={onExecuteNodeAction}
-            onUpdateReminder={onUpdateReminder}
-            currentUserName={currentUserName}
-            onTimelineCategoryChange={onTimelineCategoryChange}
-          />
-        )}
-      </>
-    );
-  };
-
   const paginationLabel = useMemo(() => {
     if (planState.pagination.total <= 0) {
       return null;
     }
     return translate('planPaginationTotal', { total: planState.pagination.total });
   }, [planState.pagination.total, translate]);
+
+  const tableView = (
+    <>
+      <Table<PlanSummary>
+        rowKey="id"
+        dataSource={planState.records}
+        columns={planColumns}
+        pagination={false}
+        rowClassName={(record: PlanSummary) =>
+          ['plan-table-row', selectedPlanId === record.id ? 'plan-table-row-active' : '']
+            .filter(Boolean)
+            .join(' ')
+        }
+        onRow={(record: PlanSummary) => ({
+          onClick: () => {
+            onSelectPlan(record.id);
+          },
+        })}
+        loading={{
+          spinning: planState.status === 'loading',
+          tip: translate('planLoading'),
+        }}
+        locale={{ emptyText: translate('planEmpty') }}
+        scroll={{ x: true }}
+      />
+      {planState.pagination.total > 0 && (
+        <div className="plan-pagination">
+          {paginationLabel && <Text type="secondary">{paginationLabel}</Text>}
+          <Pagination
+            current={planState.pagination.page + 1}
+            pageSize={planState.pagination.pageSize}
+            total={planState.pagination.total}
+            showSizeChanger
+            pageSizeOptions={['10', '20', '50']}
+            onChange={(page) => {
+              onChangePage(page - 1);
+            }}
+            onShowSizeChange={(_, size) => {
+              onChangePageSize(size);
+            }}
+          />
+        </div>
+      )}
+      {planState.records.length > 0 && (
+        <PlanPreview
+          plan={previewPlan}
+          translate={translate}
+          locale={locale}
+          onClose={onClosePreview}
+          detailState={planDetailState}
+          onRefreshDetail={onRefreshDetail}
+          detailErrorDetail={planDetailErrorDetail}
+          onExecuteNodeAction={onExecuteNodeAction}
+          onUpdateReminder={onUpdateReminder}
+          currentUserName={currentUserName}
+          onTimelineCategoryChange={onTimelineCategoryChange}
+        />
+      )}
+    </>
+  );
+
+  const customerView = (
+    <PlanByCustomerView
+      translate={translate}
+      groups={planState.customerGroups}
+      plans={planState.records}
+      wrapWithCard={false}
+    />
+  );
+
+  const calendarView = (
+    <PlanCalendarView
+      translate={translate}
+      events={planState.calendarEvents}
+      plans={planState.records}
+      wrapWithCard={false}
+    />
+  );
+
+  const tabItems = useMemo(
+    () => [
+      {
+        key: 'table',
+        label: translate('planSectionTitle'),
+        children: tableView,
+      },
+      {
+        key: 'customer',
+        label: translate('planDetailCustomerLabel'),
+        children: customerView,
+      },
+      {
+        key: 'calendar',
+        label: translate('planDetailTimelineTitle'),
+        children: calendarView,
+      },
+    ],
+    [calendarView, customerView, tableView, translate]
+  );
 
   return (
     <Card
@@ -270,7 +290,13 @@ export function PlanListBoard({
             errorDetail={errorDetailMessage}
             emptyHint={emptyHint}
           >
-            {renderView()}
+            <Tabs
+              activeKey={viewMode}
+              items={tabItems}
+              onChange={(key: string) => {
+                onChangeViewMode(key as PlanListViewMode);
+              }}
+            />
           </RemoteState>
         </Space>
       )}

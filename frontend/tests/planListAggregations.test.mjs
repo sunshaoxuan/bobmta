@@ -6,6 +6,7 @@ import {
   groupCalendarEvents,
   transformPlansToCalendarBuckets,
 } from '../dist/state/planList.js';
+import { mapPlanCalendarEventsByDate } from '../dist/utils/planList.js';
 
 function createPlan(id, overrides = {}) {
   return {
@@ -147,4 +148,35 @@ test('transformPlansToCalendarBuckets reuses event aggregation', () => {
 
   assert.deepEqual(transformed, grouped);
   assert.equal(transformed[0].events[1].durationMinutes, 90);
+});
+
+test('mapPlanCalendarEventsByDate groups events by local day and sorts within the day', () => {
+  const plans = [
+    createPlan('p-12', {
+      plannedStartTime: '2025-05-01T08:00:00.000Z',
+      plannedEndTime: '2025-05-01T09:00:00.000Z',
+    }),
+    createPlan('p-13', {
+      plannedStartTime: null,
+      plannedEndTime: '2025-05-01T05:00:00.000Z',
+    }),
+  ];
+
+  const events = createPlanCalendarEvents(plans);
+  const map = mapPlanCalendarEventsByDate(events);
+  const keys = Object.keys(map).sort();
+  assert.deepEqual(keys, ['2025-05-01']);
+  assert.equal(map['2025-05-01'].length, 2);
+  assert.deepEqual(
+    map['2025-05-01'].map((event) => event.plan.id),
+    ['p-13', 'p-12']
+  );
+
+  const mapWithTz = mapPlanCalendarEventsByDate(events, { timeZone: 'America/Los_Angeles' });
+  const tzKeys = Object.keys(mapWithTz).sort();
+  assert.deepEqual(tzKeys, ['2025-04-30', '2025-05-01']);
+  assert.equal(mapWithTz['2025-04-30'].length, 1);
+  assert.equal(mapWithTz['2025-04-30'][0].plan.id, 'p-13');
+  assert.equal(mapWithTz['2025-05-01'].length, 1);
+  assert.equal(mapWithTz['2025-05-01'][0].plan.id, 'p-12');
 });

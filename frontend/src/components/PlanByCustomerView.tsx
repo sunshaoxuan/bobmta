@@ -1,5 +1,14 @@
 import React, { useMemo } from '../../vendor/react/index.js';
-import { Card, Empty, Progress, Space, Tag, Typography } from '../../vendor/antd/index.js';
+import {
+  Card,
+  Empty,
+  List,
+  Progress,
+  Space,
+  Tag,
+  Tree,
+  Typography,
+} from '../../vendor/antd/index.js';
 import type { PlanSummary } from '../api/types';
 import type { LocalizationState } from '../i18n/useLocalization';
 import {
@@ -7,18 +16,35 @@ import {
   type PlanCustomerGroup,
   type PlanSummaryWithCustomer,
 } from '../state/planList';
-import { PLAN_STATUS_COLOR, PLAN_STATUS_LABEL, PLAN_STATUS_ORDER } from '../constants/planStatus';
+import {
+  PLAN_STATUS_COLOR,
+  PLAN_STATUS_LABEL,
+  PLAN_STATUS_ORDER,
+} from '../constants/planStatus';
 import { listMockPlans } from '../mocks/planList';
+import type { ReactNode } from '../../vendor/react/index.js';
 
-const { Text, Title } = Typography;
+const { Text } = Typography;
 
 export type PlanByCustomerViewProps = {
   plans?: PlanSummary[];
   groups?: PlanCustomerGroup[];
   translate: LocalizationState['translate'];
+  wrapWithCard?: boolean;
 };
 
-export function PlanByCustomerView({ plans, groups, translate }: PlanByCustomerViewProps) {
+type CustomerTreeNode = {
+  key: string;
+  title: ReactNode;
+  children?: CustomerTreeNode[];
+};
+
+export function PlanByCustomerView({
+  plans,
+  groups,
+  translate,
+  wrapWithCard = true,
+}: PlanByCustomerViewProps) {
   const dataSource = useMemo(() => {
     if (groups && groups.length > 0) {
       return groups;
@@ -30,95 +56,112 @@ export function PlanByCustomerView({ plans, groups, translate }: PlanByCustomerV
     return aggregatePlansByCustomer(source, { sortBy: 'total', descending: true });
   }, [plans, groups]);
 
-  if (dataSource.length === 0) {
-    return (
-      <Card title={translate('planDetailCustomerLabel')} bordered={false} className="card-block">
-        <Empty description={translate('planEmpty')} />
-      </Card>
-    );
+  const content = dataSource.length === 0 ? (
+    <Empty description={translate('planEmpty')} />
+  ) : (
+    <List
+      itemLayout="vertical"
+      dataSource={dataSource}
+      renderItem={(group: PlanCustomerGroup) => (
+        <List.Item
+          key={`${group.customerId ?? 'unknown'}:${group.customerName}`}
+          className="plan-customer-group"
+        >
+          <Space direction="vertical" size="middle" style={{ width: '100%' }}>
+            <Space align="center" size="large" wrap>
+              <Typography.Title level={5} style={{ margin: 0 }}>
+                {resolveGroupName(group, translate)}
+              </Typography.Title>
+              <Tag color="blue">{group.total}</Tag>
+              <Space direction="vertical" size={4}>
+                <Text type="secondary">{translate('planTableHeaderProgress')}</Text>
+                <Progress
+                  percent={Math.max(0, Math.min(100, Math.round(group.progressAverage ?? 0)))}
+                  size="small"
+                />
+              </Space>
+            </Space>
+
+            {group.owners.length > 0 && (
+              <Space size={8} wrap>
+                <Tag color="geekblue">{translate('planTableHeaderOwner')}</Tag>
+                {group.owners.map((owner: string) => (
+                  <Tag key={owner}>{owner}</Tag>
+                ))}
+              </Space>
+            )}
+
+            <Tree
+              showLine
+              selectable={false}
+              defaultExpandAll
+              treeData={buildCustomerTreeData(group, translate)}
+            />
+          </Space>
+        </List.Item>
+      )}
+    />
+  );
+
+  if (!wrapWithCard) {
+    return <div className="plan-by-customer-view">{content}</div>;
   }
 
   return (
     <Card title={translate('planDetailCustomerLabel')} bordered={false} className="card-block">
-      <Space direction="vertical" size="large" style={{ width: '100%' }}>
-        {dataSource.map((group) => (
-          <div key={`${group.customerId ?? 'unknown'}:${group.customerName}`} className="plan-customer-group">
-            <CustomerGroupCard group={group} translate={translate} />
-          </div>
-        ))}
-      </Space>
+      {content}
     </Card>
   );
 }
 
-type CustomerGroupCardProps = {
-  group: PlanCustomerGroup;
-  translate: LocalizationState['translate'];
-};
+function resolveGroupName(group: PlanCustomerGroup, translate: LocalizationState['translate']) {
+  if (group.hasCustomer) {
+    return group.customerName;
+  }
+  return `${translate('planDetailCustomerLabel')} - ${translate('planPreviewEmptyValue')}`;
+}
 
-function CustomerGroupCard({ group, translate }: CustomerGroupCardProps) {
-  const displayName = group.hasCustomer
-    ? group.customerName
-    : `${translate('planDetailCustomerLabel')} - ${translate('planPreviewEmptyValue')}`;
-  const progressValue = Math.max(
-    0,
-    Math.min(100, Math.round(group.progressAverage ?? 0))
-  );
-  const statusTags = useMemo(
-    () =>
-      PLAN_STATUS_ORDER.filter((status) => group.statusCounts[status] > 0).map((status) => ({
-        status,
-        count: group.statusCounts[status],
+function buildCustomerTreeData(
+  group: PlanCustomerGroup,
+  translate: LocalizationState['translate']
+): CustomerTreeNode[] {
+  const nodes: CustomerTreeNode[] = [];
+  PLAN_STATUS_ORDER.forEach((status) => {
+    const plans = group.plans.filter((plan) => plan.status === status);
+    if (plans.length === 0) {
+      return;
+    }
+    const statusNode: CustomerTreeNode = {
+      key: `${group.customerId ?? 'unknown'}:${status}`,
+      title: (
+        <Space size={6} align="center">
+          <Tag color={PLAN_STATUS_COLOR[status]}>{translate(PLAN_STATUS_LABEL[status])}</Tag>
+          <Text type="secondary">({plans.length})</Text>
+        </Space>
+      ),
+      children: plans.map((plan) => ({
+        key: plan.id,
+        title: (
+          <Space direction="vertical" size={0} className="plan-customer-tree-leaf">
+            <Text strong>{plan.title}</Text>
+            <Text type="secondary">
+              {translate('planTableHeaderWindow')}: {formatPlanWindowLabel(plan, translate)}
+            </Text>
+          </Space>
+        ),
       })),
-    [group.statusCounts]
-  );
-
-  return (
-    <Card type="inner" title={<Title level={5}>{displayName}</Title>} extra={<Tag color="blue">{group.total}</Tag>}>
-      <Space direction="vertical" size="middle" style={{ width: '100%' }}>
-        <Space size="small" direction="vertical" style={{ width: '100%' }}>
-          <Text type="secondary">{translate('planTableHeaderProgress')}</Text>
-          <Progress percent={progressValue} size="small" />
-        </Space>
-        {statusTags.length > 0 && (
-          <Space size={8} wrap>
-            {statusTags.map((item) => (
-              <Tag key={item.status} color={PLAN_STATUS_COLOR[item.status]}>
-                {translate(PLAN_STATUS_LABEL[item.status])}: {item.count}
-              </Tag>
-            ))}
-          </Space>
-        )}
-        {group.owners.length > 0 && (
-          <Space size={8} wrap>
-            <Tag color="geekblue">{translate('planTableHeaderOwner')}</Tag>
-            {group.owners.map((owner) => (
-              <Tag key={owner}>{owner}</Tag>
-            ))}
-          </Space>
-        )}
-        <Space direction="vertical" size="small" style={{ width: '100%' }}>
-          {group.plans.map((plan) => (
-            <div key={plan.id} className="plan-customer-item">
-              <Space size="small" align="center">
-                <Tag color={PLAN_STATUS_COLOR[plan.status]}>
-                  {translate(PLAN_STATUS_LABEL[plan.status])}
-                </Tag>
-                <Text strong>{plan.title}</Text>
-              </Space>
-              <Text type="secondary">
-                {translate('planTableHeaderWindow')}: {formatPlanWindowLabel(plan, translate)}
-              </Text>
-            </div>
-          ))}
-        </Space>
-      </Space>
-    </Card>
-  );
+    };
+    nodes.push(statusNode);
+  });
+  return nodes;
 }
 
-function formatPlanWindowLabel(plan: PlanSummaryWithCustomer, translate: LocalizationState['translate']): string {
-  const start = plan.plannedStartTime ?? translate('planPreviewEmptyValue');
-  const end = plan.plannedEndTime ?? translate('planPreviewEmptyValue');
+function formatPlanWindowLabel(
+  plan: PlanSummaryWithCustomer,
+  translate: LocalizationState['translate']
+): string {
+  const empty = translate('planPreviewEmptyValue');
+  const start = plan.plannedStartTime ? new Date(plan.plannedStartTime).toLocaleString() : empty;
+  const end = plan.plannedEndTime ? new Date(plan.plannedEndTime).toLocaleString() : empty;
   return `${start} → ${end}`;
 }
