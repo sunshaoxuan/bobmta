@@ -12,6 +12,7 @@ import com.bob.mta.modules.plan.domain.PlanActivityType;
 import com.bob.mta.modules.plan.domain.PlanReminderRule;
 import com.bob.mta.modules.plan.domain.PlanReminderSchedule;
 import com.bob.mta.modules.plan.domain.PlanReminderTrigger;
+import com.bob.mta.modules.plan.domain.PlanNodeActionType;
 import com.bob.mta.modules.plan.domain.PlanNodeExecution;
 import com.bob.mta.modules.plan.domain.PlanStatus;
 import com.bob.mta.modules.plan.domain.PlanAnalytics;
@@ -30,6 +31,9 @@ import org.springframework.context.i18n.LocaleContextHolder;
 import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 class InMemoryPlanServiceTest {
 
@@ -63,7 +67,7 @@ class InMemoryPlanServiceTest {
                 List.of("admin"),
                 List.of(new PlanNodeCommand(null,
                         Localization.text(LocalizationKeys.Seeds.PLAN_NODE_NOTIFY_TITLE),
-                        "CHECKLIST", "admin", 1, 30, null,
+                        "CHECKLIST", "admin", 1, 30, PlanNodeActionType.NONE, 100, null,
                         Localization.text(LocalizationKeys.Seeds.PLAN_NODE_NOTIFY_DESCRIPTION), List.of()))
         );
 
@@ -89,7 +93,7 @@ class InMemoryPlanServiceTest {
                 OffsetDateTime.now().plusDays(2).plusHours(4),
                 "Asia/Shanghai",
                 List.of("ops-owner"),
-                List.of(new PlanNodeCommand(null, "巡检准备", "CHECKLIST", "ops-owner", 1, 45, null, "", List.of()))
+                List.of(new PlanNodeCommand(null, "巡检准备", "CHECKLIST", "ops-owner", 1, 45, PlanNodeActionType.NONE, 100, null, "", List.of()))
         );
         service.createPlan(command);
 
@@ -112,7 +116,7 @@ class InMemoryPlanServiceTest {
                 OffsetDateTime.now().plusDays(1).plusHours(2),
                 "Asia/Tokyo",
                 List.of("owner-a"),
-                List.of(new PlanNodeCommand(null, "检查UPS", "CHECKLIST", "owner-a", 1, 30, null, "", List.of()))
+                List.of(new PlanNodeCommand(null, "检查UPS", "CHECKLIST", "owner-a", 1, 30, PlanNodeActionType.NONE, 100, null, "", List.of()))
         );
         CreatePlanCommand tenantB = new CreatePlanCommand(
                 "tenant-b",
@@ -124,7 +128,7 @@ class InMemoryPlanServiceTest {
                 OffsetDateTime.now().plusDays(2).plusHours(3),
                 "Asia/Tokyo",
                 List.of("owner-b"),
-                List.of(new PlanNodeCommand(null, "切换预案讲解", "CHECKLIST", "owner-b", 1, 60, null, "", List.of()))
+                List.of(new PlanNodeCommand(null, "切换预案讲解", "CHECKLIST", "owner-b", 1, 60, PlanNodeActionType.NONE, 100, null, "", List.of()))
         );
 
         service.createPlan(tenantA);
@@ -170,6 +174,23 @@ class InMemoryPlanServiceTest {
     }
 
     @Test
+    @DisplayName("describeActivities exposes metadata for front-end dictionary")
+    void shouldDescribeActivities() {
+        var descriptors = service.describeActivities();
+
+        assertThat(descriptors).isNotEmpty();
+        assertThat(descriptors)
+                .anySatisfy(descriptor -> {
+                    if (descriptor.type() == PlanActivityType.PLAN_CREATED) {
+                        assertThat(descriptor.messageKeys()).contains("plan.activity.created");
+                        assertThat(descriptor.attributes())
+                                .extracting(attr -> attr.name())
+                                .contains("title", "owner");
+                    }
+                });
+    }
+
+    @Test
     void shouldStartNode() {
         var plan = service.listPlans(null, null, null, null, null, null, null, 0, 10).plans().get(0);
         service.publishPlan(plan.getId(), "admin");
@@ -187,6 +208,45 @@ class InMemoryPlanServiceTest {
 
         assertThat(ics).contains("BEGIN:VCALENDAR");
         assertThat(ics).contains("客户原因取消");
+    }
+
+    @Test
+    @DisplayName("completeNode auto-completes parent and skips optional siblings when threshold satisfied")
+    void shouldSkipOptionalSiblingsOnceThresholdReached() {
+        CreatePlanCommand command = new CreatePlanCommand(
+                "tenant-threshold",
+                "阈值测试计划",
+                "用于验证阈值自动完成逻辑",
+                "cust-threshold",
+                "admin",
+                OffsetDateTime.now().plusHours(1),
+                OffsetDateTime.now().plusHours(2),
+                "Asia/Shanghai",
+                List.of("admin"),
+                List.of(new PlanNodeCommand(null, "父节点", "GROUP", "admin", 1, 30, PlanNodeActionType.NONE, 50, null, "",
+                        List.of(
+                                new PlanNodeCommand(null, "必做任务", "TASK", "admin", 1, 10, PlanNodeActionType.NONE, 100, null, "", List.of()),
+                                new PlanNodeCommand(null, "可选任务", "TASK", "admin", 2, 10, PlanNodeActionType.NONE, 100, null, "", List.of())
+                        )))
+        );
+
+        Plan created = service.createPlan(command);
+        service.publishPlan(created.getId(), "admin");
+        Plan reloaded = service.getPlan(created.getId());
+        String parentId = reloaded.getNodes().get(0).getId();
+        String requiredId = reloaded.getNodes().get(0).getChildren().get(0).getId();
+        String optionalId = reloaded.getNodes().get(0).getChildren().get(1).getId();
+
+        service.startNode(created.getId(), requiredId, "admin");
+        service.completeNode(created.getId(), requiredId, "admin", "完成", null, List.of());
+
+        Plan updated = service.getPlan(created.getId());
+        Map<String, PlanNodeExecution> executionIndex = updated.getExecutions().stream()
+                .collect(Collectors.toMap(PlanNodeExecution::getNodeId, Function.identity()));
+
+        assertThat(executionIndex.get(parentId).getStatus()).isEqualTo(PlanNodeStatus.DONE);
+        assertThat(executionIndex.get(optionalId).getStatus()).isEqualTo(PlanNodeStatus.SKIPPED);
+        assertThat(updated.getStatus()).isEqualTo(PlanStatus.COMPLETED);
     }
 
     @Test
@@ -310,7 +370,7 @@ class InMemoryPlanServiceTest {
                 end,
                 "Asia/Tokyo",
                 List.of("admin"),
-                List.of(new PlanNodeCommand(null, "巡检执行", "CHECKLIST", "admin", 1, 20, null, "", List.of()))
+                List.of(new PlanNodeCommand(null, "巡检执行", "CHECKLIST", "admin", 1, 20, PlanNodeActionType.NONE, 100, null, "", List.of()))
         );
         var overduePlan = service.createPlan(overdueCommand);
         service.publishPlan(overduePlan.getId(), "admin");
@@ -321,13 +381,17 @@ class InMemoryPlanServiceTest {
                 .orElseThrow();
         service.cancelPlan(planToCancel.getId(), "admin", "客户取消");
 
-        PlanAnalytics analytics = service.getAnalytics("tenant-001", null, null, null);
+        PlanAnalytics analytics = service.getAnalytics("tenant-001", null, null, null, null,
+                null, null, null, null, null);
 
         assertThat(analytics.getTotalPlans()).isGreaterThanOrEqualTo(3);
         assertThat(analytics.getInProgressCount()).isGreaterThanOrEqualTo(1);
         assertThat(analytics.getCanceledCount()).isGreaterThanOrEqualTo(1);
         assertThat(analytics.getOverdueCount()).isGreaterThanOrEqualTo(1);
         assertThat(analytics.getUpcomingPlans()).isNotEmpty();
+        assertThat(analytics.getOwnerLoads()).isNotEmpty();
+        assertThat(analytics.getRiskPlans())
+                .anySatisfy(risk -> assertThat(risk.getRiskLevel()).isEqualTo(PlanAnalytics.RiskLevel.OVERDUE));
     }
 
     @Test
@@ -343,7 +407,7 @@ class InMemoryPlanServiceTest {
                 plannedStart.plusHours(2),
                 "Asia/Tokyo",
                 List.of("owner-a"),
-                List.of(new PlanNodeCommand(null, "Validate routers", "CHECKLIST", "owner-a", 1, 30, null, "", List.of()))
+                List.of(new PlanNodeCommand(null, "Validate routers", "CHECKLIST", "owner-a", 1, 30, PlanNodeActionType.NONE, 100, null, "", List.of()))
         );
         var targetPlan = service.createPlan(targetCommand);
         service.publishPlan(targetPlan.getId(), "owner-a");
@@ -358,11 +422,12 @@ class InMemoryPlanServiceTest {
                 plannedStart.plusDays(1).plusHours(1),
                 "Asia/Tokyo",
                 List.of("owner-b"),
-                List.of(new PlanNodeCommand(null, "Confirm status", "CHECKLIST", "owner-b", 1, 15, null, "", List.of()))
+                List.of(new PlanNodeCommand(null, "Confirm status", "CHECKLIST", "owner-b", 1, 15, PlanNodeActionType.NONE, 100, null, "", List.of()))
         );
         service.createPlan(otherCommand);
 
-        PlanAnalytics analytics = service.getAnalytics("tenant-analytics", "cust-target", null, null);
+        PlanAnalytics analytics = service.getAnalytics("tenant-analytics", "cust-target", null, null, null,
+                null, null, null, null, null);
 
         assertThat(analytics.getTotalPlans()).isGreaterThanOrEqualTo(1);
         assertThat(analytics.getUpcomingPlans())
@@ -370,5 +435,54 @@ class InMemoryPlanServiceTest {
         assertThat(analytics.getDesignCount() + analytics.getScheduledCount() + analytics.getInProgressCount()
                 + analytics.getCompletedCount() + analytics.getCanceledCount())
                 .isEqualTo(analytics.getTotalPlans());
+        assertThat(analytics.getOwnerLoads())
+                .allSatisfy(load -> assertThat(load.getOwnerId()).isNotBlank());
+    }
+
+    @Test
+    void analyticsShouldFilterByOwner() {
+        OffsetDateTime plannedStart = OffsetDateTime.now().plusDays(2);
+        CreatePlanCommand focusCommand = new CreatePlanCommand(
+                "tenant-owner-scope",
+                "Owner specific maintenance",
+                "Target owner scope",
+                "cust-scope",
+                "owner-focus",
+                plannedStart,
+                plannedStart.plusHours(3),
+                "Asia/Tokyo",
+                List.of("owner-focus"),
+                List.of(new PlanNodeCommand(null, "检查机柜", "CHECKLIST", "owner-focus", 1, 45,
+                        PlanNodeActionType.NONE, 100, null, "", List.of()))
+        );
+        var focusPlan = service.createPlan(focusCommand);
+        service.publishPlan(focusPlan.getId(), "owner-focus");
+
+        CreatePlanCommand otherOwner = new CreatePlanCommand(
+                "tenant-owner-scope",
+                "Other owner window",
+                "Non target owner",
+                "cust-scope",
+                "owner-other",
+                plannedStart.plusDays(1),
+                plannedStart.plusDays(1).plusHours(2),
+                "Asia/Tokyo",
+                List.of("owner-other"),
+                List.of(new PlanNodeCommand(null, "确认状态", "CHECKLIST", "owner-other", 1, 30,
+                        PlanNodeActionType.NONE, 100, null, "", List.of()))
+        );
+        var otherPlan = service.createPlan(otherOwner);
+        service.publishPlan(otherPlan.getId(), "owner-other");
+
+        PlanAnalytics analytics = service.getAnalytics("tenant-owner-scope", null, "owner-focus", null, null,
+                null, null, null, null, null);
+
+        assertThat(analytics.getOwnerLoads()).hasSize(1);
+        assertThat(analytics.getOwnerLoads().get(0).getOwnerId()).isEqualTo("owner-focus");
+        assertThat(analytics.getUpcomingPlans())
+                .allSatisfy(plan -> assertThat(plan.getOwner()).isEqualTo("owner-focus"));
+        assertThat(analytics.getTotalPlans()).isGreaterThanOrEqualTo(1);
+        assertThat(analytics.getRiskPlans())
+                .allSatisfy(plan -> assertThat(plan.getOwner()).isEqualTo("owner-focus"));
     }
 }

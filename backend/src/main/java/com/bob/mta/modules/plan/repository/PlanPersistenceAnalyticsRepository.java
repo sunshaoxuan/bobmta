@@ -4,6 +4,8 @@ import com.bob.mta.modules.plan.domain.PlanAnalytics;
 import com.bob.mta.modules.plan.domain.PlanStatus;
 import com.bob.mta.modules.plan.persistence.PlanAggregateMapper;
 import com.bob.mta.modules.plan.persistence.PlanAnalyticsQueryParameters;
+import com.bob.mta.modules.plan.persistence.PlanOwnerLoadEntity;
+import com.bob.mta.modules.plan.persistence.PlanRiskPlanEntity;
 import com.bob.mta.modules.plan.persistence.PlanStatusCountEntity;
 import com.bob.mta.modules.plan.persistence.PlanUpcomingPlanEntity;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
@@ -30,6 +32,8 @@ public class PlanPersistenceAnalyticsRepository implements PlanAnalyticsReposito
         List<PlanStatusCountEntity> statusCounts = mapper.countPlansByStatus(parameters);
         long overdue = mapper.countOverduePlans(parameters);
         List<PlanUpcomingPlanEntity> upcomingPlans = mapper.findUpcomingPlans(parameters);
+        List<PlanOwnerLoadEntity> ownerLoads = mapper.findOwnerLoads(parameters);
+        List<PlanRiskPlanEntity> riskPlans = mapper.findRiskPlans(parameters);
 
         Map<PlanStatus, Long> countsByStatus = new EnumMap<>(PlanStatus.class);
         for (PlanStatusCountEntity entry : statusCounts) {
@@ -56,7 +60,32 @@ public class PlanPersistenceAnalyticsRepository implements PlanAnalyticsReposito
                 ))
                 .toList();
 
-        return new PlanAnalytics(total, design, scheduled, inProgress, completed, canceled, overdue, upcoming);
+        List<PlanAnalytics.OwnerLoad> ownerLoadAnalytics = ownerLoads.stream()
+                .map(load -> new PlanAnalytics.OwnerLoad(
+                        load.ownerId(),
+                        load.totalPlans(),
+                        load.activePlans(),
+                        load.overduePlans()
+                ))
+                .toList();
+
+        List<PlanAnalytics.RiskPlan> riskPlanAnalytics = riskPlans.stream()
+                .filter(entity -> entity.riskLevel() != null)
+                .map(entity -> new PlanAnalytics.RiskPlan(
+                        entity.planId(),
+                        entity.title(),
+                        entity.status(),
+                        entity.plannedEndTime(),
+                        entity.ownerId(),
+                        entity.customerId(),
+                        toRiskLevel(entity.riskLevel()),
+                        entity.minutesUntilDue() == null ? 0 : entity.minutesUntilDue(),
+                        entity.minutesOverdue() == null ? 0 : entity.minutesOverdue()
+                ))
+                .toList();
+
+        return new PlanAnalytics(total, design, scheduled, inProgress, completed, canceled, overdue, upcoming,
+                ownerLoadAnalytics, riskPlanAnalytics);
     }
 
     private int calculateProgress(Long completedNodes, Long totalNodes) {
@@ -66,5 +95,12 @@ public class PlanPersistenceAnalyticsRepository implements PlanAnalyticsReposito
             return 0;
         }
         return (int) Math.round(completed * 100.0 / total);
+    }
+
+    private PlanAnalytics.RiskLevel toRiskLevel(String value) {
+        if (value == null) {
+            return null;
+        }
+        return PlanAnalytics.RiskLevel.valueOf(value);
     }
 }

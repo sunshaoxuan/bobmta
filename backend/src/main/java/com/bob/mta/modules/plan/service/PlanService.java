@@ -30,10 +30,12 @@ public interface PlanService {
 
     Plan cancelPlan(String id, String operator, String reason);
 
-    PlanNodeExecution startNode(String planId, String nodeId, String operator);
+    Plan startNode(String planId, String nodeId, String operator);
 
-    PlanNodeExecution completeNode(String planId, String nodeId, String operator, String result,
-                                   String log, List<String> fileIds);
+    Plan completeNode(String planId, String nodeId, String operator, String result,
+                      String log, List<String> fileIds);
+
+    Plan handoverNode(String planId, String nodeId, String newAssignee, String comment, String operator);
 
     Plan handoverPlan(String planId, String newOwner, List<String> participants, String note, String operator);
 
@@ -45,7 +47,21 @@ public interface PlanService {
 
     Plan updateReminderPolicy(String planId, List<PlanReminderRule> rules, String operator);
 
+    Plan updateReminderRule(String planId, String reminderId, Boolean active, Integer offsetMinutes, String operator);
+
     List<PlanReminderSchedule> previewReminderSchedule(String planId, OffsetDateTime referenceTime);
 
-    PlanAnalytics getAnalytics(String tenantId, String customerId, OffsetDateTime from, OffsetDateTime to);
+    PlanAnalytics getAnalytics(String tenantId, String customerId, String ownerId,
+                               OffsetDateTime from, OffsetDateTime to,
+                               OffsetDateTime referenceTime,
+                               Integer upcomingLimit,
+                               Integer ownerLimit,
+                               Integer riskLimit,
+                               Integer dueSoonMinutes);
+
+    List<PlanActivityDescriptor> describeActivities();
+
+    PlanReminderConfigurationDescriptor describeReminderOptions();
+
+    PlanFilterDescriptor describePlanFilters(String tenantId);
 }

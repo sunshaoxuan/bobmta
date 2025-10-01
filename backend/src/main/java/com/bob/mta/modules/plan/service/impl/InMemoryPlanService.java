@@ -3,6 +3,7 @@ package com.bob.mta.modules.plan.service.impl;
 import com.bob.mta.common.exception.BusinessException;
 import com.bob.mta.common.exception.ErrorCode;
 import com.bob.mta.common.i18n.MessageResolver;
+import com.bob.mta.i18n.LocalizationKeys;
 import com.bob.mta.modules.file.service.FileService;
 import com.bob.mta.modules.plan.domain.Plan;
 import com.bob.mta.modules.plan.domain.PlanActivity;
@@ -20,6 +21,9 @@ import com.bob.mta.modules.plan.repository.PlanAnalyticsQuery;
 import com.bob.mta.modules.plan.repository.PlanAnalyticsRepository;
 import com.bob.mta.modules.plan.repository.PlanRepository;
 import com.bob.mta.modules.plan.repository.PlanSearchCriteria;
+import com.bob.mta.modules.plan.service.PlanActivityDescriptor;
+import com.bob.mta.modules.plan.service.PlanFilterDescriptor;
+import com.bob.mta.modules.plan.service.PlanReminderConfigurationDescriptor;
 import com.bob.mta.modules.plan.service.PlanService;
 import com.bob.mta.modules.plan.service.PlanSearchResult;
 import com.bob.mta.modules.plan.service.command.CreatePlanCommand;
@@ -39,7 +43,9 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.function.Function;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 @Service
 @Transactional(readOnly = true)
@@ -47,6 +53,77 @@ public class InMemoryPlanService implements PlanService {
 
     private static final DateTimeFormatter ICS_FORMATTER = DateTimeFormatter.ofPattern("yyyyMMdd'T'HHmmss'Z'", Locale.US)
             .withZone(ZoneOffset.UTC);
+
+    private static final List<PlanStatus> STATUS_ORDER = List.of(
+            PlanStatus.DESIGN,
+            PlanStatus.SCHEDULED,
+            PlanStatus.IN_PROGRESS,
+            PlanStatus.COMPLETED,
+            PlanStatus.CANCELED
+    );
+
+    private static final List<PlanActivityDescriptor> ACTIVITY_DESCRIPTORS = List.of(
+            descriptor(PlanActivityType.PLAN_CREATED,
+                    List.of("plan.activity.created"),
+                    attribute("title", "plan.activity.attr.title"),
+                    attribute("owner", "plan.activity.attr.owner")),
+            descriptor(PlanActivityType.PLAN_UPDATED,
+                    List.of("plan.activity.definitionUpdated"),
+                    attribute("title", "plan.activity.attr.title"),
+                    attribute("timezone", "plan.activity.attr.timezone"),
+                    attribute("participantCount", "plan.activity.attr.participantCount")),
+            descriptor(PlanActivityType.PLAN_PUBLISHED,
+                    List.of("plan.activity.published"),
+                    attribute("status", "plan.activity.attr.status"),
+                    attribute("operator", "plan.activity.attr.operator")),
+            descriptor(PlanActivityType.PLAN_CANCELLED,
+                    List.of("plan.activity.cancelled"),
+                    attribute("reason", "plan.activity.attr.reason"),
+                    attribute("operator", "plan.activity.attr.operator")),
+            descriptor(PlanActivityType.PLAN_COMPLETED,
+                    List.of("plan.activity.completed"),
+                    attribute("operator", "plan.activity.attr.operator")),
+            descriptor(PlanActivityType.PLAN_HANDOVER,
+                    List.of("plan.activity.handover"),
+                    attribute("oldOwner", "plan.activity.attr.oldOwner"),
+                    attribute("newOwner", "plan.activity.attr.newOwner"),
+                    attribute("operator", "plan.activity.attr.operator"),
+                    attribute("participantCount", "plan.activity.attr.participantCount"),
+                    attribute("note", "plan.activity.attr.note")),
+            descriptor(PlanActivityType.NODE_STARTED,
+                    List.of("plan.activity.nodeStarted"),
+                    attribute("nodeName", "plan.activity.attr.nodeName"),
+                    attribute("assignee", "plan.activity.attr.assignee"),
+                    attribute("operator", "plan.activity.attr.operator")),
+            descriptor(PlanActivityType.NODE_COMPLETED,
+                    List.of("plan.activity.nodeCompleted"),
+                    attribute("nodeName", "plan.activity.attr.nodeName"),
+                    attribute("operator", "plan.activity.attr.operator"),
+                    attribute("result", "plan.activity.attr.result")),
+            descriptor(PlanActivityType.NODE_HANDOVER,
+                    List.of("plan.activity.nodeHandover"),
+                    attribute("nodeName", "plan.activity.attr.nodeName"),
+                    attribute("previousAssignee", "plan.activity.attr.previousAssignee"),
+                    attribute("newAssignee", "plan.activity.attr.newAssignee"),
+                    attribute("operator", "plan.activity.attr.operator"),
+                    attribute("comment", "plan.activity.attr.comment")),
+            descriptor(PlanActivityType.NODE_AUTO_COMPLETED,
+                    List.of("plan.activity.nodeAutoCompleted"),
+                    attribute("nodeName", "plan.activity.attr.nodeName"),
+                    attribute("threshold", "plan.activity.attr.threshold"),
+                    attribute("completedChildren", "plan.activity.attr.completedChildren"),
+                    attribute("totalChildren", "plan.activity.attr.totalChildren")),
+            descriptor(PlanActivityType.NODE_SKIPPED,
+                    List.of("plan.activity.nodeSkipped"),
+                    attribute("nodeName", "plan.activity.attr.nodeName"),
+                    attribute("parentNodeId", "plan.activity.attr.parentNodeId"),
+                    attribute("parentNode", "plan.activity.attr.parentNode")),
+            descriptor(PlanActivityType.REMINDER_POLICY_UPDATED,
+                    List.of("plan.activity.reminderUpdated", "plan.activity.reminderRuleUpdated"),
+                    attribute("ruleCount", "plan.activity.attr.ruleCount"),
+                    attribute("offsetMinutes", "plan.activity.attr.offsetMinutes"),
+                    attribute("active", "plan.activity.attr.active"))
+    );
 
     private final FileService fileService;
     private final PlanRepository planRepository;
@@ -208,12 +285,12 @@ public class InMemoryPlanService implements PlanService {
 
     @Override
     @Transactional
-    public PlanNodeExecution startNode(String planId, String nodeId, String operator) {
+    public Plan startNode(String planId, String nodeId, String operator) {
         Plan current = requirePlan(planId);
         ensurePlanExecutable(current);
         PlanNodeExecution target = findExecution(current, nodeId);
         if (target.getStatus() == PlanNodeStatus.DONE || target.getStatus() == PlanNodeStatus.IN_PROGRESS) {
-            return target;
+            return current;
         }
         OffsetDateTime now = OffsetDateTime.now();
         PlanNode node = findNode(current, nodeId);
@@ -240,18 +317,18 @@ public class InMemoryPlanService implements PlanService {
         Plan updated = current.withStatus(nextStatus, actualStart, null, executions, now,
                 null, null, null, activities);
         planRepository.save(updated);
-        return executions.stream().filter(exec -> exec.getNodeId().equals(nodeId)).findFirst().orElse(target);
+        return updated;
     }
 
     @Override
     @Transactional
-    public PlanNodeExecution completeNode(String planId, String nodeId, String operator, String result,
-                                   String log, List<String> fileIds) {
+    public Plan completeNode(String planId, String nodeId, String operator, String result,
+                             String log, List<String> fileIds) {
         Plan current = requirePlan(planId);
         ensurePlanExecutable(current);
         PlanNodeExecution target = findExecution(current, nodeId);
         if (target.getStatus() == PlanNodeStatus.DONE) {
-            return target;
+            return current;
         }
         if (target.getStatus() != PlanNodeStatus.IN_PROGRESS) {
             throw new BusinessException(ErrorCode.BAD_REQUEST, message("plan.error.nodeMustBeStarted"));
@@ -264,7 +341,10 @@ public class InMemoryPlanService implements PlanService {
         OffsetDateTime startTime = target.getStartTime() != null ? target.getStartTime() : now;
         List<PlanNodeExecution> executions = replaceExecution(current.getExecutions(), nodeId,
                 new PlanNodeExecution(nodeId, PlanNodeStatus.DONE, startTime, now, operator, result, log, safeFiles));
-        boolean allDone = executions.stream().allMatch(exec -> exec.getStatus() == PlanNodeStatus.DONE);
+        ThresholdAdjustment thresholdAdjustment = applyCompletionThresholds(current, executions, now, operator);
+        executions = thresholdAdjustment.executions();
+        boolean allDone = executions.stream()
+                .allMatch(exec -> exec.getStatus() == PlanNodeStatus.DONE || exec.getStatus() == PlanNodeStatus.SKIPPED);
         PlanStatus nextStatus = allDone ? PlanStatus.COMPLETED : current.getStatus();
         OffsetDateTime actualStart = current.getActualStartTime() != null ? current.getActualStartTime() : startTime;
         OffsetDateTime actualEnd = allDone ? now : current.getActualEndTime();
@@ -280,6 +360,9 @@ public class InMemoryPlanService implements PlanService {
                         "operator", operator,
                         "result", result
                 )));
+        for (PlanActivity activity : thresholdAdjustment.activities()) {
+            activities = appendActivity(activities, activity);
+        }
         if (allDone) {
             activities = appendActivity(activities, new PlanActivity(
                     PlanActivityType.PLAN_COMPLETED,
@@ -294,7 +377,39 @@ public class InMemoryPlanService implements PlanService {
         Plan updated = current.withStatus(nextStatus, actualStart, actualEnd, executions, now,
                 null, null, null, activities);
         planRepository.save(updated);
-        return executions.stream().filter(exec -> exec.getNodeId().equals(nodeId)).findFirst().orElse(target);
+        return updated;
+    }
+
+    @Override
+    @Transactional
+    public Plan handoverNode(String planId, String nodeId, String newAssignee, String comment, String operator) {
+        Plan current = requirePlan(planId);
+        ensurePlanExecutable(current);
+        if (!StringUtils.hasText(newAssignee)) {
+            throw new BusinessException(ErrorCode.BAD_REQUEST, message("plan.error.nodeAssigneeRequired"));
+        }
+        OffsetDateTime now = OffsetDateTime.now();
+        PlanNode node = findNode(current, nodeId);
+        PlanNode updatedNode = node.withAssignee(newAssignee);
+        List<PlanNode> nodes = replaceNode(current.getNodes(), nodeId, updatedNode);
+        Map<String, String> attributes = attributes(
+                "nodeName", node.getName(),
+                "previousAssignee", node.getAssignee(),
+                "newAssignee", newAssignee,
+                "operator", operator,
+                "comment", StringUtils.hasText(comment) ? comment : null
+        );
+        List<PlanActivity> activities = appendActivity(current, new PlanActivity(
+                PlanActivityType.NODE_HANDOVER,
+                now,
+                operator,
+                message("plan.activity.nodeHandover"),
+                nodeId,
+                attributes
+        ));
+        Plan updated = current.withNodes(nodes, current.getExecutions(), now, activities);
+        planRepository.save(updated);
+        return updated;
     }
 
     @Override
@@ -375,6 +490,41 @@ public class InMemoryPlanService implements PlanService {
     }
 
     @Override
+    @Transactional
+    public Plan updateReminderRule(String planId, String reminderId, Boolean active, Integer offsetMinutes, String operator) {
+        Plan current = requirePlan(planId);
+        OffsetDateTime now = OffsetDateTime.now();
+        List<PlanReminderRule> rules = current.getReminderPolicy().getRules();
+        PlanReminderRule target = rules.stream()
+                .filter(rule -> Objects.equals(rule.getId(), reminderId))
+                .findFirst()
+                .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND));
+        int normalizedOffset = offsetMinutes == null ? target.getOffsetMinutes() : offsetMinutes;
+        if (normalizedOffset < 0) {
+            throw new BusinessException(ErrorCode.BAD_REQUEST, message("plan.error.reminderOffsetNonNegative"));
+        }
+        boolean nextActive = active == null ? target.isActive() : active;
+        PlanReminderRule updatedRule = target.withOffsetMinutes(normalizedOffset).withActive(nextActive);
+        List<PlanReminderRule> updatedRules = rules.stream()
+                .map(rule -> Objects.equals(rule.getId(), reminderId) ? updatedRule : rule)
+                .collect(Collectors.toList());
+        PlanReminderPolicy policy = current.getReminderPolicy().withRules(updatedRules, now, operator);
+        List<PlanActivity> activities = appendActivity(current, new PlanActivity(
+                PlanActivityType.REMINDER_POLICY_UPDATED,
+                now,
+                operator,
+                message("plan.activity.reminderRuleUpdated"),
+                reminderId,
+                attributes(
+                        "offsetMinutes", String.valueOf(normalizedOffset),
+                        "active", String.valueOf(nextActive)
+                )));
+        Plan updated = current.withReminderPolicy(policy, now, activities);
+        planRepository.save(updated);
+        return updated;
+    }
+
+    @Override
     public List<PlanReminderSchedule> previewReminderSchedule(String planId, OffsetDateTime referenceTime) {
         Plan plan = requirePlan(planId);
         OffsetDateTime baseline = referenceTime == null ? OffsetDateTime.now() : referenceTime;
@@ -392,17 +542,143 @@ public class InMemoryPlanService implements PlanService {
     }
 
     @Override
-    public PlanAnalytics getAnalytics(String tenantId, String customerId, OffsetDateTime from, OffsetDateTime to) {
-        OffsetDateTime reference = OffsetDateTime.now();
+    public PlanAnalytics getAnalytics(String tenantId, String customerId, String ownerId,
+                                      OffsetDateTime from, OffsetDateTime to,
+                                      OffsetDateTime referenceTime,
+                                      Integer upcomingLimit,
+                                      Integer ownerLimit,
+                                      Integer riskLimit,
+                                      Integer dueSoonMinutes) {
+        OffsetDateTime reference = referenceTime != null ? referenceTime : OffsetDateTime.now();
         PlanAnalyticsQuery query = PlanAnalyticsQuery.builder()
                 .tenantId(StringUtils.hasText(tenantId) ? tenantId : null)
                 .customerId(StringUtils.hasText(customerId) ? customerId : null)
+                .ownerId(StringUtils.hasText(ownerId) ? ownerId : null)
                 .from(from)
                 .to(to)
                 .referenceTime(reference)
-                .upcomingLimit(5)
+                .upcomingLimit(upcomingLimit)
+                .ownerLimit(ownerLimit)
+                .riskLimit(riskLimit)
+                .dueSoonMinutes(dueSoonMinutes)
                 .build();
         return planAnalyticsRepository.summarize(query);
+    }
+
+    @Override
+    public List<PlanActivityDescriptor> describeActivities() {
+        return ACTIVITY_DESCRIPTORS;
+    }
+
+    @Override
+    public PlanFilterDescriptor describePlanFilters(String tenantId) {
+        Stream<Plan> scopedStream = planRepository.findAll().stream();
+        if (StringUtils.hasText(tenantId)) {
+            scopedStream = scopedStream.filter(plan -> tenantId.equals(plan.getTenantId()));
+        }
+        List<Plan> scopedPlans = scopedStream.toList();
+
+        Map<PlanStatus, Long> statusCounts = scopedPlans.stream()
+                .collect(Collectors.groupingBy(Plan::getStatus, Collectors.counting()));
+
+        List<PlanFilterDescriptor.Option> statusOptions = STATUS_ORDER.stream()
+                .map(status -> new PlanFilterDescriptor.Option(
+                        status.name(),
+                        message(statusLabelKey(status)),
+                        statusCounts.getOrDefault(status, 0L)))
+                .toList();
+
+        Map<String, Long> ownerCounts = scopedPlans.stream()
+                .map(Plan::getOwner)
+                .filter(StringUtils::hasText)
+                .collect(Collectors.groupingBy(Function.identity(), Collectors.counting()));
+
+        List<PlanFilterDescriptor.Option> ownerOptions = ownerCounts.entrySet().stream()
+                .sorted(Map.Entry.<String, Long>comparingByValue(Comparator.reverseOrder())
+                        .thenComparing(Map.Entry.comparingByKey()))
+                .map(entry -> new PlanFilterDescriptor.Option(entry.getKey(), entry.getKey(), entry.getValue()))
+                .toList();
+
+        Map<String, Long> customerCounts = scopedPlans.stream()
+                .map(Plan::getCustomerId)
+                .filter(StringUtils::hasText)
+                .collect(Collectors.groupingBy(Function.identity(), Collectors.counting()));
+
+        List<PlanFilterDescriptor.Option> customerOptions = customerCounts.entrySet().stream()
+                .sorted(Map.Entry.<String, Long>comparingByValue(Comparator.reverseOrder())
+                        .thenComparing(Map.Entry.comparingByKey()))
+                .map(entry -> new PlanFilterDescriptor.Option(entry.getKey(), entry.getKey(), entry.getValue()))
+                .toList();
+
+        OffsetDateTime earliestStart = scopedPlans.stream()
+                .map(Plan::getPlannedStartTime)
+                .filter(Objects::nonNull)
+                .min(OffsetDateTime::compareTo)
+                .orElse(null);
+        OffsetDateTime latestEnd = scopedPlans.stream()
+                .map(Plan::getPlannedEndTime)
+                .filter(Objects::nonNull)
+                .max(OffsetDateTime::compareTo)
+                .orElse(null);
+
+        PlanFilterDescriptor.DateRange window = (earliestStart != null || latestEnd != null)
+                ? new PlanFilterDescriptor.DateRange(earliestStart, latestEnd)
+                : null;
+
+        return new PlanFilterDescriptor(
+                message(LocalizationKeys.PlanFilter.STATUS_LABEL),
+                statusOptions,
+                message(LocalizationKeys.PlanFilter.OWNER_LABEL),
+                ownerOptions,
+                message(LocalizationKeys.PlanFilter.CUSTOMER_LABEL),
+                customerOptions,
+                message(LocalizationKeys.PlanFilter.WINDOW_LABEL),
+                message(LocalizationKeys.PlanFilter.WINDOW_HINT),
+                window
+        );
+    }
+
+    @Override
+    public PlanReminderConfigurationDescriptor describeReminderOptions() {
+        List<PlanReminderConfigurationDescriptor.Option> triggers = List.of(
+                new PlanReminderConfigurationDescriptor.Option(
+                        PlanReminderTrigger.BEFORE_PLAN_START.name(),
+                        LocalizationKeys.PlanReminder.TRIGGER_BEFORE_START,
+                        LocalizationKeys.PlanReminder.TRIGGER_BEFORE_START_DESC),
+                new PlanReminderConfigurationDescriptor.Option(
+                        PlanReminderTrigger.BEFORE_PLAN_END.name(),
+                        LocalizationKeys.PlanReminder.TRIGGER_BEFORE_END,
+                        LocalizationKeys.PlanReminder.TRIGGER_BEFORE_END_DESC)
+        );
+        List<PlanReminderConfigurationDescriptor.Option> channels = List.of(
+                new PlanReminderConfigurationDescriptor.Option(
+                        "EMAIL",
+                        LocalizationKeys.PlanReminder.CHANNEL_EMAIL,
+                        LocalizationKeys.PlanReminder.CHANNEL_EMAIL_DESC),
+                new PlanReminderConfigurationDescriptor.Option(
+                        "IM",
+                        LocalizationKeys.PlanReminder.CHANNEL_IM,
+                        LocalizationKeys.PlanReminder.CHANNEL_IM_DESC),
+                new PlanReminderConfigurationDescriptor.Option(
+                        "SMS",
+                        LocalizationKeys.PlanReminder.CHANNEL_SMS,
+                        LocalizationKeys.PlanReminder.CHANNEL_SMS_DESC)
+        );
+        List<PlanReminderConfigurationDescriptor.Option> recipientGroups = List.of(
+                new PlanReminderConfigurationDescriptor.Option(
+                        "OWNER",
+                        LocalizationKeys.PlanReminder.RECIPIENT_OWNER,
+                        LocalizationKeys.PlanReminder.RECIPIENT_OWNER_DESC),
+                new PlanReminderConfigurationDescriptor.Option(
+                        "PARTICIPANTS",
+                        LocalizationKeys.PlanReminder.RECIPIENT_PARTICIPANTS,
+                        LocalizationKeys.PlanReminder.RECIPIENT_PARTICIPANTS_DESC),
+                new PlanReminderConfigurationDescriptor.Option(
+                        "CUSTOM",
+                        LocalizationKeys.PlanReminder.RECIPIENT_CUSTOM,
+                        LocalizationKeys.PlanReminder.RECIPIENT_CUSTOM_DESC)
+        );
+        return new PlanReminderConfigurationDescriptor(triggers, channels, recipientGroups, 0, 1440, 60);
     }
 
     private Plan buildPlan(String id, CreatePlanCommand command, OffsetDateTime now) {
@@ -438,7 +714,8 @@ public class InMemoryPlanService implements PlanService {
         List<PlanNode> children = toNodes(command.getChildren());
         String nodeId = StringUtils.hasText(command.getId()) ? command.getId() : planRepository.nextNodeId();
         return new PlanNode(nodeId, command.getName(), command.getType(), command.getAssignee(), command.getOrder(),
-                command.getExpectedDurationMinutes(), command.getActionRef(), command.getDescription(), children);
+                command.getExpectedDurationMinutes(), command.getActionType(), command.getCompletionThreshold(),
+                command.getActionRef(), command.getDescription(), children);
     }
 
     private List<PlanNodeExecution> initializeExecutions(List<PlanNode> nodes) {
@@ -454,6 +731,117 @@ public class InMemoryPlanService implements PlanService {
             all.addAll(flatten(node.getChildren()));
         }
         return all;
+    }
+
+    private ThresholdAdjustment applyCompletionThresholds(Plan plan, List<PlanNodeExecution> executions,
+                                                           OffsetDateTime now, String operator) {
+        if (plan.getNodes().isEmpty()) {
+            return new ThresholdAdjustment(executions, List.of());
+        }
+        Map<String, PlanNodeExecution> executionIndex = executions.stream()
+                .collect(Collectors.toMap(PlanNodeExecution::getNodeId, Function.identity()));
+        List<PlanNode> allNodes = flatten(plan.getNodes());
+        Map<String, List<PlanNode>> childrenIndex = new HashMap<>();
+        for (PlanNode node : allNodes) {
+            for (PlanNode child : node.getChildren()) {
+                childrenIndex.computeIfAbsent(node.getId(), key -> new ArrayList<>()).add(child);
+            }
+        }
+
+        List<PlanActivity> activities = new ArrayList<>();
+        boolean changed;
+        do {
+            changed = false;
+            for (PlanNode node : allNodes) {
+                List<PlanNode> children = childrenIndex.getOrDefault(node.getId(), List.of());
+                if (children.isEmpty()) {
+                    continue;
+                }
+                PlanNodeExecution parentExec = executionIndex.get(node.getId());
+                if (parentExec == null || parentExec.getStatus() == PlanNodeStatus.DONE) {
+                    continue;
+                }
+                int threshold = normalizeThreshold(node.getCompletionThreshold());
+                long doneChildren = children.stream()
+                        .map(child -> executionIndex.get(child.getId()))
+                        .filter(exec -> exec != null && exec.getStatus() == PlanNodeStatus.DONE)
+                        .count();
+                int totalChildren = children.size();
+                double completionRatio = totalChildren == 0 ? 100 : doneChildren * 100.0 / totalChildren;
+                if (completionRatio < threshold) {
+                    continue;
+                }
+                if (parentExec.getStatus() != PlanNodeStatus.DONE) {
+                    PlanNodeExecution completed = new PlanNodeExecution(parentExec.getNodeId(), PlanNodeStatus.DONE,
+                            parentExec.getStartTime() == null ? now : parentExec.getStartTime(),
+                            now, operator, parentExec.getResult(), parentExec.getLog(), parentExec.getFileIds());
+                    executionIndex.put(parentExec.getNodeId(), completed);
+                    activities.add(new PlanActivity(
+                            PlanActivityType.NODE_AUTO_COMPLETED,
+                            now,
+                            operator,
+                            message("plan.activity.nodeAutoCompleted"),
+                            parentExec.getNodeId(),
+                            attributes(
+                                    "nodeName", node.getName(),
+                                    "threshold", String.valueOf(threshold),
+                                    "completedChildren", String.valueOf(doneChildren),
+                                    "totalChildren", String.valueOf(totalChildren)
+                            )));
+                    changed = true;
+                }
+                for (PlanNode child : children) {
+                    PlanNodeExecution childExec = executionIndex.get(child.getId());
+                    if (childExec == null || childExec.getStatus() == PlanNodeStatus.DONE
+                            || childExec.getStatus() == PlanNodeStatus.SKIPPED) {
+                        continue;
+                    }
+                    PlanNodeExecution skipped = new PlanNodeExecution(childExec.getNodeId(), PlanNodeStatus.SKIPPED,
+                            childExec.getStartTime(), now, operator, childExec.getResult(), childExec.getLog(),
+                            childExec.getFileIds());
+                    executionIndex.put(childExec.getNodeId(), skipped);
+                    activities.add(new PlanActivity(
+                            PlanActivityType.NODE_SKIPPED,
+                            now,
+                            operator,
+                            message("plan.activity.nodeSkipped"),
+                            childExec.getNodeId(),
+                            attributes(
+                                    "nodeName", child.getName(),
+                                    "parentNodeId", node.getId(),
+                                    "parentNode", node.getName()
+                            )));
+                    changed = true;
+                }
+            }
+        } while (changed);
+
+        List<PlanNodeExecution> orderedExecutions = executions.stream()
+                .map(exec -> executionIndex.getOrDefault(exec.getNodeId(), exec))
+                .toList();
+        return new ThresholdAdjustment(orderedExecutions, activities);
+    }
+
+    private int normalizeThreshold(Integer threshold) {
+        if (threshold == null) {
+            return 100;
+        }
+        if (threshold < 0) {
+            return 0;
+        }
+        return Math.min(threshold, 100);
+    }
+
+    private static PlanActivityDescriptor descriptor(PlanActivityType type, List<String> messageKeys,
+                                                     PlanActivityDescriptor.ActivityAttribute... attributes) {
+        return new PlanActivityDescriptor(type, messageKeys, List.of(attributes));
+    }
+
+    private static PlanActivityDescriptor.ActivityAttribute attribute(String name, String descriptionKey) {
+        return new PlanActivityDescriptor.ActivityAttribute(name, descriptionKey);
+    }
+
+    private record ThresholdAdjustment(List<PlanNodeExecution> executions, List<PlanActivity> activities) {
     }
 
     private Plan requirePlan(String id) {
@@ -489,6 +877,31 @@ public class InMemoryPlanService implements PlanService {
         return executions.stream()
                 .map(exec -> exec.getNodeId().equals(nodeId) ? replacement : exec)
                 .toList();
+    }
+
+    private List<PlanNode> replaceNode(List<PlanNode> nodes, String nodeId, PlanNode replacement) {
+        if (nodes == null || nodes.isEmpty()) {
+            return nodes;
+        }
+        boolean changed = false;
+        List<PlanNode> updated = new ArrayList<>(nodes.size());
+        for (PlanNode node : nodes) {
+            PlanNode next = node;
+            if (node.getId().equals(nodeId)) {
+                next = replacement;
+                changed = true;
+            } else {
+                List<PlanNode> updatedChildren = replaceNode(node.getChildren(), nodeId, replacement);
+                if (updatedChildren != node.getChildren()) {
+                    next = new PlanNode(node.getId(), node.getName(), node.getType(), node.getAssignee(),
+                            node.getOrder(), node.getExpectedDurationMinutes(), node.getActionType(),
+                            node.getCompletionThreshold(), node.getActionRef(), node.getDescription(), updatedChildren);
+                    changed = true;
+                }
+            }
+            updated.add(next);
+        }
+        return changed ? updated : nodes;
     }
 
     private List<PlanActivity> appendActivity(Plan plan, PlanActivity activity) {
@@ -616,6 +1029,16 @@ public class InMemoryPlanService implements PlanService {
 
     private String nextReminderId() {
         return planRepository.nextReminderId();
+    }
+
+    private String statusLabelKey(PlanStatus status) {
+        return switch (status) {
+            case DESIGN -> LocalizationKeys.Frontend.PLAN_STATUS_DESIGN;
+            case SCHEDULED -> LocalizationKeys.Frontend.PLAN_STATUS_SCHEDULED;
+            case IN_PROGRESS -> LocalizationKeys.Frontend.PLAN_STATUS_IN_PROGRESS;
+            case COMPLETED -> LocalizationKeys.Frontend.PLAN_STATUS_COMPLETED;
+            case CANCELED -> LocalizationKeys.Frontend.PLAN_STATUS_CANCELLED;
+        };
     }
 
     private String message(String code, Object... args) {

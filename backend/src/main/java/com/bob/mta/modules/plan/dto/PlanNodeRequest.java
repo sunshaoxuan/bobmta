@@ -1,8 +1,11 @@
 package com.bob.mta.modules.plan.dto;
 
+import com.bob.mta.modules.plan.domain.PlanNodeActionType;
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
 
 import java.util.List;
 
@@ -22,6 +25,13 @@ public class PlanNodeRequest {
     private int order;
 
     private Integer expectedDurationMinutes;
+
+    @NotNull
+    private PlanNodeActionType actionType;
+
+    @Min(0)
+    @Max(100)
+    private Integer completionThreshold;
 
     private String actionRef;
 
@@ -72,6 +82,22 @@ public class PlanNodeRequest {
 
     public Integer getExpectedDurationMinutes() {
         return expectedDurationMinutes;
+    }
+
+    public PlanNodeActionType getActionType() {
+        return actionType;
+    }
+
+    public void setActionType(PlanNodeActionType actionType) {
+        this.actionType = actionType;
+    }
+
+    public Integer getCompletionThreshold() {
+        return completionThreshold;
+    }
+
+    public void setCompletionThreshold(Integer completionThreshold) {
+        this.completionThreshold = completionThreshold;
     }
 
     public void setExpectedDurationMinutes(Integer expectedDurationMinutes) {

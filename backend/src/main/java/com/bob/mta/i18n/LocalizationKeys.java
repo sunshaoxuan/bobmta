@@ -56,6 +56,17 @@ public final class LocalizationKeys {
         }
     }
 
+    public static final class PlanFilter {
+        public static final String STATUS_LABEL = "plan.filter.status.label";
+        public static final String OWNER_LABEL = "plan.filter.owner.label";
+        public static final String CUSTOMER_LABEL = "plan.filter.customer.label";
+        public static final String WINDOW_LABEL = "plan.filter.window.label";
+        public static final String WINDOW_HINT = "plan.filter.window.hint";
+
+        private PlanFilter() {
+        }
+    }
+
     public static final class Validation {
         public static final String MULTILINGUAL_DEFAULT_LOCALE_REQUIRED =
                 "validation.multilingual.defaultLocaleRequired";
@@ -220,6 +231,28 @@ public final class LocalizationKeys {
         public static final String CUSTOMER_FIELD_NOTE_LABEL = "seed.customer.field.note";
 
         private Seeds() {
+        }
+    }
+
+    public static final class PlanReminder {
+        public static final String TRIGGER_BEFORE_START = "plan.reminder.trigger.beforeStart";
+        public static final String TRIGGER_BEFORE_START_DESC = "plan.reminder.trigger.beforeStart.description";
+        public static final String TRIGGER_BEFORE_END = "plan.reminder.trigger.beforeEnd";
+        public static final String TRIGGER_BEFORE_END_DESC = "plan.reminder.trigger.beforeEnd.description";
+        public static final String CHANNEL_EMAIL = "plan.reminder.channel.email";
+        public static final String CHANNEL_EMAIL_DESC = "plan.reminder.channel.email.description";
+        public static final String CHANNEL_IM = "plan.reminder.channel.im";
+        public static final String CHANNEL_IM_DESC = "plan.reminder.channel.im.description";
+        public static final String CHANNEL_SMS = "plan.reminder.channel.sms";
+        public static final String CHANNEL_SMS_DESC = "plan.reminder.channel.sms.description";
+        public static final String RECIPIENT_OWNER = "plan.reminder.recipient.owner";
+        public static final String RECIPIENT_OWNER_DESC = "plan.reminder.recipient.owner.description";
+        public static final String RECIPIENT_PARTICIPANTS = "plan.reminder.recipient.participants";
+        public static final String RECIPIENT_PARTICIPANTS_DESC = "plan.reminder.recipient.participants.description";
+        public static final String RECIPIENT_CUSTOM = "plan.reminder.recipient.custom";
+        public static final String RECIPIENT_CUSTOM_DESC = "plan.reminder.recipient.custom.description";
+
+        private PlanReminder() {
         }
     }
 
