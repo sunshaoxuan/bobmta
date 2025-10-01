@@ -15,6 +15,7 @@ import com.bob.mta.modules.plan.dto.CreatePlanRequest;
 import com.bob.mta.modules.plan.dto.PlanActivityResponse;
 import com.bob.mta.modules.plan.dto.PlanActivityTypeMetadataResponse;
 import com.bob.mta.modules.plan.dto.PlanAnalyticsResponse;
+import com.bob.mta.modules.plan.dto.PlanBoardResponse;
 import com.bob.mta.modules.plan.dto.PlanDetailResponse;
 import com.bob.mta.modules.plan.dto.PlanNodeAttachmentResponse;
 import com.bob.mta.modules.plan.dto.PlanNodeHandoverRequest;
@@ -36,6 +37,7 @@ import com.bob.mta.modules.plan.service.PlanService;
 import com.bob.mta.modules.plan.service.command.CreatePlanCommand;
 import com.bob.mta.modules.plan.service.command.PlanNodeCommand;
 import com.bob.mta.modules.plan.service.command.UpdatePlanCommand;
+import com.bob.mta.modules.plan.repository.PlanBoardQuery;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
@@ -52,6 +54,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.util.StringUtils;
 
 import java.time.OffsetDateTime;
 import java.util.List;
@@ -89,6 +92,32 @@ public class PlanController {
                 .map(PlanSummaryResponse::from)
                 .toList();
         return ApiResponse.success(PageResponse.of(pageItems, result.totalCount(), page, size));
+    }
+
+    @PreAuthorize("hasAnyRole('ADMIN','OPERATOR')")
+    @GetMapping("/board")
+    public ApiResponse<PlanBoardResponse> board(@RequestParam(required = false) String tenantId,
+                                                @RequestParam(name = "customerId", required = false)
+                                                List<String> customerIds,
+                                                @RequestParam(required = false) String owner,
+                                                @RequestParam(name = "status", required = false)
+                                                List<PlanStatus> statuses,
+                                                @RequestParam(required = false) OffsetDateTime from,
+                                                @RequestParam(required = false) OffsetDateTime to,
+                                                @RequestParam(defaultValue = "WEEK")
+                                                PlanBoardQuery.TimeGranularity granularity) {
+        PlanBoardQuery.Builder builder = PlanBoardQuery.builder()
+                .tenantId(StringUtils.hasText(tenantId) ? tenantId : null)
+                .ownerId(StringUtils.hasText(owner) ? owner : null)
+                .from(from)
+                .to(to)
+                .granularity(granularity)
+                .statuses(statuses);
+        if (customerIds != null && !customerIds.isEmpty()) {
+            builder.customerIds(customerIds);
+        }
+        PlanBoardQuery query = builder.build();
+        return ApiResponse.success(PlanBoardResponse.from(planService.getPlanBoard(query)));
     }
 
     @PreAuthorize("hasAnyRole('ADMIN','OPERATOR')")
