@@ -20,7 +20,11 @@ import com.bob.mta.modules.plan.domain.PlanStatus;
 import com.bob.mta.modules.plan.repository.PlanAggregateRepository;
 import com.bob.mta.modules.plan.repository.PlanAnalyticsQuery;
 import com.bob.mta.modules.plan.repository.PlanAnalyticsRepository;
+import com.bob.mta.modules.plan.repository.PlanAttachmentRepository;
+import com.bob.mta.modules.plan.repository.PlanReminderPolicyRepository;
+import com.bob.mta.modules.plan.repository.PlanRepository;
 import com.bob.mta.modules.plan.repository.PlanSearchCriteria;
+import com.bob.mta.modules.plan.repository.PlanTimelineRepository;
 import com.bob.mta.modules.plan.service.PlanActivityDescriptor;
 import com.bob.mta.modules.plan.service.PlanFilterDescriptor;
 import com.bob.mta.modules.plan.service.PlanReminderConfigurationDescriptor;
@@ -152,6 +156,22 @@ public class InMemoryPlanService implements PlanService {
         this.messageResolver = messageResolver;
     }
 
+    private PlanRepository plans() {
+        return planRepository.plans();
+    }
+
+    private PlanReminderPolicyRepository reminderPolicies() {
+        return planRepository.reminderPolicies();
+    }
+
+    private PlanTimelineRepository timelines() {
+        return planRepository.timelines();
+    }
+
+    private PlanAttachmentRepository attachments() {
+        return planRepository.attachments();
+    }
+
     @Override
     public PlanSearchResult listPlans(String tenantId, String customerId, String owner, String keyword, PlanStatus status,
                                       OffsetDateTime from, OffsetDateTime to, int page, int size) {
@@ -169,7 +189,7 @@ public class InMemoryPlanService implements PlanService {
                 .to(to)
                 .build();
 
-        int total = planRepository.countByCriteria(baseCriteria);
+        int total = plans().countByCriteria(baseCriteria);
 
         PlanSearchCriteria pageCriteria = PlanSearchCriteria.builder()
                 .tenantId(baseCriteria.getTenantId())
@@ -183,7 +203,7 @@ public class InMemoryPlanService implements PlanService {
                 .offset(offset)
                 .build();
 
-        List<Plan> plans = planRepository.findByCriteria(pageCriteria).stream()
+        List<Plan> plans = plans().findByCriteria(pageCriteria).stream()
                 .sorted(Comparator.comparing(Plan::getPlannedStartTime, Comparator.nullsLast(Comparator.naturalOrder()))
                         .thenComparing(Plan::getId, Comparator.nullsLast(Comparator.naturalOrder())))
                 .collect(Collectors.toList());
@@ -200,10 +220,10 @@ public class InMemoryPlanService implements PlanService {
     @Transactional
     public Plan createPlan(CreatePlanCommand command) {
         ensureNoConflictsForCreation(command);
-        String id = planRepository.nextPlanId();
+        String id = plans().nextPlanId();
         OffsetDateTime now = OffsetDateTime.now();
         Plan plan = buildPlan(id, command, now);
-        planRepository.save(plan);
+        plans().save(plan);
         persistAggregateState(plan);
         return plan;
     }
@@ -233,7 +253,7 @@ public class InMemoryPlanService implements PlanService {
                 )));
         Plan updated = current.withDefinition(nodes, executions, now, command.getStartTime(), command.getEndTime(),
                 command.getDescription(), command.getParticipants(), timezone, activities);
-        planRepository.save(updated);
+        plans().save(updated);
         persistAggregateState(updated);
         return updated;
     }
@@ -245,7 +265,7 @@ public class InMemoryPlanService implements PlanService {
         if (current.getStatus() != PlanStatus.DESIGN) {
             throw new BusinessException(ErrorCode.BAD_REQUEST, message("plan.error.deleteDesignOnly"));
         }
-        planRepository.delete(id);
+        plans().delete(id);
     }
 
     @Override
@@ -271,7 +291,7 @@ public class InMemoryPlanService implements PlanService {
                 )));
         Plan updated = current.withStatus(nextStatus, actualStart, null, current.getExecutions(), now,
                 null, null, null, activities);
-        planRepository.save(updated);
+        plans().save(updated);
         persistAggregateState(updated);
         return updated;
     }
@@ -296,7 +316,7 @@ public class InMemoryPlanService implements PlanService {
                 )));
         Plan updated = current.withStatus(PlanStatus.CANCELED, null, now, current.getExecutions(), now,
                 reason, operator, now, activities);
-        planRepository.save(updated);
+        plans().save(updated);
         persistAggregateState(updated);
         return updated;
     }
@@ -334,7 +354,7 @@ public class InMemoryPlanService implements PlanService {
                 )));
         Plan updated = current.withStatus(nextStatus, actualStart, null, executions, now,
                 null, null, null, activities);
-        planRepository.save(updated);
+        plans().save(updated);
         persistAggregateState(updated);
         return updated;
     }
@@ -395,7 +415,7 @@ public class InMemoryPlanService implements PlanService {
         }
         Plan updated = current.withStatus(nextStatus, actualStart, actualEnd, executions, now,
                 null, null, null, activities);
-        planRepository.save(updated);
+        plans().save(updated);
         persistAggregateState(updated);
         return updated;
     }
@@ -428,7 +448,7 @@ public class InMemoryPlanService implements PlanService {
                 attributes
         ));
         Plan updated = current.withNodes(nodes, current.getExecutions(), now, activities);
-        planRepository.save(updated);
+        plans().save(updated);
         persistAggregateState(updated);
         return updated;
     }
@@ -463,7 +483,7 @@ public class InMemoryPlanService implements PlanService {
                 attributes
         ));
         Plan updated = current.withOwnerAndParticipants(newOwner, updatedParticipants, now, activities);
-        planRepository.save(updated);
+        plans().save(updated);
         persistAggregateState(updated);
         return updated;
     }
@@ -476,7 +496,7 @@ public class InMemoryPlanService implements PlanService {
 
     @Override
     public String renderTenantCalendar(String tenantId) {
-        List<String> events = planRepository.findAll().stream()
+        List<String> events = plans().findAll().stream()
                 .filter(plan -> Objects.equals(plan.getTenantId(), tenantId))
                 .filter(plan -> plan.getStatus() != PlanStatus.CANCELED)
                 .map(this::buildEvent)
@@ -507,7 +527,7 @@ public class InMemoryPlanService implements PlanService {
                         "ruleCount", String.valueOf(normalized.size())
                 )));
         Plan updated = current.withReminderPolicy(policy, now, activities);
-        planRepository.save(updated);
+        plans().save(updated);
         persistAggregateState(updated);
         return updated;
     }
@@ -543,7 +563,7 @@ public class InMemoryPlanService implements PlanService {
                         "active", String.valueOf(nextActive)
                 )));
         Plan updated = current.withReminderPolicy(policy, now, activities);
-        planRepository.save(updated);
+        plans().save(updated);
         persistAggregateState(updated);
         return updated;
     }
@@ -655,7 +675,7 @@ public class InMemoryPlanService implements PlanService {
         if (criteria == null) {
             return;
         }
-        for (Plan plan : planRepository.findByCriteria(criteria)) {
+        for (Plan plan : plans().findByCriteria(criteria)) {
             if (seen.contains(plan.getId())) {
                 continue;
             }
@@ -730,7 +750,7 @@ public class InMemoryPlanService implements PlanService {
 
     @Override
     public PlanFilterDescriptor describePlanFilters(String tenantId) {
-        Stream<Plan> scopedStream = planRepository.findAll().stream();
+        Stream<Plan> scopedStream = plans().findAll().stream();
         if (StringUtils.hasText(tenantId)) {
             scopedStream = scopedStream.filter(plan -> tenantId.equals(plan.getTenantId()));
         }
@@ -870,7 +890,7 @@ public class InMemoryPlanService implements PlanService {
 
     private PlanNode toNode(PlanNodeCommand command) {
         List<PlanNode> children = toNodes(command.getChildren());
-        String nodeId = StringUtils.hasText(command.getId()) ? command.getId() : planRepository.nextNodeId();
+        String nodeId = StringUtils.hasText(command.getId()) ? command.getId() : plans().nextNodeId();
         return new PlanNode(nodeId, command.getName(), command.getType(), command.getAssignee(), command.getOrder(),
                 command.getExpectedDurationMinutes(), command.getActionType(), command.getCompletionThreshold(),
                 command.getActionRef(), command.getDescription(), children);
@@ -1003,7 +1023,7 @@ public class InMemoryPlanService implements PlanService {
     }
 
     private Plan requirePlan(String id) {
-        return planRepository.findById(id)
+        return plans().findById(id)
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND));
     }
 
@@ -1063,9 +1083,9 @@ public class InMemoryPlanService implements PlanService {
     }
 
     private void persistAggregateState(Plan plan) {
-        planRepository.replaceTimeline(plan.getId(), plan.getActivities());
-        planRepository.replaceReminderPolicy(plan.getId(), plan.getReminderPolicy());
-        planRepository.replaceAttachments(plan.getId(), collectAttachments(plan.getExecutions()));
+        timelines().replaceTimeline(plan.getId(), plan.getActivities());
+        reminderPolicies().replaceReminderPolicy(plan.getId(), plan.getReminderPolicy());
+        attachments().replaceAttachments(plan.getId(), collectAttachments(plan.getExecutions()));
     }
 
     private Map<String, List<String>> collectAttachments(List<PlanNodeExecution> executions) {
@@ -1206,7 +1226,7 @@ public class InMemoryPlanService implements PlanService {
     }
 
     private String nextReminderId() {
-        return planRepository.nextReminderId();
+        return plans().nextReminderId();
     }
 
     private String statusLabelKey(PlanStatus status) {

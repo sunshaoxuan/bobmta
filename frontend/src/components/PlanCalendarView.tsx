@@ -15,13 +15,6 @@ import { listMockPlans } from '../mocks/planList';
 
 const { Text } = Typography;
 
-const GRANULARITY_OPTIONS: Array<{ label: string; value: PlanCalendarGranularity }> = [
-  { label: 'Day', value: 'day' },
-  { label: 'Week', value: 'week' },
-  { label: 'Month', value: 'month' },
-  { label: 'Year', value: 'year' },
-];
-
 export type PlanCalendarViewProps = {
   plans?: PlanSummary[];
   events?: PlanCalendarEvent[];
@@ -30,6 +23,25 @@ export type PlanCalendarViewProps = {
 
 export function PlanCalendarView({ plans, events, translate }: PlanCalendarViewProps) {
   const [granularity, setGranularity] = useState<PlanCalendarGranularity>('month');
+  const granularityOptions = useMemo(
+    () =>
+      [
+        { value: 'day' as PlanCalendarGranularity, label: translate('planCalendarGranularityDay') },
+        {
+          value: 'week' as PlanCalendarGranularity,
+          label: translate('planCalendarGranularityWeek'),
+        },
+        {
+          value: 'month' as PlanCalendarGranularity,
+          label: translate('planCalendarGranularityMonth'),
+        },
+        {
+          value: 'year' as PlanCalendarGranularity,
+          label: translate('planCalendarGranularityYear'),
+        },
+      ],
+    [translate]
+  );
   const calendarEvents = useMemo(() => {
     if (events && events.length > 0) {
       return events;
@@ -52,7 +64,7 @@ export function PlanCalendarView({ plans, events, translate }: PlanCalendarViewP
       className="card-block"
       extra={
         <Space size="small">
-          {GRANULARITY_OPTIONS.map((option) => (
+          {granularityOptions.map((option) => (
             <Button
               key={option.value}
               type={granularity === option.value ? 'primary' : 'default'}

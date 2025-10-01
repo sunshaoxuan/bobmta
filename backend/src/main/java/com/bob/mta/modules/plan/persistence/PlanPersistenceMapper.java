@@ -252,6 +252,13 @@ public final class PlanPersistenceMapper {
                 .collect(Collectors.toList());
     }
 
+    public static List<PlanReminderRuleEntity> toReminderRuleEntities(String planId, PlanReminderPolicy policy) {
+        if (policy == null) {
+            return List.of();
+        }
+        return toReminderRuleEntities(planId, policy.getRules());
+    }
+
     public static PlanReminderPolicy toReminderPolicy(PlanEntity entity, List<PlanReminderRuleEntity> reminderRules) {
         List<PlanReminderRule> rules = toReminderRules(reminderRules);
         return new PlanReminderPolicy(rules, entity.reminderUpdatedAt(), entity.reminderUpdatedBy());

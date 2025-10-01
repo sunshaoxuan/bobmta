@@ -36,6 +36,7 @@ CREATE TABLE IF NOT EXISTS mt_plan (
     reminder_updated_by  VARCHAR(64)
 );
 
+-- 计划筛选与统计常用索引 ------------------------------------------------------
 CREATE INDEX IF NOT EXISTS idx_mt_plan_tenant_status ON mt_plan (tenant_id, status);
 CREATE INDEX IF NOT EXISTS idx_mt_plan_tenant_start ON mt_plan (tenant_id, planned_start_time);
 CREATE INDEX IF NOT EXISTS idx_mt_plan_tenant_end ON mt_plan (tenant_id, planned_end_time);

@@ -2,10 +2,10 @@ spring:
   application:
     name: bob-mta-backend
   datasource:
-    url: jdbc:postgresql://localhost:5432/bobmta
-    username: bobmta
-    password: change-me
-    driver-class-name: org.postgresql.Driver
+    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/bobmta}
+    username: ${SPRING_DATASOURCE_USERNAME:bobmta}
+    password: ${SPRING_DATASOURCE_PASSWORD:change-me}
+    driver-class-name: ${SPRING_DATASOURCE_DRIVER_CLASS_NAME:org.postgresql.Driver}
   transaction:
     default-timeout: 30s
   jackson:
@@ -26,6 +26,7 @@ spring:
     enabled: true
     locations: classpath:db/migration
     baseline-on-migrate: true
+    clean-disabled: true
 mybatis:
   mapper-locations: classpath:/mapper/*.xml
   type-handlers-package: com.bob.mta.common.mybatis

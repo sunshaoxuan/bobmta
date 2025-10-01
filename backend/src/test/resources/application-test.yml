@@ -1,9 +1,9 @@
 spring:
   datasource:
-    url: jdbc:postgresql://localhost:5432/bobmta_test
-    username: bobmta
-    password: secret
-    driver-class-name: org.postgresql.Driver
+    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/bobmta_test}
+    username: ${SPRING_DATASOURCE_USERNAME:bobmta}
+    password: ${SPRING_DATASOURCE_PASSWORD:secret}
+    driver-class-name: ${SPRING_DATASOURCE_DRIVER_CLASS_NAME:org.postgresql.Driver}
   sql:
     init:
       mode: never

@@ -31,6 +31,11 @@
 ### 📦 数据加载约束
 - 仓储在读取数据时应尽量合并查询以减少往返，但面对潜在的大数据量必须提供分页、最大返回量及防止过量读取的保护策略；一旦超出上限，应返回清晰的错误或指引调用方重试并附带翻页参数。
 
+### 🛠️ 数据库迁移与初始化
+- Spring Boot 在检测到数据源后会根据 `application.yml` 中的 Flyway 配置自动执行位于 `classpath:db/migration` 的迁移脚本（已开启 `baseline-on-migrate` 与 `clean-disabled` 防止误清库）。
+- 首次拉起 PostgreSQL 后，可通过 `./mvnw -pl backend -DskipTests flyway:migrate`（或 `mvn -pl backend flyway:migrate`）手动重放迁移，确保本地/测试环境结构与生产一致。
+- 若需要手动建库或在容器外初始化，可直接运行 `backend/src/main/resources/db/schema.sql` 与 `backend/src/main/resources/db/data.sql`，`deploy/postgres/schema.sql`/`data.sql` 也提供了调用同一脚本的快捷入口。
+
 ### ✅ 已完成
 - 迭代 #1：建立运维计划仓储抽象，支撑持久化改造的统一入口。
   - 引入 `PlanRepository` 接口与 `InMemoryPlanRepository` 实现，统一计划、节点、提醒策略的存取与 ID 生成逻辑。
@@ -188,6 +193,7 @@
 - `deploy/postgres/schema.sql` / `data.sql` 作为部署入口的包装脚本，支持在宿主机上通过 `psql -f deploy/postgres/schema.sql` 与 `psql -f deploy/postgres/data.sql` 快速重建数据库。
 - Spring Boot 默认启用 Flyway（`spring.flyway.enabled=true`），应用启动或测试时会自动执行 `db/migration` 目录下的版本化脚本，保持 schema 与索引演进。
 - 若需单独校验数据库迁移，可运行 `mvn -f backend/pom.xml test`（需本地已缓存 Spring Boot 依赖或配置私有仓库镜像），集成测试会基于 Testcontainers 的 PostgreSQL 自动拉起数据库、执行 Flyway 迁移，并验证多维筛选、统计与事务一致性。
+- `backend/src/test/java/com/bob/mta/modules/plan/persistence/PlanAggregateMapperIntegrationTest.java` 覆盖运维计划的多维筛选、统计聚合、事务回滚等 SQL 契约，新增加的关键字/排除筛选用例可帮助验证索引是否生效。
 
 ## 前端阶段迭代进度
 

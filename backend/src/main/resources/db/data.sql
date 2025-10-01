@@ -69,7 +69,7 @@ ON CONFLICT DO NOTHING;
 
 INSERT INTO mt_plan_reminder_rule (plan_id, rule_id, trigger, offset_minutes, channels, template_id, recipients, description, active)
 VALUES
-    ('PLAN-00000001', 'REM-00000001', 'BEFORE_START', 60, '["EMAIL"]', 'tmpl-plan-reminder', '["owner-alpha","user-ops-001"]', '开工前一小时提醒执行人', TRUE),
-    ('PLAN-00000002', 'REM-00000002', 'AFTER_NODE', 15, '["EMAIL","IM"]', 'tmpl-node-reminder', '["owner-beta"]', '节点完成后通知负责人', TRUE),
+    ('PLAN-00000001', 'REM-00000001', 'BEFORE_PLAN_START', 60, '["EMAIL"]', 'tmpl-plan-reminder', '["owner-alpha","user-ops-001"]', '开工前一小时提醒执行人', TRUE),
+    ('PLAN-00000002', 'REM-00000002', 'BEFORE_PLAN_END', 15, '["EMAIL","IM"]', 'tmpl-node-reminder', '["owner-beta"]', '节点完成后通知负责人', TRUE),
     ('PLAN-00000004', 'REM-00000003', 'BEFORE_PLAN_START', 120, '["EMAIL","SMS"]', 'tmpl-plan-precheck', '["owner-delta","user-ops-006"]', '计划开始前两小时提醒全员', TRUE)
 ON CONFLICT DO NOTHING;

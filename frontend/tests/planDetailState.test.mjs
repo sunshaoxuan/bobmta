@@ -81,6 +81,21 @@ test('derivePlanDetailContext returns execution mode for scheduled plans awaitin
   assert.equal(context.currentNodeId, 'NODE-2');
 });
 
+test('derivePlanDetailContext stays in execution mode when plan is cancelled', () => {
+  const detail = createDetail({
+    status: 'CANCELLED',
+    nodes: [
+      { id: 'NODE-1', name: 'Done Node', order: 1, status: 'DONE', actionType: 'MANUAL' },
+      { id: 'NODE-2', name: 'Pending Node', order: 2, status: 'PENDING', actionType: 'MANUAL' },
+    ],
+  });
+  const context = derivePlanDetailContext(detail);
+
+  assert.equal(context.planStatus, 'CANCELLED');
+  assert.equal(context.mode, 'execution');
+  assert.equal(context.currentNodeId, 'NODE-2');
+});
+
 test('derivePlanDetailContext defaults to design mode when detail is missing', () => {
   const context = derivePlanDetailContext(null);
 

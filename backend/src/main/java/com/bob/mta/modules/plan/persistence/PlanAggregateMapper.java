@@ -28,6 +28,12 @@ public interface PlanAggregateMapper {
 
     List<PlanReminderRuleEntity> findReminderRulesByPlanIds(@Param("planIds") Collection<String> planIds);
 
+    List<PlanNodeAttachmentEntity> findAttachmentsByPlanId(@Param("planId") String planId);
+
+    List<PlanActivityEntity> findActivitiesByPlanId(@Param("planId") String planId);
+
+    List<PlanReminderRuleEntity> findReminderRulesByPlanId(@Param("planId") String planId);
+
     void insertPlan(PlanEntity entity);
 
     void updatePlan(PlanEntity entity);

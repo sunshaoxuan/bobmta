@@ -34,6 +34,8 @@ import { PlanDetailSection } from './PlanDetailSection';
 import { PlanNodeActions, type PlanNodeActionIntent } from './PlanNodeActions';
 import { PlanReminderBoard } from './PlanReminderBoard';
 import { PlanTimelineBoard } from './PlanTimelineBoard';
+import { DesignModePanel } from './DesignModePanel';
+import { ExecutionModePanel } from './ExecutionModePanel';
 import {
   collectCompletedPlanNodeIds,
   flattenPlanNodes,
@@ -49,6 +51,22 @@ import type {
 import { formatApiErrorMessage } from '../utils/apiErrors';
 
 const { Text, Paragraph } = Typography;
+
+type ModeSectionConfig = {
+  nodesTitle: UiMessageKey;
+  actionsTitle: UiMessageKey;
+};
+
+const MODE_SECTION_CONFIG: Record<PlanViewMode, ModeSectionConfig> = {
+  design: {
+    nodesTitle: 'planDetailNodesTitleDesign',
+    actionsTitle: 'planDetailActionsTitleDesign',
+  },
+  execution: {
+    nodesTitle: 'planDetailNodesTitleExecution',
+    actionsTitle: 'planDetailActionsTitleExecution',
+  },
+};
 
 type PlanPreviewProps = {
   plan: PlanSummary | null;
@@ -86,9 +104,14 @@ export function PlanPreview({
   const detailError = isActiveDetail ? detailState.error : null;
   const detailOrigin = isActiveDetail ? detailState.origin : null;
   const fallbackContext = deriveFallbackContext(plan);
-  const mode = detail ? PLAN_STATUS_MODE[detail.status] : fallbackContext.mode;
-  const currentNodeId = isActiveDetail ? detailState.currentNodeId : fallbackContext.currentNodeId;
+  const mode = detail
+    ? detailState.mode ?? PLAN_STATUS_MODE[detail.status]
+    : fallbackContext.mode;
+  const currentNodeId = isActiveDetail
+    ? detailState.currentNodeId
+    : fallbackContext.currentNodeId;
   const [editingNodeId, setEditingNodeId] = useState<string | null>(null);
+  const modeSections = MODE_SECTION_CONFIG[mode];
   const lastUpdatedLabel =
     isActiveDetail && detailState.lastUpdated
       ? translate('planDetailLastUpdated', {
@@ -540,7 +563,7 @@ export function PlanPreview({
           ) : null}
           <div className="plan-preview-sections">
             <PlanDetailSection
-              title={translate('planDetailNodesTitle')}
+              title={translate(modeSections.nodesTitle)}
               status={detailStatus}
               error={detailError}
               translate={translate}
@@ -570,7 +593,7 @@ export function PlanPreview({
               />
             </PlanDetailSection>
             <PlanDetailSection
-              title={translate('planDetailActionsTitle')}
+              title={translate(modeSections.actionsTitle)}
               status={detailStatus}
               error={detailError}
               translate={translate}
@@ -597,6 +620,7 @@ export function PlanPreview({
             >
               {mode === 'execution' ? (
                 <PlanNodeActions
+                  mode={mode}
                   candidates={actionableNodes}
                   translate={translate}
                   onAction={handleNodeAction}
@@ -775,53 +799,6 @@ function renderModeAwareHelper({
     <Space direction="vertical" size="small" style={{ width: '100%' }}>
       {modePanel}
       {helper}
-    </Space>
-  );
-}
-
-type ModePanelProps = {
-  translate: LocalizationState['translate'];
-};
-
-export function DesignModePanel({ translate }: ModePanelProps) {
-  return (
-    <Paragraph type="secondary" className="plan-node-action-helper plan-mode-panel plan-mode-panel-design">
-      {translate('planDetailModeDesignHint')}
-    </Paragraph>
-  );
-}
-
-type ExecutionModePanelProps = {
-  translate: LocalizationState['translate'];
-  currentNodeName: string | null;
-  completedCount: number;
-  totalCount: number;
-};
-
-export function ExecutionModePanel({
-  translate,
-  currentNodeName,
-  completedCount,
-  totalCount,
-}: ExecutionModePanelProps) {
-  if (totalCount === 0) {
-    return null;
-  }
-
-  return (
-    <Space size={8} wrap className="plan-mode-panel plan-mode-panel-execution">
-      {currentNodeName ? (
-        <Tag color="volcano">
-          {translate('planDetailNodeCurrentTag')}
-          <span className="plan-mode-panel-value"> {currentNodeName}</span>
-        </Tag>
-      ) : null}
-      <Tag color="default">
-        {translate('planPreviewProgressLabel')}
-        <span className="plan-mode-panel-value">
-          {` ${completedCount}/${totalCount}`}
-        </span>
-      </Tag>
     </Space>
   );
 }

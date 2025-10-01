@@ -1,5 +1,5 @@
 -- -----------------------------------------------------------------------------
--- Flyway V2 - Additional indexes to support analytics and reminders queries
+-- Flyway V3 - Additional indexes to support analytics and reminders queries
 -- -----------------------------------------------------------------------------
 
 CREATE INDEX IF NOT EXISTS idx_mt_plan_tenant_owner_end ON mt_plan (tenant_id, owner_id, planned_end_time);
