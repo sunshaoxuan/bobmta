@@ -3,9 +3,11 @@ package com.bob.mta.modules.file.config;
 import com.bob.mta.modules.file.service.FileService;
 import com.bob.mta.modules.file.service.impl.InMemoryFileService;
 import com.bob.mta.modules.file.service.impl.MinioFileService;
+import com.bob.mta.modules.plan.persistence.PlanAggregateMapper;
 import io.minio.MinioClient;
 import java.time.Duration;
-import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
@@ -33,23 +35,22 @@ public class FileServiceConfiguration {
     }
 
     @Bean
-    public FileService fileService(FileStorageProperties properties,
-                                   ObjectProvider<MinioClient> minioClientProvider,
-                                   ObjectProvider<com.bob.mta.modules.file.persistence.FileMetadataMapper> metadataMapperProvider) {
-        MinioClient client = minioClientProvider.getIfAvailable();
-        if (client == null) {
-            return new InMemoryFileService();
-        }
+    @ConditionalOnBean({PlanAggregateMapper.class, MinioClient.class})
+    public FileService minioFileService(FileStorageProperties properties,
+                                        MinioClient minioClient,
+                                        com.bob.mta.modules.file.persistence.FileMetadataMapper metadataMapper) {
         int expirySeconds = properties.getMinio().getDownloadExpirySeconds();
         if (expirySeconds <= 0) {
             throw new IllegalStateException("MinIO presigned URL expiry must be positive");
         }
         long maxSupported = Duration.ofDays(7).getSeconds();
         int boundedExpiry = (int) Math.min(expirySeconds, maxSupported);
-        com.bob.mta.modules.file.persistence.FileMetadataMapper metadataMapper = metadataMapperProvider.getIfAvailable();
-        if (metadataMapper == null) {
-            throw new IllegalStateException("File metadata mapper must be available when MinIO storage is enabled");
-        }
-        return new MinioFileService(client, Duration.ofSeconds(boundedExpiry), metadataMapper);
+        return new MinioFileService(minioClient, Duration.ofSeconds(boundedExpiry), metadataMapper);
+    }
+
+    @Bean
+    @ConditionalOnMissingBean(PlanAggregateMapper.class)
+    public FileService inMemoryFileService() {
+        return new InMemoryFileService();
     }
 }

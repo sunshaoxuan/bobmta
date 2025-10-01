@@ -30,6 +30,7 @@ import org.testcontainers.junit.jupiter.Testcontainers;
 import javax.sql.DataSource;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -495,7 +496,24 @@ class PlanPersistenceAnalyticsRepositoryIntegrationTest {
 
     private void persistPlan(Plan plan, InMemoryPlanRepository memoryRepository) {
         planRepository.save(plan);
+        planRepository.replaceTimeline(plan.getId(), plan.getActivities());
+        planRepository.replaceReminderPolicy(plan.getId(), plan.getReminderPolicy());
+        planRepository.replaceAttachments(plan.getId(), attachmentMap(plan));
         memoryRepository.save(plan);
+    }
+
+    private Map<String, List<String>> attachmentMap(Plan plan) {
+        if (plan.getExecutions() == null || plan.getExecutions().isEmpty()) {
+            return Map.of();
+        }
+        Map<String, List<String>> attachments = new LinkedHashMap<>();
+        for (PlanNodeExecution execution : plan.getExecutions()) {
+            if (execution.getFileIds() == null || execution.getFileIds().isEmpty()) {
+                continue;
+            }
+            attachments.put(execution.getNodeId(), List.copyOf(execution.getFileIds()));
+        }
+        return attachments;
     }
 
     private void runStatements(String[] statements) {

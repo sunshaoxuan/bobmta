@@ -183,6 +183,12 @@
 - 在仓储实现阶段引入基于负责人/关键字过滤的集成测试，验证 SQL 与多语言消息解析的一致性。
 - 扩展前端计划列表的筛选、详情导航与提醒配置操作，沉淀认证态缓存与接口契约的端到端验证。
 
+### 🗄️ 数据库迁移与初始化指南
+- `backend/src/main/resources/db/schema.sql` 与 `data.sql` 覆盖计划、节点、执行、提醒、附件、活动及文件元数据等核心表结构，并同步声明多维筛选所需的复合索引。
+- `deploy/postgres/schema.sql` / `data.sql` 作为部署入口的包装脚本，支持在宿主机上通过 `psql -f deploy/postgres/schema.sql` 与 `psql -f deploy/postgres/data.sql` 快速重建数据库。
+- Spring Boot 默认启用 Flyway（`spring.flyway.enabled=true`），应用启动或测试时会自动执行 `db/migration` 目录下的版本化脚本，保持 schema 与索引演进。
+- 若需单独校验数据库迁移，可运行 `mvn -f backend/pom.xml test`（需本地已缓存 Spring Boot 依赖或配置私有仓库镜像），集成测试会基于 Testcontainers 的 PostgreSQL 自动拉起数据库、执行 Flyway 迁移，并验证多维筛选、统计与事务一致性。
+
 ## 前端阶段迭代进度
 
 ### ✅ 已完成

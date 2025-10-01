@@ -28,7 +28,7 @@ import java.util.stream.Collectors;
 
 @Repository
 @ConditionalOnBean(PlanAggregateMapper.class)
-public class PlanPersistencePlanRepository implements PlanRepository {
+public class PlanPersistencePlanRepository implements PlanAggregateRepository {
 
     private final PlanAggregateMapper mapper;
 
@@ -80,6 +80,9 @@ public class PlanPersistencePlanRepository implements PlanRepository {
     @Override
     public void delete(String id) {
         Objects.requireNonNull(id, "id");
+        mapper.deleteAttachments(id);
+        mapper.deleteActivities(id);
+        mapper.deleteReminderRules(id);
         cleanupAssociations(id);
         mapper.deletePlan(id);
     }
@@ -168,24 +171,12 @@ public class PlanPersistencePlanRepository implements PlanRepository {
         if (!aggregate.executions().isEmpty()) {
             mapper.insertExecutions(new ArrayList<>(aggregate.executions()));
         }
-        if (!aggregate.attachments().isEmpty()) {
-            mapper.insertAttachments(new ArrayList<>(aggregate.attachments()));
-        }
-        if (!aggregate.activities().isEmpty()) {
-            mapper.insertActivities(new ArrayList<>(aggregate.activities()));
-        }
-        if (!aggregate.reminderRules().isEmpty()) {
-            mapper.insertReminderRules(new ArrayList<>(aggregate.reminderRules()));
-        }
     }
 
     private void cleanupAssociations(String planId) {
-        mapper.deleteAttachments(planId);
         mapper.deleteExecutions(planId);
         mapper.deleteNodes(planId);
         mapper.deleteParticipants(planId);
-        mapper.deleteActivities(planId);
-        mapper.deleteReminderRules(planId);
     }
 
     private List<PlanAggregate> loadAggregates(List<PlanEntity> planEntities) {
