@@ -147,6 +147,40 @@ class PlanAggregateMapperIntegrationTest {
     }
 
     @Test
+    void shouldApplyKeywordStatusWindowAndExclusionFilters() {
+        OffsetDateTime baseline = OffsetDateTime.of(2024, 5, 10, 6, 0, 0, 0, ZoneOffset.UTC);
+        insertPlan("PLAN-KEY-1", "tenant-key", "customer-a", "owner-a", "巡检准备会",
+                "围绕巡检流程的前置确认。", PlanStatus.SCHEDULED, baseline.plusHours(2), baseline.plusHours(4), baseline, "Asia/Shanghai");
+        insertPlan("PLAN-KEY-EXCLUDE", "tenant-key", "customer-a", "owner-b", "应急巡检演练",
+                "模拟巡检应急场景。", PlanStatus.IN_PROGRESS, baseline.plusHours(3), baseline.plusHours(6), baseline, "Asia/Shanghai");
+        insertPlan("PLAN-KEY-IGNORED", "tenant-key", "customer-a", "owner-a", "巡检取消案例",
+                "演示取消状态。", PlanStatus.CANCELED, baseline.plusHours(2), baseline.plusHours(5), baseline, "Asia/Shanghai");
+        insertPlan("PLAN-KEY-OUTSIDE", "tenant-key", "customer-a", "owner-a", "巡检远期任务",
+                "超出时间窗口的巡检。", PlanStatus.SCHEDULED, baseline.plusHours(12), baseline.plusHours(15), baseline, "Asia/Shanghai");
+        insertPlan("PLAN-KEY-OTHER", "tenant-other", "customer-a", "owner-a", "其他租户巡检",
+                "验证租户隔离。", PlanStatus.SCHEDULED, baseline.plusHours(3), baseline.plusHours(5), baseline, "Asia/Shanghai");
+
+        PlanQueryParameters parameters = new PlanQueryParameters(
+                "tenant-key",
+                null,
+                null,
+                "巡检",
+                null,
+                List.of(PlanStatus.SCHEDULED, PlanStatus.IN_PROGRESS),
+                baseline.plusHours(1),
+                baseline.plusHours(8),
+                null,
+                null,
+                "PLAN-KEY-EXCLUDE"
+        );
+
+        List<PlanEntity> plans = mapper.findPlans(parameters);
+        assertThat(plans).extracting(PlanEntity::id).containsExactly("PLAN-KEY-1");
+        assertThat(plans.get(0).title()).contains("巡检");
+        assertThat(mapper.countPlans(parameters)).isEqualTo(1);
+    }
+
+    @Test
     void shouldAggregateStatusAndOverdueMetrics() {
         OffsetDateTime now = OffsetDateTime.of(2024, 6, 1, 9, 0, 0, 0, ZoneOffset.UTC);
         insertPlan("PLAN-1001", "tenant-analytics", "customer-a", "owner-a", "巡检准备",
