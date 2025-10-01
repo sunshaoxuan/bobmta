@@ -1,5 +1,9 @@
 package com.bob.mta.modules.plan.persistence;
 
+import com.bob.mta.modules.plan.domain.PlanActivityType;
+import com.bob.mta.modules.plan.domain.PlanNodeActionType;
+import com.bob.mta.modules.plan.domain.PlanNodeStatus;
+import com.bob.mta.modules.plan.domain.PlanReminderTrigger;
 import com.bob.mta.modules.plan.domain.PlanStatus;
 import org.flywaydb.core.Flyway;
 import org.junit.jupiter.api.BeforeAll;
@@ -171,6 +175,123 @@ class PlanAggregateMapperIntegrationTest {
         assertThat(overdue).isEqualTo(2L);
     }
 
+    @Test
+    void shouldReturnUpcomingRiskAndOwnerWorkloads() {
+        OffsetDateTime reference = OffsetDateTime.of(2024, 7, 1, 8, 0, 0, 0, ZoneOffset.UTC);
+        insertPlan("PLAN-UPCOMING", "tenant-metrics", "customer-x", "owner-1", "未来巡检窗口",
+                "规划即将到来的巡检。", PlanStatus.SCHEDULED, reference.plusMinutes(30), reference.plusHours(3), reference.minusDays(1), "Asia/Shanghai");
+        insertPlan("PLAN-DUE-SOON", "tenant-metrics", "customer-x", "owner-2", "待结束维护",
+                "确认维护收尾。", PlanStatus.IN_PROGRESS, reference.plusMinutes(60), reference.plusMinutes(90), reference.minusDays(2), "Asia/Shanghai");
+        insertPlan("PLAN-OVERDUE", "tenant-metrics", "customer-x", "owner-2", "超时处理",
+                "跟进延迟任务。", PlanStatus.IN_PROGRESS, reference.minusHours(4), reference.minusMinutes(30), reference.minusDays(2), "Asia/Shanghai");
+        insertPlan("PLAN-IGNORED", "tenant-metrics", "customer-y", "owner-3", "其他客户计划",
+                "不在当前客户范围。", PlanStatus.SCHEDULED, reference.plusMinutes(45), reference.plusHours(2), reference, "Asia/Shanghai");
+
+        insertNodeExecution("PLAN-DUE-SOON", "NODE-1001", PlanNodeStatus.DONE, reference.minusHours(1), reference.minusMinutes(30), "user-a", "收尾完成", "log-done");
+        insertNodeExecution("PLAN-DUE-SOON", "NODE-1002", PlanNodeStatus.IN_PROGRESS, reference.minusMinutes(20), null, "user-b", "继续执行", "log-progress");
+        insertNodeExecution("PLAN-OVERDUE", "NODE-2001", PlanNodeStatus.IN_PROGRESS, reference.minusHours(2), null, "user-c", "等待复盘", "log-overdue");
+
+        PlanAnalyticsQueryParameters parameters = new PlanAnalyticsQueryParameters(
+                "tenant-metrics",
+                "customer-x",
+                null,
+                reference.minusDays(1),
+                reference.plusDays(1),
+                List.of(PlanStatus.SCHEDULED, PlanStatus.IN_PROGRESS),
+                reference,
+                5,
+                5,
+                5,
+                reference.plusHours(2)
+        );
+
+        List<PlanUpcomingPlanEntity> upcoming = mapper.findUpcomingPlans(parameters);
+        assertThat(upcoming).extracting(PlanUpcomingPlanEntity::planId)
+                .containsExactly("PLAN-UPCOMING", "PLAN-DUE-SOON");
+        PlanUpcomingPlanEntity dueSoonPlan = upcoming.stream()
+                .filter(plan -> plan.planId().equals("PLAN-DUE-SOON"))
+                .findFirst()
+                .orElseThrow();
+        assertThat(dueSoonPlan.completedNodes()).isEqualTo(1L);
+        assertThat(dueSoonPlan.totalNodes()).isEqualTo(2L);
+
+        List<PlanOwnerLoadEntity> ownerLoads = mapper.findOwnerLoads(parameters);
+        assertThat(ownerLoads).extracting(PlanOwnerLoadEntity::ownerId)
+                .containsExactly("owner-2", "owner-1");
+        assertThat(ownerLoads.get(0).totalPlans()).isEqualTo(2L);
+        assertThat(ownerLoads.get(0).activePlans()).isEqualTo(2L);
+        assertThat(ownerLoads.get(0).overduePlans()).isEqualTo(1L);
+
+        List<PlanRiskPlanEntity> riskPlans = mapper.findRiskPlans(parameters);
+        assertThat(riskPlans).extracting(PlanRiskPlanEntity::planId)
+                .containsExactly("PLAN-OVERDUE", "PLAN-DUE-SOON");
+        assertThat(riskPlans.get(0).riskLevel()).isEqualTo("OVERDUE");
+        assertThat(riskPlans.get(0).minutesOverdue()).isEqualTo(30L);
+        assertThat(riskPlans.get(1).riskLevel()).isEqualTo("DUE_SOON");
+        assertThat(riskPlans.get(1).minutesUntilDue()).isEqualTo(90L);
+    }
+
+    @Test
+    void shouldLoadPlanAggregateGraph() {
+        OffsetDateTime now = OffsetDateTime.of(2024, 8, 10, 10, 0, 0, 0, ZoneOffset.UTC);
+        insertPlan("PLAN-GRAPH", "tenant-graph", "customer-a", "owner-z", "图谱计划",
+                "验证聚合查询。", PlanStatus.IN_PROGRESS, now.minusHours(1), now.plusHours(5), now.minusDays(1), "Asia/Shanghai");
+
+        insertParticipant("PLAN-GRAPH", "user-1001");
+        insertParticipant("PLAN-GRAPH", "user-1002");
+
+        insertNode("PLAN-GRAPH", "NODE-A", null, "准备阶段", "TASK", "user-1001", 0, 60, PlanNodeActionType.MANUAL, 100, "checklist-a", "确认预检项目");
+        insertNode("PLAN-GRAPH", "NODE-B", "NODE-A", "执行阶段", "TASK", "user-1002", 1, 45, PlanNodeActionType.API_CALL, 80, "workflow-b", "调用自动化脚本");
+
+        insertNodeExecution("PLAN-GRAPH", "NODE-A", PlanNodeStatus.DONE, now.minusHours(2), now.minusHours(1), "user-1001", "完成预检", "log-node-a");
+        insertNodeExecution("PLAN-GRAPH", "NODE-B", PlanNodeStatus.IN_PROGRESS, now.minusMinutes(30), null, "user-1002", "正在执行", "log-node-b");
+
+        insertAttachment("PLAN-GRAPH", "NODE-A", "file-precheck-report");
+        insertAttachment("PLAN-GRAPH", "NODE-B", "file-automation-log");
+
+        insertActivity("PLAN-GRAPH", "ACT-1", PlanActivityType.PLAN_UPDATED, now.minusMinutes(40), "user-1001", "plan.activity.updated", "NODE-A", "{\"field\":\"value\"}");
+        insertActivity("PLAN-GRAPH", "ACT-2", PlanActivityType.NODE_COMPLETED, now.minusMinutes(20), "user-1001", "plan.activity.nodeCompleted", "NODE-A", "{\"result\":\"ok\"}");
+
+        insertReminderRule("PLAN-GRAPH", "REM-1", PlanReminderTrigger.BEFORE_PLAN_START, 30, "[\"EMAIL\",\"IM\"]", "tmpl-plan", "[\"owner-z\"]", "开工提醒", true);
+
+        PlanEntity plan = mapper.findPlanById("PLAN-GRAPH");
+        assertThat(plan).isNotNull();
+        assertThat(plan.title()).isEqualTo("图谱计划");
+        assertThat(plan.status()).isEqualTo(PlanStatus.IN_PROGRESS);
+
+        List<String> planIds = List.of("PLAN-GRAPH");
+
+        List<PlanParticipantEntity> participants = mapper.findParticipantsByPlanIds(planIds);
+        assertThat(participants).extracting(PlanParticipantEntity::participantId)
+                .containsExactly("user-1001", "user-1002");
+
+        List<PlanNodeEntity> nodes = mapper.findNodesByPlanIds(planIds);
+        assertThat(nodes).hasSize(2);
+        assertThat(nodes.get(0).actionType()).isEqualTo(PlanNodeActionType.MANUAL);
+        assertThat(nodes.get(1).parentNodeId()).isEqualTo("NODE-A");
+
+        List<PlanNodeExecutionEntity> executions = mapper.findExecutionsByPlanIds(planIds);
+        assertThat(executions).hasSize(2);
+        assertThat(executions).extracting(PlanNodeExecutionEntity::status)
+                .containsExactly(PlanNodeStatus.DONE, PlanNodeStatus.IN_PROGRESS);
+
+        List<PlanNodeAttachmentEntity> attachments = mapper.findAttachmentsByPlanIds(planIds);
+        assertThat(attachments).extracting(PlanNodeAttachmentEntity::fileId)
+                .containsExactlyInAnyOrder("file-precheck-report", "file-automation-log");
+
+        List<PlanActivityEntity> activities = mapper.findActivitiesByPlanIds(planIds);
+        assertThat(activities).extracting(PlanActivityEntity::type)
+                .containsExactly(PlanActivityType.PLAN_UPDATED, PlanActivityType.NODE_COMPLETED);
+        assertThat(activities.get(0).attributes()).containsEntry("field", "value");
+
+        List<PlanReminderRuleEntity> reminderRules = mapper.findReminderRulesByPlanIds(planIds);
+        assertThat(reminderRules).hasSize(1);
+        PlanReminderRuleEntity reminderRule = reminderRules.get(0);
+        assertThat(reminderRule.trigger()).isEqualTo(PlanReminderTrigger.BEFORE_PLAN_START);
+        assertThat(reminderRule.channels()).containsExactlyInAnyOrder("EMAIL", "IM");
+        assertThat(reminderRule.recipients()).containsExactly("owner-z");
+    }
+
     private void insertPlan(String planId,
                             String tenantId,
                             String customerId,
@@ -202,6 +323,134 @@ class PlanAggregateMapperIntegrationTest {
                 timezone,
                 toTimestamp(createdAt),
                 toTimestamp(createdAt)
+        );
+    }
+
+    private void insertParticipant(String planId, String participantId) {
+        jdbcTemplate.update(
+                "INSERT INTO mt_plan_participant (plan_id, participant_id) VALUES (?, ?) ON CONFLICT DO NOTHING",
+                planId,
+                participantId
+        );
+    }
+
+    private void insertNode(String planId,
+                            String nodeId,
+                            String parentNodeId,
+                            String name,
+                            String type,
+                            String assignee,
+                            int orderIndex,
+                            Integer expectedDuration,
+                            PlanNodeActionType actionType,
+                            Integer completionThreshold,
+                            String actionRef,
+                            String description) {
+        jdbcTemplate.update(
+                """
+                        INSERT INTO mt_plan_node (plan_id, node_id, parent_node_id, name, type, assignee,
+                                                   order_index, expected_duration_minutes, action_type,
+                                                   completion_threshold, action_ref, description)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        """,
+                planId,
+                nodeId,
+                parentNodeId,
+                name,
+                type,
+                assignee,
+                orderIndex,
+                expectedDuration,
+                actionType.name(),
+                completionThreshold,
+                actionRef,
+                description
+        );
+    }
+
+    private void insertNodeExecution(String planId,
+                                     String nodeId,
+                                     PlanNodeStatus status,
+                                     OffsetDateTime startTime,
+                                     OffsetDateTime endTime,
+                                     String operator,
+                                     String result,
+                                     String log) {
+        jdbcTemplate.update(
+                """
+                        INSERT INTO mt_plan_node_execution (plan_id, node_id, status, start_time, end_time, operator_id,
+                                                            result_summary, execution_log)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                        """,
+                planId,
+                nodeId,
+                status.name(),
+                toTimestamp(startTime),
+                toTimestamp(endTime),
+                operator,
+                result,
+                log
+        );
+    }
+
+    private void insertAttachment(String planId, String nodeId, String fileId) {
+        jdbcTemplate.update(
+                "INSERT INTO mt_plan_node_attachment (plan_id, node_id, file_id) VALUES (?, ?, ?) ON CONFLICT DO NOTHING",
+                planId,
+                nodeId,
+                fileId
+        );
+    }
+
+    private void insertActivity(String planId,
+                                String activityId,
+                                PlanActivityType type,
+                                OffsetDateTime occurredAt,
+                                String actor,
+                                String messageKey,
+                                String referenceId,
+                                String attributesJson) {
+        jdbcTemplate.update(
+                """
+                        INSERT INTO mt_plan_activity (plan_id, activity_id, activity_type, occurred_at, actor_id,
+                                                      message_key, reference_id, attributes)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?::jsonb)
+                        """,
+                planId,
+                activityId,
+                type.name(),
+                toTimestamp(occurredAt),
+                actor,
+                messageKey,
+                referenceId,
+                attributesJson
+        );
+    }
+
+    private void insertReminderRule(String planId,
+                                    String ruleId,
+                                    PlanReminderTrigger trigger,
+                                    int offsetMinutes,
+                                    String channelsJson,
+                                    String templateId,
+                                    String recipientsJson,
+                                    String description,
+                                    boolean active) {
+        jdbcTemplate.update(
+                """
+                        INSERT INTO mt_plan_reminder_rule (plan_id, rule_id, trigger, offset_minutes, channels,
+                                                           template_id, recipients, description, active)
+                        VALUES (?, ?, ?, ?, ?::jsonb, ?, ?::jsonb, ?, ?)
+                        """,
+                planId,
+                ruleId,
+                trigger.name(),
+                offsetMinutes,
+                channelsJson,
+                templateId,
+                recipientsJson,
+                description,
+                active
         );
     }
 
