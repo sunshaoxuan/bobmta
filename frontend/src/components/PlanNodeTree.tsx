@@ -69,6 +69,7 @@ export function PlanNodeTree({
               style={cardStyle}
               data-mode={mode}
               aria-current={isCurrent ? 'step' : undefined}
+              aria-disabled={isCompleted ? 'true' : undefined}
             >
               <div className="plan-preview-node-header">
                 <Text strong>{node.name}</Text>
