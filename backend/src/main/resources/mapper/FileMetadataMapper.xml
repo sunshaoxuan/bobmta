@@ -1,0 +1,71 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.bob.mta.modules.file.persistence.FileMetadataMapper">
+
+    <resultMap id="FileMetadataResult" type="com.bob.mta.modules.file.persistence.FileMetadataEntity">
+        <id column="file_id" property="id"/>
+        <result column="file_name" property="fileName"/>
+        <result column="content_type" property="contentType"/>
+        <result column="file_size" property="size"/>
+        <result column="bucket" property="bucket"/>
+        <result column="object_key" property="objectKey"/>
+        <result column="biz_type" property="bizType"/>
+        <result column="biz_id" property="bizId"/>
+        <result column="uploaded_at" property="uploadedAt"/>
+        <result column="uploader" property="uploader"/>
+    </resultMap>
+
+    <insert id="insert">
+        INSERT INTO mt_file_metadata (file_id, file_name, content_type, file_size, bucket, object_key,
+                                      biz_type, biz_id, uploaded_at, uploader)
+        VALUES (#{id}, #{fileName}, #{contentType}, #{size}, #{bucket}, #{objectKey},
+                #{bizType}, #{bizId}, #{uploadedAt}, #{uploader})
+    </insert>
+
+    <select id="findById" parameterType="string" resultMap="FileMetadataResult">
+        SELECT file_id,
+               file_name,
+               content_type,
+               file_size,
+               bucket,
+               object_key,
+               biz_type,
+               biz_id,
+               uploaded_at,
+               uploader
+        FROM mt_file_metadata
+        WHERE file_id = #{id}
+    </select>
+
+    <select id="findByBiz" resultMap="FileMetadataResult">
+        SELECT file_id,
+               file_name,
+               content_type,
+               file_size,
+               bucket,
+               object_key,
+               biz_type,
+               biz_id,
+               uploaded_at,
+               uploader
+        FROM mt_file_metadata
+        <where>
+            <if test="bizType != null and bizType != ''">
+                biz_type = #{bizType}
+            </if>
+            <if test="bizId != null and bizId != ''">
+                <if test="bizType != null and bizType != ''">
+                    AND
+                </if>
+                biz_id = #{bizId}
+            </if>
+        </where>
+        ORDER BY uploaded_at DESC, file_id DESC
+    </select>
+
+    <delete id="delete" parameterType="string">
+        DELETE FROM mt_file_metadata WHERE file_id = #{id}
+    </delete>
+</mapper>
