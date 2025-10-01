@@ -34,7 +34,8 @@ public class FileServiceConfiguration {
 
     @Bean
     public FileService fileService(FileStorageProperties properties,
-                                   ObjectProvider<MinioClient> minioClientProvider) {
+                                   ObjectProvider<MinioClient> minioClientProvider,
+                                   ObjectProvider<com.bob.mta.modules.file.persistence.FileMetadataMapper> metadataMapperProvider) {
         MinioClient client = minioClientProvider.getIfAvailable();
         if (client == null) {
             return new InMemoryFileService();
@@ -45,6 +46,10 @@ public class FileServiceConfiguration {
         }
         long maxSupported = Duration.ofDays(7).getSeconds();
         int boundedExpiry = (int) Math.min(expirySeconds, maxSupported);
-        return new MinioFileService(client, Duration.ofSeconds(boundedExpiry));
+        com.bob.mta.modules.file.persistence.FileMetadataMapper metadataMapper = metadataMapperProvider.getIfAvailable();
+        if (metadataMapper == null) {
+            throw new IllegalStateException("File metadata mapper must be available when MinIO storage is enabled");
+        }
+        return new MinioFileService(client, Duration.ofSeconds(boundedExpiry), metadataMapper);
     }
 }

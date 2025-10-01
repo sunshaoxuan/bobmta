@@ -4,6 +4,8 @@ import com.bob.mta.common.exception.BusinessException;
 import com.bob.mta.common.exception.ErrorCode;
 import com.bob.mta.modules.file.domain.FileMetadata;
 import com.bob.mta.modules.file.service.FileService;
+import com.bob.mta.modules.file.persistence.FileMetadataEntity;
+import com.bob.mta.modules.file.persistence.FileMetadataMapper;
 import io.minio.BucketExistsArgs;
 import io.minio.GetPresignedObjectUrlArgs;
 import io.minio.MakeBucketArgs;
@@ -17,7 +19,6 @@ import java.time.Clock;
 import java.time.Duration;
 import java.time.OffsetDateTime;
 import java.util.List;
-import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
@@ -33,20 +34,24 @@ public class MinioFileService implements FileService {
     private final MinioClient minioClient;
     private final int downloadExpirySeconds;
     private final Clock clock;
-    private final Map<String, FileMetadata> storage = new ConcurrentHashMap<>();
+    private final FileMetadataMapper metadataMapper;
     private final Set<String> ensuredBuckets = ConcurrentHashMap.newKeySet();
 
-    public MinioFileService(MinioClient minioClient, Duration downloadExpiry) {
-        this(minioClient, downloadExpiry, Clock.systemUTC());
+    public MinioFileService(MinioClient minioClient, Duration downloadExpiry, FileMetadataMapper metadataMapper) {
+        this(minioClient, downloadExpiry, metadataMapper, Clock.systemUTC());
     }
 
-    MinioFileService(MinioClient minioClient, Duration downloadExpiry, Clock clock) {
+    MinioFileService(MinioClient minioClient, Duration downloadExpiry, FileMetadataMapper metadataMapper, Clock clock) {
         if (downloadExpiry == null || downloadExpiry.isNegative() || downloadExpiry.isZero()) {
             throw new IllegalArgumentException("downloadExpiry must be positive");
         }
         this.minioClient = minioClient;
         long seconds = downloadExpiry.getSeconds();
         this.downloadExpirySeconds = (int) Math.min(seconds, Integer.MAX_VALUE);
+        this.metadataMapper = metadataMapper;
+        if (metadataMapper == null) {
+            throw new IllegalArgumentException("metadataMapper must not be null");
+        }
         this.clock = clock == null ? Clock.systemUTC() : clock;
     }
 
@@ -60,7 +65,8 @@ public class MinioFileService implements FileService {
         String safeFileName = sanitizeFileName(fileName);
         String objectKey = id + "/" + safeFileName;
         ensureBucket(bucket);
-        FileMetadata metadata = new FileMetadata(id,
+        OffsetDateTime uploadedAt = OffsetDateTime.now(clock);
+        FileMetadataEntity entity = new FileMetadataEntity(id,
                 fileName,
                 contentType,
                 size,
@@ -68,37 +74,32 @@ public class MinioFileService implements FileService {
                 objectKey,
                 bizType,
                 bizId,
-                OffsetDateTime.now(clock),
+                uploadedAt,
                 uploader);
-        storage.put(id, metadata);
+        metadataMapper.insert(entity);
         log.debug("Registered file {} in bucket {} with key {}", id, bucket, objectKey);
-        return metadata;
+        return toDomain(entity);
     }
 
     @Override
     public FileMetadata get(String id) {
-        FileMetadata metadata = storage.get(id);
-        if (metadata == null) {
+        FileMetadataEntity entity = metadataMapper.findById(id);
+        if (entity == null) {
             throw new BusinessException(ErrorCode.FILE_NOT_FOUND);
         }
-        return metadata;
+        return toDomain(entity);
     }
 
     @Override
     public List<FileMetadata> listByBiz(String bizType, String bizId) {
-        return storage.values().stream()
-                .filter(meta -> !StringUtils.hasText(bizType) || bizType.equals(meta.getBizType()))
-                .filter(meta -> !StringUtils.hasText(bizId) || bizId.equals(meta.getBizId()))
-                .sorted((left, right) -> right.getUploadedAt().compareTo(left.getUploadedAt()))
+        return metadataMapper.findByBiz(bizType, bizId).stream()
+                .map(this::toDomain)
                 .collect(Collectors.toList());
     }
 
     @Override
     public void delete(String id) {
-        FileMetadata metadata = storage.get(id);
-        if (metadata == null) {
-            throw new BusinessException(ErrorCode.FILE_NOT_FOUND);
-        }
+        FileMetadata metadata = get(id);
         try {
             minioClient.removeObject(RemoveObjectArgs.builder()
                     .bucket(metadata.getBucket())
@@ -113,7 +114,7 @@ public class MinioFileService implements FileService {
             log.error("Failed to delete object {}/{}", metadata.getBucket(), metadata.getObjectKey(), e);
             throw new BusinessException(ErrorCode.INTERNAL_ERROR, "file.delete_failed");
         }
-        storage.remove(id);
+        metadataMapper.delete(id);
     }
 
     @Override
@@ -174,5 +175,18 @@ public class MinioFileService implements FileService {
         String normalized = fileName.trim();
         String sanitized = normalized.replaceAll("[^A-Za-z0-9._-]", "_");
         return sanitized.isEmpty() ? "file" : sanitized;
+    }
+
+    private FileMetadata toDomain(FileMetadataEntity entity) {
+        return new FileMetadata(entity.id(),
+                entity.fileName(),
+                entity.contentType(),
+                entity.size(),
+                entity.bucket(),
+                entity.objectKey(),
+                entity.bizType(),
+                entity.bizId(),
+                entity.uploadedAt(),
+                entity.uploader());
     }
 }
