@@ -9,6 +9,9 @@ import com.bob.mta.common.i18n.MessageResolver;
 import com.bob.mta.common.i18n.TestMessageResolverFactory;
 import com.bob.mta.modules.file.service.impl.InMemoryFileService;
 import com.bob.mta.modules.plan.domain.Plan;
+import com.bob.mta.modules.plan.domain.PlanActivity;
+import com.bob.mta.modules.plan.domain.PlanActionHistory;
+import com.bob.mta.modules.plan.domain.PlanActionStatus;
 import com.bob.mta.modules.plan.domain.PlanActivityType;
 import com.bob.mta.modules.plan.domain.PlanReminderRule;
 import com.bob.mta.modules.plan.domain.PlanReminderSchedule;
@@ -17,12 +20,14 @@ import com.bob.mta.modules.plan.domain.PlanNodeActionType;
 import com.bob.mta.modules.plan.domain.PlanNodeExecution;
 import com.bob.mta.modules.plan.domain.PlanStatus;
 import com.bob.mta.modules.plan.domain.PlanAnalytics;
+import com.bob.mta.modules.plan.repository.InMemoryPlanActionHistoryRepository;
 import com.bob.mta.modules.plan.repository.InMemoryPlanAnalyticsRepository;
 import com.bob.mta.modules.plan.repository.InMemoryPlanRepository;
 import com.bob.mta.modules.plan.service.command.CreatePlanCommand;
 import com.bob.mta.modules.plan.service.command.PlanNodeCommand;
 import com.bob.mta.i18n.Localization;
 import com.bob.mta.i18n.LocalizationKeys;
+import com.bob.mta.modules.template.domain.RenderedTemplate;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -40,9 +45,12 @@ class InMemoryPlanServiceTest {
 
     private final InMemoryPlanRepository repository = new InMemoryPlanRepository();
     private final InMemoryPlanAnalyticsRepository analyticsRepository = new InMemoryPlanAnalyticsRepository(repository);
+    private final InMemoryPlanActionHistoryRepository actionHistoryRepository = new InMemoryPlanActionHistoryRepository();
+    private final TestTemplateService templateService = new TestTemplateService();
+    private final RecordingNotificationGateway notificationGateway = new RecordingNotificationGateway();
     private final MessageResolver messageResolver = TestMessageResolverFactory.create();
     private final InMemoryPlanService service = new InMemoryPlanService(new InMemoryFileService(), repository,
-            analyticsRepository, messageResolver);
+            analyticsRepository, actionHistoryRepository, templateService, notificationGateway, messageResolver);
 
     @BeforeEach
     void setUpLocale() {
@@ -586,5 +594,110 @@ class InMemoryPlanServiceTest {
         assertThat(analytics.getTotalPlans()).isGreaterThanOrEqualTo(1);
         assertThat(analytics.getRiskPlans())
                 .allSatisfy(plan -> assertThat(plan.getOwner()).isEqualTo("owner-focus"));
+    }
+
+    @Test
+    void shouldExecuteEmailActionWhenNodeStarts() {
+        long templateId = 501L;
+        templateService.register(templateId, new RenderedTemplate(
+                "Node start", "Please start", List.of("ops@example.com"), List.of(), null,
+                null, null, null, Map.of("context", "start")));
+
+        CreatePlanCommand command = new CreatePlanCommand(
+                "tenant-action", "动作测试计划", "说明", "cust-action", "owner-action",
+                OffsetDateTime.now().plusDays(1), OffsetDateTime.now().plusDays(1).plusHours(2),
+                "Asia/Shanghai", List.of("owner-action"),
+                List.of(new PlanNodeCommand(null, "执行检查", "CHECKLIST", "owner-action", 1, 30,
+                        PlanNodeActionType.EMAIL, 100, String.valueOf(templateId), "", List.of()))
+        );
+        Plan created = service.createPlan(command);
+        service.publishPlan(created.getId(), "owner-action");
+
+        Plan updated = service.startNode(created.getId(), created.getNodes().get(0).getId(), "operator-x");
+
+        assertThat(notificationGateway.getEmails()).hasSize(1);
+        List<PlanActionHistory> histories = actionHistoryRepository.findByPlanId(created.getId());
+        assertThat(histories).isNotEmpty();
+        PlanActionHistory history = histories.get(histories.size() - 1);
+        assertThat(history.getStatus()).isEqualTo(PlanActionStatus.SUCCESS);
+        assertThat(history.getMetadata()).containsEntry("templateId", String.valueOf(templateId));
+
+        PlanActivity actionActivity = latestActivity(updated, PlanActivityType.NODE_ACTION_EXECUTED);
+        assertThat(actionActivity).isNotNull();
+        assertThat(actionActivity.getAttributes())
+                .containsEntry("actionStatus", PlanActionStatus.SUCCESS.name())
+                .containsEntry("meta.templateId", String.valueOf(templateId));
+    }
+
+    @Test
+    void shouldRecordFailureWhenEmailGatewayFails() {
+        long templateId = 777L;
+        templateService.register(templateId, new RenderedTemplate(
+                "Subject", "Body", List.of("ops@example.com"), List.of(), null,
+                null, null, null, Map.of()));
+        notificationGateway.failEmail("smtp-down");
+
+        CreatePlanCommand command = new CreatePlanCommand(
+                "tenant-action-fail", "失败计划", "说明", "cust-action", "owner-action",
+                OffsetDateTime.now().plusDays(1), OffsetDateTime.now().plusDays(1).plusHours(2),
+                "Asia/Shanghai", List.of("owner-action"),
+                List.of(new PlanNodeCommand(null, "执行检查", "CHECKLIST", "owner-action", 1, 30,
+                        PlanNodeActionType.EMAIL, 100, String.valueOf(templateId), "", List.of()))
+        );
+        Plan created = service.createPlan(command);
+        service.publishPlan(created.getId(), "owner-action");
+
+        Plan updated = service.startNode(created.getId(), created.getNodes().get(0).getId(), "operator-y");
+
+        List<PlanActionHistory> histories = actionHistoryRepository.findByPlanId(created.getId());
+        assertThat(histories).isNotEmpty();
+        PlanActionHistory history = histories.get(histories.size() - 1);
+        assertThat(history.getStatus()).isEqualTo(PlanActionStatus.FAILED);
+        assertThat(history.getError()).contains("smtp-down");
+
+        PlanActivity actionActivity = latestActivity(updated, PlanActivityType.NODE_ACTION_EXECUTED);
+        assertThat(actionActivity.getAttributes())
+                .containsEntry("actionStatus", PlanActionStatus.FAILED.name())
+                .containsEntry("actionError", "smtp-down");
+    }
+
+    @Test
+    void shouldSendInstantMessageWhenNodeCompletes() {
+        long templateId = 888L;
+        templateService.register(templateId, new RenderedTemplate(
+                null, "完成提醒", List.of("duty-user"), List.of(), null,
+                null, null, null, Map.of("channel", "IM")));
+
+        CreatePlanCommand command = new CreatePlanCommand(
+                "tenant-action-im", "IM计划", "说明", "cust-action", "owner-action",
+                OffsetDateTime.now().plusDays(1), OffsetDateTime.now().plusDays(1).plusHours(2),
+                "Asia/Shanghai", List.of("owner-action"),
+                List.of(new PlanNodeCommand(null, "执行检查", "CHECKLIST", "owner-action", 1, 30,
+                        PlanNodeActionType.IM, 100, String.valueOf(templateId), "", List.of()))
+        );
+        Plan created = service.createPlan(command);
+        service.publishPlan(created.getId(), "owner-action");
+        service.startNode(created.getId(), created.getNodes().get(0).getId(), "operator-z");
+
+        Plan completed = service.completeNode(created.getId(), created.getNodes().get(0).getId(),
+                "operator-z", "OK", null, List.of());
+
+        assertThat(notificationGateway.getInstantMessages()).hasSizeGreaterThanOrEqualTo(1);
+        List<PlanActionHistory> imHistories = actionHistoryRepository.findByPlanId(created.getId());
+        PlanActionHistory history = imHistories.get(imHistories.size() - 1);
+        assertThat(history.getStatus()).isEqualTo(PlanActionStatus.SUCCESS);
+        assertThat(history.getMetadata()).containsEntry("templateId", String.valueOf(templateId));
+
+        PlanActivity actionActivity = latestActivity(completed, PlanActivityType.NODE_ACTION_EXECUTED);
+        assertThat(actionActivity.getAttributes())
+                .containsEntry("actionStatus", PlanActionStatus.SUCCESS.name())
+                .containsEntry("actionTrigger", "complete");
+    }
+
+    private PlanActivity latestActivity(Plan plan, PlanActivityType type) {
+        return plan.getActivities().stream()
+                .filter(activity -> activity.getType() == type)
+                .reduce((first, second) -> second)
+                .orElse(null);
     }
 }

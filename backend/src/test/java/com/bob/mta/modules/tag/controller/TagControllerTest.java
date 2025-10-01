@@ -7,9 +7,12 @@ import com.bob.mta.modules.audit.service.AuditRecorder;
 import com.bob.mta.modules.audit.service.impl.InMemoryAuditService;
 import com.bob.mta.modules.customer.service.impl.InMemoryCustomerService;
 import com.bob.mta.modules.file.service.impl.InMemoryFileService;
+import com.bob.mta.modules.plan.repository.InMemoryPlanActionHistoryRepository;
 import com.bob.mta.modules.plan.repository.InMemoryPlanAnalyticsRepository;
 import com.bob.mta.modules.plan.repository.InMemoryPlanRepository;
 import com.bob.mta.modules.plan.service.impl.InMemoryPlanService;
+import com.bob.mta.modules.plan.service.impl.RecordingNotificationGateway;
+import com.bob.mta.modules.plan.service.impl.TestTemplateService;
 import com.bob.mta.modules.tag.domain.TagEntityType;
 import com.bob.mta.modules.tag.dto.AssignTagRequest;
 import com.bob.mta.modules.tag.dto.CreateTagRequest;
@@ -40,8 +43,12 @@ class TagControllerTest {
         InMemoryCustomerService customerService = new InMemoryCustomerService();
         messageResolver = TestMessageResolverFactory.create();
         InMemoryPlanRepository planRepository = new InMemoryPlanRepository();
+        InMemoryPlanActionHistoryRepository actionHistoryRepository = new InMemoryPlanActionHistoryRepository();
+        TestTemplateService templateService = new TestTemplateService();
+        RecordingNotificationGateway notificationGateway = new RecordingNotificationGateway();
         planService = new InMemoryPlanService(new InMemoryFileService(), planRepository,
-                new InMemoryPlanAnalyticsRepository(planRepository), messageResolver);
+                new InMemoryPlanAnalyticsRepository(planRepository), actionHistoryRepository,
+                templateService, notificationGateway, messageResolver);
         AuditRecorder recorder = new AuditRecorder(new InMemoryAuditService(), new ObjectMapper());
         controller = new TagController(tagService, customerService, planService, recorder, messageResolver);
         SecurityContextHolder.getContext().setAuthentication(new TestingAuthenticationToken("admin", "pass", "ROLE_ADMIN"));

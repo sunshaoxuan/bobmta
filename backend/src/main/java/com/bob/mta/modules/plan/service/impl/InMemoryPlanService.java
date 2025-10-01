@@ -5,11 +5,18 @@ import com.bob.mta.common.exception.ErrorCode;
 import com.bob.mta.common.i18n.MessageResolver;
 import com.bob.mta.i18n.LocalizationKeys;
 import com.bob.mta.modules.file.service.FileService;
+import com.bob.mta.modules.notification.EmailMessage;
+import com.bob.mta.modules.notification.InstantMessage;
+import com.bob.mta.modules.notification.NotificationGateway;
+import com.bob.mta.modules.notification.NotificationResult;
 import com.bob.mta.modules.plan.domain.Plan;
+import com.bob.mta.modules.plan.domain.PlanActionHistory;
+import com.bob.mta.modules.plan.domain.PlanActionStatus;
 import com.bob.mta.modules.plan.domain.PlanActivity;
 import com.bob.mta.modules.plan.domain.PlanActivityType;
 import com.bob.mta.modules.plan.domain.PlanAnalytics;
 import com.bob.mta.modules.plan.domain.PlanNode;
+import com.bob.mta.modules.plan.domain.PlanNodeActionType;
 import com.bob.mta.modules.plan.domain.PlanNodeExecution;
 import com.bob.mta.modules.plan.domain.PlanNodeStatus;
 import com.bob.mta.modules.plan.domain.PlanReminderPolicy;
@@ -17,6 +24,7 @@ import com.bob.mta.modules.plan.domain.PlanReminderRule;
 import com.bob.mta.modules.plan.domain.PlanReminderSchedule;
 import com.bob.mta.modules.plan.domain.PlanReminderTrigger;
 import com.bob.mta.modules.plan.domain.PlanStatus;
+import com.bob.mta.modules.plan.repository.PlanActionHistoryRepository;
 import com.bob.mta.modules.plan.repository.PlanAggregateRepository;
 import com.bob.mta.modules.plan.repository.PlanAnalyticsQuery;
 import com.bob.mta.modules.plan.repository.PlanAnalyticsRepository;
@@ -33,7 +41,9 @@ import com.bob.mta.modules.plan.service.PlanSearchResult;
 import com.bob.mta.modules.plan.service.command.CreatePlanCommand;
 import com.bob.mta.modules.plan.service.command.PlanNodeCommand;
 import com.bob.mta.modules.plan.service.command.UpdatePlanCommand;
-import com.bob.mta.modules.plan.service.PlanActivityDescriptor;
+import com.bob.mta.modules.template.domain.RenderedTemplate;
+import com.bob.mta.modules.template.service.TemplateService;
+import org.springframework.context.i18n.LocaleContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
@@ -52,6 +62,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.function.Function;
+import java.util.UUID;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -116,6 +127,14 @@ public class InMemoryPlanService implements PlanService {
                     attribute("nodeName", "plan.activity.attr.nodeName"),
                     attribute("operator", "plan.activity.attr.operator"),
                     attribute("result", "plan.activity.attr.result")),
+            descriptor(PlanActivityType.NODE_ACTION_EXECUTED,
+                    List.of("plan.activity.nodeActionExecuted"),
+                    attribute("nodeName", "plan.activity.attr.nodeName"),
+                    attribute("actionType", "plan.activity.attr.actionType"),
+                    attribute("actionStatus", "plan.activity.attr.actionStatus"),
+                    attribute("actionMessage", "plan.activity.attr.actionMessage"),
+                    attribute("actionTrigger", "plan.activity.attr.actionTrigger"),
+                    attribute("actionError", "plan.activity.attr.actionError")),
             descriptor(PlanActivityType.NODE_HANDOVER,
                     List.of("plan.activity.nodeHandover"),
                     attribute("nodeName", "plan.activity.attr.nodeName"),
@@ -144,15 +163,24 @@ public class InMemoryPlanService implements PlanService {
     private final FileService fileService;
     private final PlanAggregateRepository planRepository;
     private final PlanAnalyticsRepository planAnalyticsRepository;
+    private final PlanActionHistoryRepository actionHistoryRepository;
+    private final TemplateService templateService;
+    private final NotificationGateway notificationGateway;
     private final MessageResolver messageResolver;
 
     public InMemoryPlanService(FileService fileService,
                                PlanAggregateRepository planRepository,
                                PlanAnalyticsRepository planAnalyticsRepository,
+                               PlanActionHistoryRepository actionHistoryRepository,
+                               TemplateService templateService,
+                               NotificationGateway notificationGateway,
                                MessageResolver messageResolver) {
         this.fileService = fileService;
         this.planRepository = planRepository;
         this.planAnalyticsRepository = planAnalyticsRepository;
+        this.actionHistoryRepository = actionHistoryRepository;
+        this.templateService = templateService;
+        this.notificationGateway = notificationGateway;
         this.messageResolver = messageResolver;
     }
 
@@ -266,6 +294,7 @@ public class InMemoryPlanService implements PlanService {
             throw new BusinessException(ErrorCode.BAD_REQUEST, message("plan.error.deleteDesignOnly"));
         }
         plans().delete(id);
+        actionHistoryRepository.deleteByPlanId(id);
     }
 
     @Override
@@ -352,6 +381,10 @@ public class InMemoryPlanService implements PlanService {
                         "assignee", node.getAssignee(),
                         "operator", operator
                 )));
+        PlanActivity actionActivity = executeNodeAction(current, node, operator, now, "start", null);
+        if (actionActivity != null) {
+            activities = appendActivity(activities, actionActivity);
+        }
         Plan updated = current.withStatus(nextStatus, actualStart, null, executions, now,
                 null, null, null, activities);
         plans().save(updated);
@@ -399,6 +432,10 @@ public class InMemoryPlanService implements PlanService {
                         "operator", operator,
                         "result", result
                 )));
+        PlanActivity actionActivity = executeNodeAction(current, node, operator, now, "complete", result);
+        if (actionActivity != null) {
+            activities = appendActivity(activities, actionActivity);
+        }
         for (PlanActivity activity : thresholdAdjustment.activities()) {
             activities = appendActivity(activities, activity);
         }
@@ -1047,6 +1084,190 @@ public class InMemoryPlanService implements PlanService {
         }
         if (plan.getStatus() == PlanStatus.CANCELED || plan.getStatus() == PlanStatus.COMPLETED) {
             throw new BusinessException(ErrorCode.BAD_REQUEST, message("plan.error.planInactive"));
+        }
+    }
+
+    private PlanActivity executeNodeAction(Plan plan, PlanNode node, String operator,
+                                           OffsetDateTime occurredAt, String trigger, String resultSummary) {
+        if (node == null) {
+            return null;
+        }
+        PlanNodeActionType actionType = node.getActionType() == null ? PlanNodeActionType.NONE : node.getActionType();
+        if (actionType == PlanNodeActionType.NONE || actionType == PlanNodeActionType.MANUAL) {
+            return null;
+        }
+        ActionDispatchResult dispatchResult = dispatchNodeAction(plan, node, operator, trigger, resultSummary);
+        if (dispatchResult == null) {
+            return null;
+        }
+        Map<String, String> attributes = attributes(
+                "nodeName", node.getName(),
+                "actionType", actionType.name(),
+                "actionStatus", dispatchResult.status().name(),
+                "actionMessage", dispatchResult.message(),
+                "actionTrigger", trigger
+        );
+        if (StringUtils.hasText(dispatchResult.error())) {
+            attributes.put("actionError", dispatchResult.error());
+        }
+        if (StringUtils.hasText(resultSummary)) {
+            attributes.put("result", resultSummary);
+        }
+        dispatchResult.metadata().forEach((key, value) -> {
+            if (value != null) {
+                attributes.put("meta." + key, value);
+            }
+        });
+        PlanActionHistory history = new PlanActionHistory(
+                plan.getId() + "-action-" + UUID.randomUUID(),
+                plan.getId(),
+                node.getId(),
+                actionType,
+                node.getActionRef(),
+                occurredAt,
+                operator,
+                dispatchResult.status(),
+                dispatchResult.message(),
+                dispatchResult.error(),
+                dispatchResult.metadata()
+        );
+        actionHistoryRepository.append(history);
+        return new PlanActivity(
+                PlanActivityType.NODE_ACTION_EXECUTED,
+                occurredAt,
+                operator,
+                message("plan.activity.nodeActionExecuted"),
+                node.getId(),
+                attributes
+        );
+    }
+
+    private ActionDispatchResult dispatchNodeAction(Plan plan, PlanNode node, String operator,
+                                                    String trigger, String resultSummary) {
+        String actionRef = node.getActionRef();
+        PlanNodeActionType actionType = node.getActionType() == null ? PlanNodeActionType.NONE : node.getActionType();
+        if (!StringUtils.hasText(actionRef)) {
+            return new ActionDispatchResult(PlanActionStatus.SKIPPED, "plan.action.missingRef",
+                    message("plan.error.nodeActionMissingRef"), Map.of("reason", "MISSING_REF"));
+        }
+        Map<String, String> context = buildActionContext(plan, node, operator, trigger, resultSummary);
+        try {
+            return switch (actionType) {
+                case EMAIL -> dispatchEmail(actionRef, context);
+                case IM -> dispatchInstantMessage(actionRef, context);
+                case LINK -> generateLink(actionRef, context);
+                case REMOTE -> generateRemoteSession(actionRef, context);
+                case FILE, API_CALL -> new ActionDispatchResult(PlanActionStatus.SKIPPED,
+                        "plan.action.noAutomation", null, Map.of("reason", "NOT_SUPPORTED"));
+                case MANUAL, NONE -> null;
+            };
+        } catch (Exception ex) {
+            return new ActionDispatchResult(PlanActionStatus.FAILED, "plan.action.failed",
+                    ex.getMessage(), Map.of("reason", "EXCEPTION"));
+        }
+    }
+
+    private Map<String, String> buildActionContext(Plan plan, PlanNode node, String operator,
+                                                   String trigger, String resultSummary) {
+        Map<String, String> context = new LinkedHashMap<>();
+        if (plan.getId() != null) {
+            context.put("planId", plan.getId());
+        }
+        if (plan.getTitle() != null) {
+            context.put("planTitle", plan.getTitle());
+        }
+        if (node.getId() != null) {
+            context.put("nodeId", node.getId());
+        }
+        if (node.getName() != null) {
+            context.put("nodeName", node.getName());
+        }
+        if (StringUtils.hasText(operator)) {
+            context.put("operator", operator);
+        }
+        if (StringUtils.hasText(trigger)) {
+            context.put("trigger", trigger);
+        }
+        if (StringUtils.hasText(resultSummary)) {
+            context.put("result", resultSummary);
+        }
+        return context;
+    }
+
+    private ActionDispatchResult dispatchEmail(String actionRef, Map<String, String> context) {
+        long templateId = parseTemplateId(actionRef);
+        RenderedTemplate template = templateService.render(templateId, context, LocaleContextHolder.getLocale());
+        NotificationResult result = notificationGateway.sendEmail(new EmailMessage(
+                template.getTo(), template.getCc(), template.getSubject(), template.getContent()));
+        Map<String, String> metadata = new LinkedHashMap<>();
+        metadata.put("templateId", String.valueOf(templateId));
+        if (StringUtils.hasText(template.getEndpoint())) {
+            metadata.put("endpoint", template.getEndpoint());
+        }
+        metadata.putAll(template.getMetadata());
+        metadata.putAll(result.getMetadata());
+        return new ActionDispatchResult(result.isSuccess() ? PlanActionStatus.SUCCESS : PlanActionStatus.FAILED,
+                result.getMessage(), result.isSuccess() ? null : result.getError(), metadata);
+    }
+
+    private ActionDispatchResult dispatchInstantMessage(String actionRef, Map<String, String> context) {
+        long templateId = parseTemplateId(actionRef);
+        RenderedTemplate template = templateService.render(templateId, context, LocaleContextHolder.getLocale());
+        NotificationResult result = notificationGateway.sendInstantMessage(new InstantMessage(
+                template.getTo(), template.getContent()));
+        Map<String, String> metadata = new LinkedHashMap<>();
+        metadata.put("templateId", String.valueOf(templateId));
+        metadata.putAll(template.getMetadata());
+        metadata.putAll(result.getMetadata());
+        return new ActionDispatchResult(result.isSuccess() ? PlanActionStatus.SUCCESS : PlanActionStatus.FAILED,
+                result.getMessage(), result.isSuccess() ? null : result.getError(), metadata);
+    }
+
+    private ActionDispatchResult generateLink(String actionRef, Map<String, String> context) {
+        long templateId = parseTemplateId(actionRef);
+        RenderedTemplate template = templateService.render(templateId, context, LocaleContextHolder.getLocale());
+        Map<String, String> metadata = new LinkedHashMap<>();
+        metadata.put("templateId", String.valueOf(templateId));
+        if (StringUtils.hasText(template.getEndpoint())) {
+            metadata.put("endpoint", template.getEndpoint());
+        }
+        metadata.putAll(template.getMetadata());
+        boolean success = StringUtils.hasText(template.getEndpoint());
+        return new ActionDispatchResult(success ? PlanActionStatus.SUCCESS : PlanActionStatus.SKIPPED,
+                success ? "plan.action.linkGenerated" : "plan.action.linkMissing",
+                success ? null : message("plan.error.nodeActionLinkMissing"), metadata);
+    }
+
+    private ActionDispatchResult generateRemoteSession(String actionRef, Map<String, String> context) {
+        long templateId = parseTemplateId(actionRef);
+        RenderedTemplate template = templateService.render(templateId, context, LocaleContextHolder.getLocale());
+        Map<String, String> metadata = new LinkedHashMap<>(template.getMetadata());
+        metadata.put("templateId", String.valueOf(templateId));
+        if (StringUtils.hasText(template.getEndpoint())) {
+            metadata.put("endpoint", template.getEndpoint());
+        }
+        if (StringUtils.hasText(template.getAttachmentFileName())) {
+            metadata.put("artifactName", template.getAttachmentFileName());
+        }
+        boolean success = StringUtils.hasText(template.getEndpoint()) || !template.getMetadata().isEmpty();
+        return new ActionDispatchResult(success ? PlanActionStatus.SUCCESS : PlanActionStatus.SKIPPED,
+                success ? "plan.action.remoteReady" : "plan.action.remoteMissing",
+                success ? null : message("plan.error.nodeActionRemoteMissing"), metadata);
+    }
+
+    private long parseTemplateId(String actionRef) {
+        try {
+            return Long.parseLong(actionRef);
+        } catch (NumberFormatException ex) {
+            throw new IllegalStateException("Invalid template reference: " + actionRef, ex);
+        }
+    }
+
+    private record ActionDispatchResult(PlanActionStatus status, String message, String error,
+                                        Map<String, String> metadata) {
+
+        private ActionDispatchResult {
+            metadata = metadata == null ? Map.of() : Map.copyOf(metadata);
         }
     }
 
