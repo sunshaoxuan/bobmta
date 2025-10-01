@@ -11,8 +11,16 @@ export type SessionNavigationItem = {
   labelKey: UiMessageKey;
 };
 
+export type SessionNavigationMenuConfigItem = {
+  key: string;
+  path: string;
+  labelKey: UiMessageKey;
+  roles: string[];
+};
+
 export type SessionNavigationState = {
   items: SessionNavigationItem[];
+  config: SessionNavigationMenuConfigItem[];
   loading: boolean;
   error: ApiError | null;
   source: 'mock' | 'remote';
@@ -115,7 +123,20 @@ const filterNavigationByRoles = (
     .filter((item): item is SessionNavigationItem => Boolean(item));
 };
 
+const normalizeNavigationConfig = (
+  items: NavigationMenuPayload[]
+): SessionNavigationMenuConfigItem[] =>
+  items.map((item) => ({
+    key: item.key,
+    path: normalizePath(item.path),
+    labelKey: item.labelKey,
+    roles: normalizeRoles(item.roles ?? []),
+  }));
+
 const guestNavigation: SessionNavigationItem[] = filterNavigationByRoles(MOCK_NAVIGATION_MENU, []);
+const guestNavigationConfig: SessionNavigationMenuConfigItem[] = normalizeNavigationConfig(
+  MOCK_NAVIGATION_MENU
+);
 
 const ROLE_BASED_USER_MENU_ITEMS: Record<string, SessionUserMenuAction[]> = {
   ADMIN: [{ key: 'user-menu-operations', labelKey: 'navMenuOperations' }],
@@ -191,6 +212,7 @@ const initialState: SessionState = {
   error: null,
   navigation: {
     items: guestNavigation,
+    config: guestNavigationConfig,
     loading: false,
     error: null,
     source: 'mock',
@@ -253,6 +275,7 @@ export function useSessionController(client: ApiClient): SessionController {
   useEffect(() => {
     const roles = state.session?.roles ?? [];
     const fallbackItems = filterNavigationByRoles(MOCK_NAVIGATION_MENU, roles);
+    const fallbackConfig = guestNavigationConfig;
 
     if (!hasSession) {
       navigationRequestRef.current?.abort();
@@ -261,6 +284,7 @@ export function useSessionController(client: ApiClient): SessionController {
         ...current,
         navigation: {
           items: fallbackItems,
+          config: fallbackConfig,
           loading: false,
           error: null,
           source: 'mock',
@@ -292,11 +316,14 @@ export function useSessionController(client: ApiClient): SessionController {
           return;
         }
         const filtered = filterNavigationByRoles(payload, roles);
+        const normalizedPayload = normalizeNavigationConfig(payload);
         const items = filtered.length > 0 ? filtered : fallbackItems;
+        const config = normalizedPayload.length > 0 ? normalizedPayload : fallbackConfig;
         setState((current) => ({
           ...current,
           navigation: {
             items,
+            config,
             loading: false,
             error: null,
             source: filtered.length > 0 ? 'remote' : 'mock',
@@ -313,6 +340,7 @@ export function useSessionController(client: ApiClient): SessionController {
           ...current,
           navigation: {
             items: fallbackItems,
+            config: fallbackConfig,
             loading: false,
             error: apiError,
             source: 'mock',
