@@ -18,17 +18,52 @@ export type SessionNavigationState = {
   source: 'mock' | 'remote';
 };
 
+export type SessionUserMenuAction = {
+  key: string;
+  labelKey: UiMessageKey;
+  labelValues?: Record<string, string | number>;
+  disabled?: boolean;
+};
+
+export type SessionUserMenuDivider = {
+  key: string;
+  type: 'divider';
+};
+
+export type SessionUserMenuItem = SessionUserMenuAction | SessionUserMenuDivider;
+
+export type SessionUserMenuState = {
+  items: SessionUserMenuItem[];
+  source: 'guest' | 'session';
+};
+
+export type SessionPermissionFlags = {
+  canAccessOperations: boolean;
+  canManagePlans: boolean;
+};
+
+export type SessionPermissionsState = {
+  roles: string[];
+  normalizedRoles: string[];
+  flags: SessionPermissionFlags;
+  source: 'guest' | 'session';
+};
+
 export type SessionState = {
   session: LoginResponse | null;
   status: 'idle' | 'loading' | 'authenticated';
   error: ApiError | null;
   navigation: SessionNavigationState;
+  userMenu: SessionUserMenuState;
+  permissions: SessionPermissionsState;
 };
 
 export type SessionController = {
   state: SessionState;
   login: (credentials: { username: string; password: string }) => Promise<void>;
   logout: () => void;
+  userMenu: SessionUserMenuState;
+  permissions: SessionPermissionsState;
 };
 
 const normalizePath = (path: string): string => {
@@ -36,6 +71,13 @@ const normalizePath = (path: string): string => {
     return '/';
   }
   return path.startsWith('/') ? path : `/${path}`;
+};
+
+const normalizeRoles = (roles: string[]): string[] => {
+  const normalized = roles
+    .map((role) => role.trim().toUpperCase())
+    .filter((role) => role.length > 0);
+  return Array.from(new Set(normalized));
 };
 
 const MOCK_NAVIGATION_MENU: NavigationMenuPayload[] = [
@@ -75,6 +117,74 @@ const filterNavigationByRoles = (
 
 const guestNavigation: SessionNavigationItem[] = filterNavigationByRoles(MOCK_NAVIGATION_MENU, []);
 
+const ROLE_BASED_USER_MENU_ITEMS: Record<string, SessionUserMenuAction[]> = {
+  ADMIN: [{ key: 'user-menu-operations', labelKey: 'navMenuOperations' }],
+  PLANNER: [
+    { key: 'user-menu-plans', labelKey: 'planSectionTitle' },
+    { key: 'user-menu-calendar', labelKey: 'planDetailTimelineTitle' },
+  ],
+  OPERATOR: [{ key: 'user-menu-reminders', labelKey: 'planDetailRemindersTitle' }],
+};
+
+const buildUserMenu = (session: LoginResponse | null): SessionUserMenuState => {
+  if (!session) {
+    return { items: [], source: 'guest' };
+  }
+  const normalizedRoles = normalizeRoles(session.roles ?? []);
+  const derived: SessionUserMenuAction[] = [];
+  const seen = new Set<string>();
+  normalizedRoles.forEach((role) => {
+    const items = ROLE_BASED_USER_MENU_ITEMS[role];
+    if (!items) {
+      return;
+    }
+    items.forEach((item) => {
+      if (seen.has(item.key)) {
+        return;
+      }
+      seen.add(item.key);
+      derived.push({ ...item });
+    });
+  });
+  const menuItems: SessionUserMenuItem[] = [
+    {
+      key: 'user-menu-profile',
+      labelKey: 'authWelcome',
+      labelValues: { name: session.displayName },
+      disabled: true,
+    },
+  ];
+  if (derived.length > 0) {
+    menuItems.push({ key: 'user-menu-divider', type: 'divider' });
+    menuItems.push(...derived);
+  }
+  menuItems.push({ key: 'logout', labelKey: 'authLogout' });
+  return { items: menuItems, source: 'session' };
+};
+
+const buildPermissions = (session: LoginResponse | null): SessionPermissionsState => {
+  const roles = session?.roles ?? [];
+  const normalizedRoles = normalizeRoles(roles);
+  const canAccessOperations = normalizedRoles.some((role) =>
+    ['ADMIN', 'PLANNER', 'OPERATOR'].includes(role)
+  );
+  const canManagePlans = normalizedRoles.some((role) => ['ADMIN', 'PLANNER'].includes(role));
+  return {
+    roles,
+    normalizedRoles,
+    flags: {
+      canAccessOperations,
+      canManagePlans,
+    },
+    source: session ? 'session' : 'guest',
+  };
+};
+
+const deriveSessionArtifacts = (session: LoginResponse | null) => ({
+  userMenu: buildUserMenu(session),
+  permissions: buildPermissions(session),
+});
+
 const initialState: SessionState = {
   session: null,
   status: 'idle',
@@ -85,6 +195,7 @@ const initialState: SessionState = {
     error: null,
     source: 'mock',
   },
+  ...deriveSessionArtifacts(null),
 };
 
 export function useSessionController(client: ApiClient): SessionController {
@@ -111,6 +222,7 @@ export function useSessionController(client: ApiClient): SessionController {
           session,
           status: 'authenticated',
           error: null,
+          ...deriveSessionArtifacts(session),
         }));
       } catch (error) {
         if (error instanceof DOMException && error.name === 'AbortError') {
@@ -125,6 +237,7 @@ export function useSessionController(client: ApiClient): SessionController {
           session: null,
           status: 'idle',
           error: apiError,
+          ...deriveSessionArtifacts(null),
         }));
       }
     },
@@ -230,6 +343,8 @@ export function useSessionController(client: ApiClient): SessionController {
       state,
       login: handleLogin,
       logout: handleLogout,
+      userMenu: state.userMenu,
+      permissions: state.permissions,
     }),
     [state, handleLogin, handleLogout]
   );

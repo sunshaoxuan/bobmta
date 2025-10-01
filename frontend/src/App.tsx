@@ -20,7 +20,7 @@ import {
   Tag,
   Typography,
 } from '../vendor/antd/index.js';
-import type { TableColumnsType } from '../vendor/antd/index.js';
+import type { MenuProps, TableColumnsType } from '../vendor/antd/index.js';
 import { createApiClient, type ApiClient, type ApiError } from './api/client';
 import { fetchPing } from './api/system';
 import type { PlanStatus, PlanSummary } from './api/types';
@@ -516,6 +516,19 @@ function AppView({ client, localization, session, navigation, planList, planDeta
     [sessionState.navigation.items, translate]
   );
 
+  const sessionUserMenuItems = useMemo<MenuProps['items']>(() => {
+    return sessionState.userMenu.items.map((item) => {
+      if ('type' in item) {
+        return { type: 'divider' as const, key: item.key };
+      }
+      return {
+        key: item.key,
+        label: translate(item.labelKey, item.labelValues),
+        disabled: item.disabled,
+      };
+    });
+  }, [sessionState.userMenu.items, translate]);
+
   const activeMenuKey = useMemo(() => {
     if (navigationState.items.length === 0) {
       return null;
@@ -602,27 +615,6 @@ function AppView({ client, localization, session, navigation, planList, planDeta
     return trimmed.charAt(0).toUpperCase();
   }, [sessionState.session]);
 
-  const userMenuItems = useMemo(() => {
-    if (!sessionState.session) {
-      return [
-        {
-          key: 'guest',
-          label: translate('navUserGuest'),
-          disabled: true,
-        },
-      ];
-    }
-    return [
-      {
-        key: 'profile',
-        label: translate('authWelcome', { name: sessionState.session.displayName }),
-        disabled: true,
-      },
-      { type: 'divider' as const, key: 'divider' },
-      { key: 'logout', label: translate('authLogout') },
-    ];
-  }, [sessionState.session, translate]);
-
   const handleUserMenuClick = useCallback(
     ({ key }: { key: string }) => {
       if (key === 'logout') {
@@ -658,7 +650,8 @@ function AppView({ client, localization, session, navigation, planList, planDeta
         isAuthenticated={isAuthenticated}
         userInitial={userInitial}
         userDisplayName={userDisplayName}
-        userMenuItems={userMenuItems}
+        userRoles={sessionState.permissions.roles}
+        userMenuItems={sessionUserMenuItems}
         onUserMenuClick={handleUserMenuClick}
         onLoginClick={handleLoginShortcut}
       />
