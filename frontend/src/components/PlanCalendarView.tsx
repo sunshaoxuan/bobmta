@@ -1,5 +1,14 @@
-import React, { useMemo, useState } from '../../vendor/react/index.js';
-import { Button, Card, Empty, Space, Tag, Typography } from '../../vendor/antd/index.js';
+import React, { useCallback, useMemo, useState } from '../../vendor/react/index.js';
+import {
+  Calendar,
+  Card,
+  Empty,
+  List,
+  Segmented,
+  Space,
+  Tag,
+  Typography,
+} from '../../vendor/antd/index.js';
 import type { PlanSummary } from '../api/types';
 import type { LocalizationState } from '../i18n/useLocalization';
 import {
@@ -12,36 +21,39 @@ import {
 } from '../state/planList';
 import { PLAN_STATUS_COLOR, PLAN_STATUS_LABEL } from '../constants/planStatus';
 import { listMockPlans } from '../mocks/planList';
+import { mapPlanCalendarEventsByDate } from '../utils/planList';
+import type { ReactNode } from '../../vendor/react/index.js';
 
 const { Text } = Typography;
+
+type CalendarMode = 'month' | 'year';
 
 export type PlanCalendarViewProps = {
   plans?: PlanSummary[];
   events?: PlanCalendarEvent[];
   translate: LocalizationState['translate'];
+  wrapWithCard?: boolean;
 };
 
-export function PlanCalendarView({ plans, events, translate }: PlanCalendarViewProps) {
+export function PlanCalendarView({
+  plans,
+  events,
+  translate,
+  wrapWithCard = true,
+}: PlanCalendarViewProps) {
+  const [calendarMode, setCalendarMode] = useState<CalendarMode>('month');
   const [granularity, setGranularity] = useState<PlanCalendarGranularity>('month');
+
   const granularityOptions = useMemo(
-    () =>
-      [
-        { value: 'day' as PlanCalendarGranularity, label: translate('planCalendarGranularityDay') },
-        {
-          value: 'week' as PlanCalendarGranularity,
-          label: translate('planCalendarGranularityWeek'),
-        },
-        {
-          value: 'month' as PlanCalendarGranularity,
-          label: translate('planCalendarGranularityMonth'),
-        },
-        {
-          value: 'year' as PlanCalendarGranularity,
-          label: translate('planCalendarGranularityYear'),
-        },
-      ],
+    () => [
+      { value: 'day' as PlanCalendarGranularity, label: translate('planCalendarGranularityDay') },
+      { value: 'week' as PlanCalendarGranularity, label: translate('planCalendarGranularityWeek') },
+      { value: 'month' as PlanCalendarGranularity, label: translate('planCalendarGranularityMonth') },
+      { value: 'year' as PlanCalendarGranularity, label: translate('planCalendarGranularityYear') },
+    ],
     [translate]
   );
+
   const calendarEvents = useMemo(() => {
     if (events && events.length > 0) {
       return events;
@@ -52,42 +64,129 @@ export function PlanCalendarView({ plans, events, translate }: PlanCalendarViewP
         : (listMockPlans() as PlanSummaryWithCustomer[]);
     return createPlanCalendarEvents(source);
   }, [plans, events]);
+
+  const eventsByDate = useMemo(
+    () => mapPlanCalendarEventsByDate(calendarEvents),
+    [calendarEvents]
+  );
+
   const buckets = useMemo(
     () => groupCalendarEvents(calendarEvents, { granularity }),
     [calendarEvents, granularity]
   );
+
+  const granularityLabel = useMemo(() => {
+    const option = granularityOptions.find((item) => item.value === granularity);
+    return option ? option.label : translate('planCalendarGranularityMonth');
+  }, [granularityOptions, granularity, translate]);
+
+  const upcomingEvents = useMemo(() => calendarEvents.slice(0, 20), [calendarEvents]);
+
+  const handlePanelChange = useCallback((_: unknown, nextMode: CalendarMode) => {
+    setCalendarMode(nextMode);
+  }, []);
+
+  const renderCalendarCell = useCallback(
+    (current: any, info: { type: 'date' | 'month'; originNode: ReactNode }) => {
+      if (info.type === 'month') {
+        return info.originNode;
+      }
+      const dateKey = current?.format ? current.format('YYYY-MM-DD') : String(current);
+      const dayEvents = eventsByDate[dateKey] ?? [];
+      if (dayEvents.length === 0) {
+        return info.originNode;
+      }
+      return (
+        <div className="plan-calendar-cell">
+          <div className="plan-calendar-cell-value">{info.originNode}</div>
+          <ul className="plan-calendar-cell-events">
+            {dayEvents.slice(0, 3).map((event) => (
+              <li key={event.plan.id} className="plan-calendar-cell-event">
+                <Tag color={PLAN_STATUS_COLOR[event.plan.status]}>
+                  {translate(PLAN_STATUS_LABEL[event.plan.status])}
+                </Tag>
+                <span>{event.plan.title}</span>
+              </li>
+            ))}
+            {dayEvents.length > 3 && (
+              <li className="plan-calendar-cell-more">+{dayEvents.length - 3}</li>
+            )}
+          </ul>
+        </div>
+      );
+    },
+    [eventsByDate, translate]
+  );
+
+  const control = (
+    <Segmented
+      size="small"
+      value={granularity}
+      options={granularityOptions}
+      onChange={(value) => {
+        if (typeof value === 'string') {
+          setGranularity(value as PlanCalendarGranularity);
+        }
+      }}
+    />
+  );
+
+  const content = calendarEvents.length === 0 ? (
+    <Empty description={translate('planDetailTimelineEmpty')} />
+  ) : (
+    <Space direction="vertical" size="large" style={{ width: '100%' }}>
+      <Calendar
+        fullscreen={false}
+        mode={calendarMode}
+        onPanelChange={handlePanelChange}
+        cellRender={renderCalendarCell}
+      />
+
+      <List
+        header={<Text strong>{granularityLabel}</Text>}
+        dataSource={buckets}
+        renderItem={(bucket: PlanCalendarBucket) => (
+          <CalendarBucketItem bucket={bucket} translate={translate} />
+        )}
+      />
+
+      <List
+        header={<Text strong>{translate('planDetailTimelineTitle')}</Text>}
+        dataSource={upcomingEvents}
+        renderItem={(event: PlanCalendarEvent) => (
+          <List.Item key={event.plan.id} className="plan-calendar-event">
+            <Space direction="vertical" style={{ width: '100%' }} size={0}>
+              <Space align="center" size="small">
+                <Tag color={PLAN_STATUS_COLOR[event.plan.status]}>
+                  {translate(PLAN_STATUS_LABEL[event.plan.status])}
+                </Tag>
+                <Text strong>{event.plan.title}</Text>
+              </Space>
+              <Text type="secondary">{formatEventRange(event, translate)}</Text>
+            </Space>
+          </List.Item>
+        )}
+      />
+    </Space>
+  );
+
+  if (!wrapWithCard) {
+    return (
+      <div className="plan-calendar-view">
+        <div className="plan-calendar-toolbar">{control}</div>
+        {content}
+      </div>
+    );
+  }
 
   return (
     <Card
       title={translate('planDetailTimelineTitle')}
       bordered={false}
       className="card-block"
-      extra={
-        <Space size="small">
-          {granularityOptions.map((option) => (
-            <Button
-              key={option.value}
-              type={granularity === option.value ? 'primary' : 'default'}
-              size="small"
-              onClick={() => setGranularity(option.value)}
-            >
-              {option.label}
-            </Button>
-          ))}
-        </Space>
-      }
+      extra={control}
     >
-      {buckets.length === 0 ? (
-        <Empty description={translate('planDetailTimelineEmpty')} />
-      ) : (
-        <Space direction="vertical" size="large" style={{ width: '100%' }}>
-          {buckets.map((bucket) => (
-            <div key={bucket.key} className="plan-calendar-bucket-wrapper">
-              <CalendarBucketItem bucket={bucket} translate={translate} />
-            </div>
-          ))}
-        </Space>
-      )}
+      {content}
     </Card>
   );
 }
@@ -99,48 +198,43 @@ type CalendarBucketItemProps = {
 
 function CalendarBucketItem({ bucket, translate }: CalendarBucketItemProps) {
   return (
-    <div className="plan-calendar-bucket">
-      <Space direction="vertical" size="middle" style={{ width: '100%' }}>
+    <List.Item className="plan-calendar-bucket" key={bucket.key}>
+      <Space direction="vertical" size={4} style={{ width: '100%' }}>
         <Space align="center" size="large" wrap>
           <Tag color="purple">{bucket.label}</Tag>
-          <Text type="secondary">
-            {translate('planTableHeaderWindow')}: {formatRange(bucket.start, bucket.end)}
-          </Text>
+          <Text type="secondary">{formatRange(bucket.start, bucket.end)}</Text>
         </Space>
-        <Space direction="vertical" style={{ width: '100%' }} size="small">
+        <Space direction="vertical" size={4} style={{ width: '100%' }}>
           {bucket.events.map((event) => (
-            <div key={event.plan.id} className="plan-calendar-event">
-              <Space size="small" align="center">
+            <Space key={event.plan.id} direction="vertical" size={0} className="plan-calendar-bucket-event">
+              <Space align="center" size="small">
                 <Tag color={PLAN_STATUS_COLOR[event.plan.status]}>
                   {translate(PLAN_STATUS_LABEL[event.plan.status])}
                 </Tag>
                 <Text strong>{event.plan.title}</Text>
               </Space>
-              <Text type="secondary">
-                {formatEventTime(event.startTime, event.endTime, translate)}
-                {typeof event.durationMinutes === 'number' && event.durationMinutes > 0
-                  ? ` · ${event.durationMinutes} min`
-                  : ''}
-              </Text>
-            </div>
+              <Text type="secondary">{formatEventRange(event, translate)}</Text>
+            </Space>
           ))}
         </Space>
       </Space>
-    </div>
+    </List.Item>
   );
 }
 
-function formatEventTime(
-  start: string | null,
-  end: string | null,
-  translate: LocalizationState['translate']
-): string {
+function formatEventRange(event: PlanCalendarEvent, translate: LocalizationState['translate']): string {
   const empty = translate('planPreviewEmptyValue');
-  const startLabel = start ? new Date(start).toLocaleString() : empty;
-  const endLabel = end ? new Date(end).toLocaleString() : empty;
-  return `${startLabel} → ${endLabel}`;
+  const start = event.startTime ? new Date(event.startTime).toLocaleString() : empty;
+  const end = event.endTime ? new Date(event.endTime).toLocaleString() : empty;
+  const duration =
+    typeof event.durationMinutes === 'number' && event.durationMinutes > 0
+      ? ` · ${event.durationMinutes} min`
+      : '';
+  return `${start} → ${end}${duration}`;
 }
 
 function formatRange(startIso: string, endIso: string): string {
-  return `${new Date(startIso).toLocaleDateString()} → ${new Date(endIso).toLocaleDateString()}`;
+  const start = new Date(startIso).toLocaleDateString();
+  const end = new Date(endIso).toLocaleDateString();
+  return `${start} → ${end}`;
 }
