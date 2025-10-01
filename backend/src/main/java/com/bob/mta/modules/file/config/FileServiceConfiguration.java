@@ -36,6 +36,7 @@ public class FileServiceConfiguration {
 
     @Bean
     @ConditionalOnBean({PlanAggregateMapper.class, MinioClient.class})
+    @ConditionalOnMissingBean(FileService.class)
     public FileService minioFileService(FileStorageProperties properties,
                                         MinioClient minioClient,
                                         com.bob.mta.modules.file.persistence.FileMetadataMapper metadataMapper) {
@@ -49,7 +50,7 @@ public class FileServiceConfiguration {
     }
 
     @Bean
-    @ConditionalOnMissingBean(PlanAggregateMapper.class)
+    @ConditionalOnMissingBean({PlanAggregateMapper.class, FileService.class})
     public FileService inMemoryFileService() {
         return new InMemoryFileService();
     }

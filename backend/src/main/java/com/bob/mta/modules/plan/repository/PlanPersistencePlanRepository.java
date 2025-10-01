@@ -28,12 +28,36 @@ import java.util.stream.Collectors;
 
 @Repository
 @ConditionalOnBean(PlanAggregateMapper.class)
-public class PlanPersistencePlanRepository implements PlanAggregateRepository {
+public class PlanPersistencePlanRepository implements PlanAggregateRepository,
+        PlanRepository,
+        PlanReminderPolicyRepository,
+        PlanTimelineRepository,
+        PlanAttachmentRepository {
 
     private final PlanAggregateMapper mapper;
 
     public PlanPersistencePlanRepository(PlanAggregateMapper mapper) {
         this.mapper = mapper;
+    }
+
+    @Override
+    public PlanRepository plans() {
+        return this;
+    }
+
+    @Override
+    public PlanReminderPolicyRepository reminderPolicies() {
+        return this;
+    }
+
+    @Override
+    public PlanTimelineRepository timelines() {
+        return this;
+    }
+
+    @Override
+    public PlanAttachmentRepository attachments() {
+        return this;
     }
 
     @Override
@@ -109,7 +133,7 @@ public class PlanPersistencePlanRepository implements PlanAggregateRepository {
         if (entity == null) {
             return Optional.empty();
         }
-        List<PlanReminderRuleEntity> rules = mapper.findReminderRulesByPlanIds(List.of(planId));
+        List<PlanReminderRuleEntity> rules = mapper.findReminderRulesByPlanId(planId);
         PlanReminderPolicy policy = PlanPersistenceMapper.toReminderPolicy(entity, rules);
         return Optional.of(policy);
     }
@@ -119,7 +143,7 @@ public class PlanPersistencePlanRepository implements PlanAggregateRepository {
         Objects.requireNonNull(planId, "planId");
         Objects.requireNonNull(policy, "policy");
         mapper.deleteReminderRules(planId);
-        List<PlanReminderRuleEntity> rules = PlanPersistenceMapper.toReminderRuleEntities(planId, policy.getRules());
+        List<PlanReminderRuleEntity> rules = PlanPersistenceMapper.toReminderRuleEntities(planId, policy);
         if (!rules.isEmpty()) {
             mapper.insertReminderRules(new ArrayList<>(rules));
         }
@@ -129,7 +153,7 @@ public class PlanPersistencePlanRepository implements PlanAggregateRepository {
     @Override
     public List<PlanActivity> findTimeline(String planId) {
         Objects.requireNonNull(planId, "planId");
-        List<PlanActivityEntity> activities = mapper.findActivitiesByPlanIds(List.of(planId));
+        List<PlanActivityEntity> activities = mapper.findActivitiesByPlanId(planId);
         return PlanPersistenceMapper.toActivities(activities);
     }
 
@@ -147,7 +171,7 @@ public class PlanPersistencePlanRepository implements PlanAggregateRepository {
     @Override
     public Map<String, List<String>> findAttachments(String planId) {
         Objects.requireNonNull(planId, "planId");
-        List<PlanNodeAttachmentEntity> attachments = mapper.findAttachmentsByPlanIds(List.of(planId));
+        List<PlanNodeAttachmentEntity> attachments = mapper.findAttachmentsByPlanId(planId);
         return PlanPersistenceMapper.toAttachmentMap(attachments);
     }
 
