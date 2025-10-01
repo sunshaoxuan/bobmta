@@ -1,13 +1,20 @@
 package com.bob.mta.modules.plan.repository;
 
 import com.bob.mta.modules.plan.domain.Plan;
+import com.bob.mta.modules.plan.domain.PlanActivity;
+import com.bob.mta.modules.plan.domain.PlanNode;
+import com.bob.mta.modules.plan.domain.PlanNodeExecution;
+import com.bob.mta.modules.plan.domain.PlanReminderPolicy;
 import com.bob.mta.modules.plan.persistence.PlanAggregateMapper;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.stereotype.Repository;
 
+import java.time.OffsetDateTime;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
@@ -77,6 +84,120 @@ public class InMemoryPlanRepository implements PlanRepository {
     @Override
     public String nextReminderId() {
         return "REM-" + reminderSequence.incrementAndGet();
+    }
+
+    @Override
+    public Optional<PlanReminderPolicy> findReminderPolicy(String planId) {
+        return Optional.ofNullable(storage.get(planId))
+                .map(Plan::getReminderPolicy);
+    }
+
+    @Override
+    public void replaceReminderPolicy(String planId, PlanReminderPolicy policy) {
+        if (policy == null) {
+            return;
+        }
+        storage.computeIfPresent(planId, (id, current) -> rebuildPlan(current,
+                current.getNodes(),
+                current.getExecutions(),
+                policy,
+                current.getActivities(),
+                policy.getUpdatedAt()));
+    }
+
+    @Override
+    public List<PlanActivity> findTimeline(String planId) {
+        Plan plan = storage.get(planId);
+        return plan == null ? List.of() : plan.getActivities();
+    }
+
+    @Override
+    public void replaceTimeline(String planId, List<PlanActivity> activities) {
+        storage.computeIfPresent(planId, (id, current) -> rebuildPlan(current,
+                current.getNodes(),
+                current.getExecutions(),
+                current.getReminderPolicy(),
+                activities,
+                current.getUpdatedAt()));
+    }
+
+    @Override
+    public Map<String, List<String>> findAttachments(String planId) {
+        Plan plan = storage.get(planId);
+        if (plan == null) {
+            return Map.of();
+        }
+        Map<String, List<String>> attachments = new LinkedHashMap<>();
+        for (PlanNodeExecution execution : plan.getExecutions()) {
+            attachments.put(execution.getNodeId(), new ArrayList<>(execution.getFileIds()));
+        }
+        return attachments;
+    }
+
+    @Override
+    public void replaceAttachments(String planId, Map<String, List<String>> attachments) {
+        if (attachments == null) {
+            return;
+        }
+        storage.computeIfPresent(planId, (id, current) -> {
+            Map<String, List<String>> normalized = new LinkedHashMap<>();
+            attachments.forEach((nodeId, fileIds) -> {
+                if (nodeId == null || fileIds == null) {
+                    return;
+                }
+                normalized.put(nodeId, List.copyOf(fileIds));
+            });
+            List<PlanNodeExecution> updatedExecutions = current.getExecutions().stream()
+                    .map(execution -> new PlanNodeExecution(
+                            execution.getNodeId(),
+                            execution.getStatus(),
+                            execution.getStartTime(),
+                            execution.getEndTime(),
+                            execution.getOperator(),
+                            execution.getResult(),
+                            execution.getLog(),
+                            normalized.getOrDefault(execution.getNodeId(), execution.getFileIds())
+                    ))
+                    .collect(Collectors.toList());
+            return rebuildPlan(current,
+                    current.getNodes(),
+                    updatedExecutions,
+                    current.getReminderPolicy(),
+                    current.getActivities(),
+                    current.getUpdatedAt());
+        });
+    }
+
+    private Plan rebuildPlan(Plan original,
+                             List<PlanNode> nodes,
+                             List<PlanNodeExecution> executions,
+                             PlanReminderPolicy reminderPolicy,
+                             List<PlanActivity> activities,
+                             OffsetDateTime updatedAt) {
+        return new Plan(
+                original.getId(),
+                original.getTenantId(),
+                original.getTitle(),
+                original.getDescription(),
+                original.getCustomerId(),
+                original.getOwner(),
+                original.getParticipants(),
+                original.getStatus(),
+                original.getPlannedStartTime(),
+                original.getPlannedEndTime(),
+                original.getActualStartTime(),
+                original.getActualEndTime(),
+                original.getCancelReason(),
+                original.getCanceledBy(),
+                original.getCanceledAt(),
+                original.getTimezone(),
+                nodes,
+                executions,
+                original.getCreatedAt(),
+                updatedAt == null ? original.getUpdatedAt() : updatedAt,
+                activities == null ? original.getActivities() : activities,
+                reminderPolicy == null ? original.getReminderPolicy() : reminderPolicy
+        );
     }
 
     private boolean matchesKeyword(Plan plan, String keyword) {

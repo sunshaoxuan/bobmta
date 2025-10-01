@@ -688,6 +688,14 @@
         </foreach>
     </insert>
 
+    <update id="updateReminderAudit">
+        UPDATE mt_plan
+        SET reminder_updated_at = #{updatedAt},
+            reminder_updated_by = #{updatedBy},
+            updated_at = COALESCE(#{updatedAt}, updated_at)
+        WHERE plan_id = #{planId}
+    </update>
+
     <select id="nextPlanId" resultType="string">
         SELECT CONCAT('PLAN-', LPAD(nextval('mt_plan_id_seq')::text, 8, '0'))
     </select>
