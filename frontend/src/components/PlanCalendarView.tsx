@@ -3,8 +3,10 @@ import { Button, Card, Empty, Space, Tag, Typography } from '../../vendor/antd/i
 import type { PlanSummary } from '../api/types';
 import type { LocalizationState } from '../i18n/useLocalization';
 import {
-  transformPlansToCalendarBuckets,
+  createPlanCalendarEvents,
+  groupCalendarEvents,
   type PlanCalendarBucket,
+  type PlanCalendarEvent,
   type PlanCalendarGranularity,
   type PlanSummaryWithCustomer,
 } from '../state/planList';
@@ -22,16 +24,26 @@ const GRANULARITY_OPTIONS: Array<{ label: string; value: PlanCalendarGranularity
 
 export type PlanCalendarViewProps = {
   plans?: PlanSummary[];
+  events?: PlanCalendarEvent[];
   translate: LocalizationState['translate'];
 };
 
-export function PlanCalendarView({ plans, translate }: PlanCalendarViewProps) {
+export function PlanCalendarView({ plans, events, translate }: PlanCalendarViewProps) {
   const [granularity, setGranularity] = useState<PlanCalendarGranularity>('month');
-  const buckets = useMemo(() => {
+  const calendarEvents = useMemo(() => {
+    if (events && events.length > 0) {
+      return events;
+    }
     const source: PlanSummaryWithCustomer[] =
-      plans && plans.length > 0 ? (plans as PlanSummaryWithCustomer[]) : (listMockPlans() as PlanSummaryWithCustomer[]);
-    return transformPlansToCalendarBuckets(source, { granularity });
-  }, [plans, granularity]);
+      plans && plans.length > 0
+        ? (plans as PlanSummaryWithCustomer[])
+        : (listMockPlans() as PlanSummaryWithCustomer[]);
+    return createPlanCalendarEvents(source);
+  }, [plans, events]);
+  const buckets = useMemo(
+    () => groupCalendarEvents(calendarEvents, { granularity }),
+    [calendarEvents, granularity]
+  );
 
   return (
     <Card

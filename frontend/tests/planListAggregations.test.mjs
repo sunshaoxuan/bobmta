@@ -3,6 +3,8 @@ import assert from 'node:assert/strict';
 
 import {
   aggregatePlansByCustomer,
+  createPlanCalendarEvents,
+  groupCalendarEvents,
   transformPlansToCalendarBuckets,
 } from '../dist/state/planList.js';
 
@@ -91,4 +93,31 @@ test('transformPlansToCalendarBuckets groups by week with custom start day', () 
   assert(buckets.length >= 2);
   const firstBucket = buckets[0];
   assert.match(firstBucket.label, /^2025-W/);
+});
+
+test('createPlanCalendarEvents normalizes plan times and skips missing values', () => {
+  const events = createPlanCalendarEvents([
+    ...samplePlans,
+    {
+      id: 'plan-5',
+      title: 'No window',
+      owner: 'Dana',
+      status: 'DESIGN',
+      participants: [],
+      progress: 0,
+    },
+  ]);
+  assert.equal(events.length, 4);
+  assert.equal(events[0].plan.id, 'plan-3');
+  assert.equal(events[events.length - 1].plan.id, 'plan-4');
+  assert(events.every((event) => event.startTime || event.endTime));
+});
+
+test('groupCalendarEvents reuses sanitized events for alternative buckets', () => {
+  const events = createPlanCalendarEvents(samplePlans);
+  const dayBuckets = groupCalendarEvents(events, { granularity: 'day' });
+  assert(dayBuckets.length >= 4);
+  const matchingBucket = dayBuckets.find((bucket) => bucket.events.some((event) => event.plan.id === 'plan-2'));
+  assert(matchingBucket);
+  assert.equal(matchingBucket.granularity, 'day');
 });

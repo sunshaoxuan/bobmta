@@ -34,6 +34,9 @@ export type PlanListFilters = {
 export type PlanListState = {
   records: PlanSummary[];
   recordIndex: Record<string, PlanSummary>;
+  customerGroups: PlanCustomerGroup[];
+  calendarEvents: PlanCalendarEvent[];
+  calendarBuckets: PlanCalendarBucket[];
   filters: PlanListFilters;
   pagination: {
     page: number;
@@ -121,6 +124,9 @@ function createInitialState(): PlanListState {
   return {
     records: [],
     recordIndex: {},
+    customerGroups: [],
+    calendarEvents: [],
+    calendarBuckets: [],
     filters: createEmptyFilters(),
     pagination: {
       page: 0,
@@ -183,9 +189,13 @@ export function usePlanListController(
         useCache = Boolean(cachedEntry) && !options?.force;
         if (useCache && cachedEntry) {
           updateRecordIndex(recordIndex, cachedEntry.records);
+          const derived = derivePlanAggregations(cachedEntry.records);
           return {
             ...current,
             records: cachedEntry.records,
+            customerGroups: derived.customerGroups,
+            calendarEvents: derived.calendarEvents,
+            calendarBuckets: derived.calendarBuckets,
             filters: nextFilters,
             pagination: cachedEntry.pagination,
             status: 'success',
@@ -232,8 +242,12 @@ export function usePlanListController(
         cache.set(cacheKey, cacheEntry);
         evictPlanListCacheEntries(cache, PLAN_LIST_CACHE_LIMIT);
         updateRecordIndex(recordIndex, records);
+        const derived = derivePlanAggregations(records);
         setState({
           records,
+          customerGroups: derived.customerGroups,
+          calendarEvents: derived.calendarEvents,
+          calendarBuckets: derived.calendarBuckets,
           pagination,
           status: 'success',
           error: null,
@@ -495,25 +509,63 @@ export function aggregatePlansByCustomer<
   return groups;
 }
 
-export function transformPlansToCalendarBuckets<
+export function createPlanCalendarEvents<
+  T extends PlanSummaryWithCustomer = PlanSummaryWithCustomer
+>(plans: readonly T[]): PlanCalendarEvent<T>[] {
+  if (!plans || plans.length === 0) {
+    return [];
+  }
+  const events: PlanCalendarEvent<T>[] = [];
+  plans.forEach((plan) => {
+    if (!plan || !plan.id) {
+      return;
+    }
+    const anchor = selectAnchorTime(plan);
+    if (!anchor) {
+      return;
+    }
+    const startTime = sanitizeTime(plan.plannedStartTime);
+    const endTime = sanitizeTime(plan.plannedEndTime);
+    events.push({
+      plan,
+      startTime,
+      endTime,
+      durationMinutes: resolveDurationMinutes(startTime, endTime),
+    });
+  });
+  events.sort((a, b) => {
+    const startA = toTimeValue(a.startTime ?? a.endTime);
+    const startB = toTimeValue(b.startTime ?? b.endTime);
+    if (startA === startB) {
+      return a.plan.id.localeCompare(b.plan.id);
+    }
+    return startA - startB;
+  });
+  return events;
+}
+
+export function groupCalendarEvents<
   T extends PlanSummaryWithCustomer = PlanSummaryWithCustomer
 >(
-  plans: readonly T[],
+  events: readonly PlanCalendarEvent<T>[],
   options?: { granularity?: PlanCalendarGranularity; weekStartsOn?: number }
 ): PlanCalendarBucket<T>[] {
-  if (!plans || plans.length === 0) {
+  if (!events || events.length === 0) {
     return [];
   }
   const granularity = options?.granularity ?? 'month';
   const weekStartsOn = normalizeWeekStartsOn(options?.weekStartsOn);
   const bucketMap = new Map<string, PlanCalendarBucket<T>>();
 
-  plans.forEach((plan) => {
-    const anchor = selectAnchorTime(plan);
-    if (!anchor) {
+  events.forEach((event) => {
+    if (!event) {
       return;
     }
-    const anchorDate = new Date(anchor);
+    const anchorIso = selectEventAnchor(event);
+    if (!anchorIso) {
+      return;
+    }
+    const anchorDate = new Date(anchorIso);
     if (Number.isNaN(anchorDate.getTime())) {
       return;
     }
@@ -531,12 +583,6 @@ export function transformPlansToCalendarBuckets<
       } as PlanCalendarBucket<T>;
       bucketMap.set(bucketKey, bucket);
     }
-    const event: PlanCalendarEvent<T> = {
-      plan,
-      startTime: sanitizeTime(plan.plannedStartTime),
-      endTime: sanitizeTime(plan.plannedEndTime),
-      durationMinutes: resolveDurationMinutes(plan.plannedStartTime, plan.plannedEndTime),
-    };
     bucket.events.push(event);
   });
 
@@ -544,8 +590,8 @@ export function transformPlansToCalendarBuckets<
   buckets.sort((a, b) => new Date(a.start).getTime() - new Date(b.start).getTime());
   buckets.forEach((bucket) => {
     bucket.events.sort((a, b) => {
-      const startA = toTimeValue(a.startTime);
-      const startB = toTimeValue(b.startTime);
+      const startA = toTimeValue(a.startTime ?? a.endTime);
+      const startB = toTimeValue(b.startTime ?? b.endTime);
       if (startA === startB) {
         return a.plan.id.localeCompare(b.plan.id);
       }
@@ -553,6 +599,34 @@ export function transformPlansToCalendarBuckets<
     });
   });
   return buckets;
+}
+
+export function transformPlansToCalendarBuckets<
+  T extends PlanSummaryWithCustomer = PlanSummaryWithCustomer
+>(
+  plans: readonly T[],
+  options?: { granularity?: PlanCalendarGranularity; weekStartsOn?: number }
+): PlanCalendarBucket<T>[] {
+  const events = createPlanCalendarEvents(plans);
+  return groupCalendarEvents(events, options);
+}
+
+function derivePlanAggregations(records: PlanSummary[]): {
+  customerGroups: PlanCustomerGroup[];
+  calendarEvents: PlanCalendarEvent[];
+  calendarBuckets: PlanCalendarBucket[];
+} {
+  if (!records || records.length === 0) {
+    return { customerGroups: [], calendarEvents: [], calendarBuckets: [] };
+  }
+  const typedRecords = records as PlanSummaryWithCustomer[];
+  const customerGroups = aggregatePlansByCustomer(typedRecords, {
+    sortBy: 'total',
+    descending: true,
+  });
+  const calendarEvents = createPlanCalendarEvents(typedRecords);
+  const calendarBuckets = groupCalendarEvents(calendarEvents, { granularity: 'month' });
+  return { customerGroups, calendarEvents, calendarBuckets };
 }
 
 function createEmptyStatusCounts(): Record<PlanStatus, number> {
@@ -613,6 +687,16 @@ function selectAnchorTime(plan: PlanSummaryWithCustomer): string | null {
   }
   const end = sanitizeTime(plan.plannedEndTime);
   return end;
+}
+
+function selectEventAnchor(event: PlanCalendarEvent): string | null {
+  if (event.startTime) {
+    return event.startTime;
+  }
+  if (event.endTime) {
+    return event.endTime;
+  }
+  return selectAnchorTime(event.plan);
 }
 
 function sanitizeTime(value?: string | null): string | null {

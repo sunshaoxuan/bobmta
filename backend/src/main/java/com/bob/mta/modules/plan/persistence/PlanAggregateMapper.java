@@ -3,6 +3,7 @@ package com.bob.mta.modules.plan.persistence;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
 
+import java.time.OffsetDateTime;
 import java.util.Collection;
 import java.util.List;
 
@@ -56,6 +57,10 @@ public interface PlanAggregateMapper {
     void deleteReminderRules(@Param("planId") String planId);
 
     void insertReminderRules(@Param("rules") List<PlanReminderRuleEntity> rules);
+
+    void updateReminderAudit(@Param("planId") String planId,
+                             @Param("updatedAt") OffsetDateTime updatedAt,
+                             @Param("updatedBy") String updatedBy);
 
     String nextPlanId();
 

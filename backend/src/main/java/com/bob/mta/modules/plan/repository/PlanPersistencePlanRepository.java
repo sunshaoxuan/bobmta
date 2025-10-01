@@ -1,6 +1,8 @@
 package com.bob.mta.modules.plan.repository;
 
 import com.bob.mta.modules.plan.domain.Plan;
+import com.bob.mta.modules.plan.domain.PlanActivity;
+import com.bob.mta.modules.plan.domain.PlanReminderPolicy;
 import com.bob.mta.modules.plan.persistence.PlanActivityEntity;
 import com.bob.mta.modules.plan.persistence.PlanAggregate;
 import com.bob.mta.modules.plan.persistence.PlanAggregateMapper;
@@ -95,6 +97,65 @@ public class PlanPersistencePlanRepository implements PlanRepository {
     @Override
     public String nextReminderId() {
         return mapper.nextReminderId();
+    }
+
+    @Override
+    public Optional<PlanReminderPolicy> findReminderPolicy(String planId) {
+        Objects.requireNonNull(planId, "planId");
+        PlanEntity entity = mapper.findPlanById(planId);
+        if (entity == null) {
+            return Optional.empty();
+        }
+        List<PlanReminderRuleEntity> rules = mapper.findReminderRulesByPlanIds(List.of(planId));
+        PlanReminderPolicy policy = PlanPersistenceMapper.toReminderPolicy(entity, rules);
+        return Optional.of(policy);
+    }
+
+    @Override
+    public void replaceReminderPolicy(String planId, PlanReminderPolicy policy) {
+        Objects.requireNonNull(planId, "planId");
+        Objects.requireNonNull(policy, "policy");
+        mapper.deleteReminderRules(planId);
+        List<PlanReminderRuleEntity> rules = PlanPersistenceMapper.toReminderRuleEntities(planId, policy.getRules());
+        if (!rules.isEmpty()) {
+            mapper.insertReminderRules(new ArrayList<>(rules));
+        }
+        mapper.updateReminderAudit(planId, policy.getUpdatedAt(), policy.getUpdatedBy());
+    }
+
+    @Override
+    public List<PlanActivity> findTimeline(String planId) {
+        Objects.requireNonNull(planId, "planId");
+        List<PlanActivityEntity> activities = mapper.findActivitiesByPlanIds(List.of(planId));
+        return PlanPersistenceMapper.toActivities(activities);
+    }
+
+    @Override
+    public void replaceTimeline(String planId, List<PlanActivity> activities) {
+        Objects.requireNonNull(planId, "planId");
+        mapper.deleteActivities(planId);
+        List<PlanActivityEntity> entities = PlanPersistenceMapper.toActivityEntities(planId,
+                activities == null ? List.of() : activities);
+        if (!entities.isEmpty()) {
+            mapper.insertActivities(new ArrayList<>(entities));
+        }
+    }
+
+    @Override
+    public Map<String, List<String>> findAttachments(String planId) {
+        Objects.requireNonNull(planId, "planId");
+        List<PlanNodeAttachmentEntity> attachments = mapper.findAttachmentsByPlanIds(List.of(planId));
+        return PlanPersistenceMapper.toAttachmentMap(attachments);
+    }
+
+    @Override
+    public void replaceAttachments(String planId, Map<String, List<String>> attachments) {
+        Objects.requireNonNull(planId, "planId");
+        mapper.deleteAttachments(planId);
+        List<PlanNodeAttachmentEntity> entities = PlanPersistenceMapper.toAttachmentEntities(planId, attachments);
+        if (!entities.isEmpty()) {
+            mapper.insertAttachments(new ArrayList<>(entities));
+        }
     }
 
     private void persistAssociations(PlanAggregate aggregate) {
