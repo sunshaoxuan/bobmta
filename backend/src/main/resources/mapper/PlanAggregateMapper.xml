@@ -484,6 +484,7 @@
         <foreach collection="planIds" item="planId" open="(" separator="," close=")">
             #{planId}
         </foreach>
+        ORDER BY plan_id, participant_id
     </select>
 
     <select id="findNodesByPlanIds" parameterType="list" resultMap="PlanNodeResult">
@@ -504,6 +505,7 @@
         <foreach collection="planIds" item="planId" open="(" separator="," close=")">
             #{planId}
         </foreach>
+        ORDER BY plan_id, order_index, node_id
     </select>
 
     <select id="findExecutionsByPlanIds" parameterType="list" resultMap="PlanExecutionResult">
@@ -520,6 +522,7 @@
         <foreach collection="planIds" item="planId" open="(" separator="," close=")">
             #{planId}
         </foreach>
+        ORDER BY plan_id, node_id
     </select>
 
     <select id="findAttachmentsByPlanIds" parameterType="list" resultMap="PlanAttachmentResult">
@@ -529,6 +532,7 @@
         <foreach collection="planIds" item="planId" open="(" separator="," close=")">
             #{planId}
         </foreach>
+        ORDER BY plan_id, node_id, file_id
     </select>
 
     <select id="findActivitiesByPlanIds" parameterType="list" resultMap="PlanActivityResult">
@@ -545,6 +549,7 @@
         <foreach collection="planIds" item="planId" open="(" separator="," close=")">
             #{planId}
         </foreach>
+        ORDER BY plan_id, occurred_at, activity_id
     </select>
 
     <select id="findReminderRulesByPlanIds" parameterType="list" resultMap="PlanReminderRuleResult">
@@ -562,6 +567,7 @@
         <foreach collection="planIds" item="planId" open="(" separator="," close=")">
             #{planId}
         </foreach>
+        ORDER BY plan_id, rule_id
     </select>
 
     <insert id="insertPlan" parameterType="com.bob.mta.modules.plan.persistence.PlanEntity">

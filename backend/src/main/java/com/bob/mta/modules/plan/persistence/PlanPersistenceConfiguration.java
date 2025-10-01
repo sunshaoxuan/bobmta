@@ -17,12 +17,14 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.datasource.DataSourceTransactionManager;
 import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.annotation.EnableTransactionManagement;
 
 import javax.sql.DataSource;
 
 @Configuration
 @ConditionalOnClass(org.apache.ibatis.session.SqlSessionFactory.class)
 @EnableConfigurationProperties(DataSourceProperties.class)
+@EnableTransactionManagement
 @MapperScan(basePackageClasses = {
         PlanAggregateMapper.class,
         com.bob.mta.common.i18n.persistence.MultilingualTextMapper.class,
