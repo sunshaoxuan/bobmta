@@ -25,7 +25,7 @@ import java.util.stream.Collectors;
 
 @Repository
 @ConditionalOnMissingBean(PlanAggregateMapper.class)
-public class InMemoryPlanRepository implements PlanRepository {
+public class InMemoryPlanRepository implements PlanAggregateRepository {
 
     private final ConcurrentMap<String, Plan> storage = new ConcurrentHashMap<>();
     private final AtomicLong planSequence = new AtomicLong(5000);

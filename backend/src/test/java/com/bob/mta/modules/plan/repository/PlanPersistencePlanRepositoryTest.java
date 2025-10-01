@@ -30,6 +30,7 @@ import org.testcontainers.junit.jupiter.Testcontainers;
 import javax.sql.DataSource;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -219,7 +220,7 @@ class PlanPersistencePlanRepositoryTest {
                 null, null, null, "UTC", List.of(root), List.of(rootExecution, childExecution),
                 now.minusDays(3), now.minusHours(1), List.of(activity), policy);
 
-        repository.save(plan);
+        persistAggregate(plan);
 
         Plan reloaded = repository.findById(planId).orElseThrow();
         assertThat(reloaded.getId()).isEqualTo(planId);
@@ -260,7 +261,7 @@ class PlanPersistencePlanRepositoryTest {
                 "UTC", List.of(), List.of(), now.minusDays(1), now.minusHours(1), List.of(),
                 PlanReminderPolicy.empty());
 
-        repository.save(initialPlan);
+        persistAggregate(initialPlan);
 
         String newNodeId = repository.nextNodeId();
         PlanNode newNode = new PlanNode(newNodeId, "Updated Node", "TASK", "owner-2", 0,
@@ -277,7 +278,7 @@ class PlanPersistencePlanRepositoryTest {
                 List.of(new PlanActivity(PlanActivityType.PLAN_UPDATED, now, "owner-2",
                         "plan.updated", null, Map.of())), reminderPolicy);
 
-        repository.save(updatedPlan);
+        persistAggregate(updatedPlan);
 
         Plan reloaded = repository.findById(planId).orElseThrow();
         assertThat(reloaded.getOwner()).isEqualTo("owner-2");
@@ -299,7 +300,7 @@ class PlanPersistencePlanRepositoryTest {
                 "UTC", List.of(), List.of(), now.minusDays(2), now.minusHours(1), List.of(),
                 PlanReminderPolicy.empty());
 
-        repository.save(plan);
+        persistAggregate(plan);
         assertThat(repository.findById(planId)).isPresent();
 
         repository.delete(planId);
@@ -321,7 +322,7 @@ class PlanPersistencePlanRepositoryTest {
                     start, start.plusHours(4), null, null, null, null, null, "UTC",
                     List.of(), List.of(), start.minusDays(1), start.minusHours(1), List.of(),
                     PlanReminderPolicy.empty());
-            repository.save(plan);
+            persistAggregate(plan);
             memoryRepository.save(plan);
         }
 
@@ -362,6 +363,27 @@ class PlanPersistencePlanRepositoryTest {
         String reminder2 = repository.nextReminderId();
         assertThat(reminder1).startsWith("REM-");
         assertThat(reminder2).isNotEqualTo(reminder1);
+    }
+
+    private void persistAggregate(Plan plan) {
+        repository.save(plan);
+        repository.replaceTimeline(plan.getId(), plan.getActivities());
+        repository.replaceReminderPolicy(plan.getId(), plan.getReminderPolicy());
+        repository.replaceAttachments(plan.getId(), attachmentMap(plan));
+    }
+
+    private Map<String, List<String>> attachmentMap(Plan plan) {
+        if (plan.getExecutions() == null || plan.getExecutions().isEmpty()) {
+            return Map.of();
+        }
+        Map<String, List<String>> attachments = new LinkedHashMap<>();
+        for (PlanNodeExecution execution : plan.getExecutions()) {
+            if (execution.getFileIds() == null || execution.getFileIds().isEmpty()) {
+                continue;
+            }
+            attachments.put(execution.getNodeId(), List.copyOf(execution.getFileIds()));
+        }
+        return attachments;
     }
 
     private void runStatements(String[] statements) {

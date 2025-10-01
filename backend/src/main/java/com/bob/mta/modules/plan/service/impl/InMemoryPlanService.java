@@ -17,9 +17,9 @@ import com.bob.mta.modules.plan.domain.PlanReminderRule;
 import com.bob.mta.modules.plan.domain.PlanReminderSchedule;
 import com.bob.mta.modules.plan.domain.PlanReminderTrigger;
 import com.bob.mta.modules.plan.domain.PlanStatus;
+import com.bob.mta.modules.plan.repository.PlanAggregateRepository;
 import com.bob.mta.modules.plan.repository.PlanAnalyticsQuery;
 import com.bob.mta.modules.plan.repository.PlanAnalyticsRepository;
-import com.bob.mta.modules.plan.repository.PlanRepository;
 import com.bob.mta.modules.plan.repository.PlanSearchCriteria;
 import com.bob.mta.modules.plan.service.PlanActivityDescriptor;
 import com.bob.mta.modules.plan.service.PlanFilterDescriptor;
@@ -40,6 +40,7 @@ import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
@@ -137,12 +138,12 @@ public class InMemoryPlanService implements PlanService {
     );
 
     private final FileService fileService;
-    private final PlanRepository planRepository;
+    private final PlanAggregateRepository planRepository;
     private final PlanAnalyticsRepository planAnalyticsRepository;
     private final MessageResolver messageResolver;
 
     public InMemoryPlanService(FileService fileService,
-                               PlanRepository planRepository,
+                               PlanAggregateRepository planRepository,
                                PlanAnalyticsRepository planAnalyticsRepository,
                                MessageResolver messageResolver) {
         this.fileService = fileService;
@@ -203,6 +204,7 @@ public class InMemoryPlanService implements PlanService {
         OffsetDateTime now = OffsetDateTime.now();
         Plan plan = buildPlan(id, command, now);
         planRepository.save(plan);
+        persistAggregateState(plan);
         return plan;
     }
 
@@ -232,6 +234,7 @@ public class InMemoryPlanService implements PlanService {
         Plan updated = current.withDefinition(nodes, executions, now, command.getStartTime(), command.getEndTime(),
                 command.getDescription(), command.getParticipants(), timezone, activities);
         planRepository.save(updated);
+        persistAggregateState(updated);
         return updated;
     }
 
@@ -269,6 +272,7 @@ public class InMemoryPlanService implements PlanService {
         Plan updated = current.withStatus(nextStatus, actualStart, null, current.getExecutions(), now,
                 null, null, null, activities);
         planRepository.save(updated);
+        persistAggregateState(updated);
         return updated;
     }
 
@@ -293,6 +297,7 @@ public class InMemoryPlanService implements PlanService {
         Plan updated = current.withStatus(PlanStatus.CANCELED, null, now, current.getExecutions(), now,
                 reason, operator, now, activities);
         planRepository.save(updated);
+        persistAggregateState(updated);
         return updated;
     }
 
@@ -330,6 +335,7 @@ public class InMemoryPlanService implements PlanService {
         Plan updated = current.withStatus(nextStatus, actualStart, null, executions, now,
                 null, null, null, activities);
         planRepository.save(updated);
+        persistAggregateState(updated);
         return updated;
     }
 
@@ -390,6 +396,7 @@ public class InMemoryPlanService implements PlanService {
         Plan updated = current.withStatus(nextStatus, actualStart, actualEnd, executions, now,
                 null, null, null, activities);
         planRepository.save(updated);
+        persistAggregateState(updated);
         return updated;
     }
 
@@ -422,6 +429,7 @@ public class InMemoryPlanService implements PlanService {
         ));
         Plan updated = current.withNodes(nodes, current.getExecutions(), now, activities);
         planRepository.save(updated);
+        persistAggregateState(updated);
         return updated;
     }
 
@@ -456,6 +464,7 @@ public class InMemoryPlanService implements PlanService {
         ));
         Plan updated = current.withOwnerAndParticipants(newOwner, updatedParticipants, now, activities);
         planRepository.save(updated);
+        persistAggregateState(updated);
         return updated;
     }
 
@@ -499,6 +508,7 @@ public class InMemoryPlanService implements PlanService {
                 )));
         Plan updated = current.withReminderPolicy(policy, now, activities);
         planRepository.save(updated);
+        persistAggregateState(updated);
         return updated;
     }
 
@@ -534,6 +544,7 @@ public class InMemoryPlanService implements PlanService {
                 )));
         Plan updated = current.withReminderPolicy(policy, now, activities);
         planRepository.save(updated);
+        persistAggregateState(updated);
         return updated;
     }
 
@@ -1049,6 +1060,26 @@ public class InMemoryPlanService implements PlanService {
             updated.add(next);
         }
         return changed ? updated : nodes;
+    }
+
+    private void persistAggregateState(Plan plan) {
+        planRepository.replaceTimeline(plan.getId(), plan.getActivities());
+        planRepository.replaceReminderPolicy(plan.getId(), plan.getReminderPolicy());
+        planRepository.replaceAttachments(plan.getId(), collectAttachments(plan.getExecutions()));
+    }
+
+    private Map<String, List<String>> collectAttachments(List<PlanNodeExecution> executions) {
+        if (executions == null || executions.isEmpty()) {
+            return Map.of();
+        }
+        Map<String, List<String>> attachments = new LinkedHashMap<>();
+        for (PlanNodeExecution execution : executions) {
+            if (execution.getFileIds() == null || execution.getFileIds().isEmpty()) {
+                continue;
+            }
+            attachments.put(execution.getNodeId(), List.copyOf(execution.getFileIds()));
+        }
+        return attachments;
     }
 
     private List<PlanActivity> appendActivity(Plan plan, PlanActivity activity) {
