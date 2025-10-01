@@ -146,6 +146,16 @@
   box-shadow: 0 0 0 2px rgba(22, 119, 255, 0.28);
 }
 
+.header-login-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  padding: 0 20px;
+  height: 36px;
+  font-weight: 600;
+}
+
 .user-avatar {
   display: inline-flex;
   align-items: center;

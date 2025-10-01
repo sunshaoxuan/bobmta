@@ -101,6 +101,7 @@ function AppView({ client, localization, session, navigation, planList, planDeta
   } = planDetail;
   const { location, navigate } = router;
   const planRoute = useMemo(() => parsePlanRoute(location.pathname), [location.pathname]);
+  const authSectionRef = useRef<HTMLDivElement | null>(null);
   const initialUrlStateRef = useRef<PlanDetailUrlState | null>(null);
   if (initialUrlStateRef.current === null) {
     initialUrlStateRef.current = parsePlanDetailUrlState(location.search);
@@ -456,6 +457,24 @@ function AppView({ client, localization, session, navigation, planList, planDeta
   );
 
   const navigationState = navigation.state;
+  const navigationErrorLabel = useMemo(() => {
+    if (!navigationState.error) {
+      return null;
+    }
+    if (navigationState.error.type === 'network') {
+      return translate('backendErrorNetwork');
+    }
+    if (navigationState.error.type === 'status') {
+      if (navigationState.error.status === 403) {
+        return translate('navAccessDeniedTitle');
+      }
+      if (navigationState.error.status === 401) {
+        return translate('planLoginRequired');
+      }
+      return translate('backendErrorStatus', { status: navigationState.error.status });
+    }
+    return translate('backendErrorNetwork');
+  }, [navigationState.error, translate]);
   const normalizePathname = useCallback((pathname: string) => {
     if (!pathname) {
       return '/';
@@ -606,6 +625,14 @@ function AppView({ client, localization, session, navigation, planList, planDeta
     [logout]
   );
 
+  const handleLoginShortcut = useCallback(() => {
+    if (authSectionRef.current) {
+      authSectionRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      return;
+    }
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }, []);
+
   return (
     <Layout className="app-layout">
       <Header className="app-header">
@@ -625,9 +652,9 @@ function AppView({ client, localization, session, navigation, planList, planDeta
             selectedKeys={menuSelectedKeys}
             onClick={handleMenuClick}
           />
-          {navigationState.error && (
+          {navigationErrorLabel && (
             <Tag color="volcano" className="nav-error-badge">
-              {translate('backendErrorNetwork')}
+              {navigationErrorLabel}
             </Tag>
           )}
         </div>
@@ -642,19 +669,37 @@ function AppView({ client, localization, session, navigation, planList, planDeta
               options={localeOptions}
             />
           </Space>
-          <Dropdown
-            menu={{ items: userMenuItems, onClick: handleUserMenuClick }}
-            placement="bottomRight"
-          >
-            <button type="button" className="user-dropdown-trigger">
-              <span className="user-avatar">{userInitial}</span>
-              <span className="user-name">{userDisplayName}</span>
-            </button>
-          </Dropdown>
+          {sessionState.session ? (
+            <Dropdown
+              menu={{ items: userMenuItems, onClick: handleUserMenuClick }}
+              placement="bottomRight"
+            >
+              <button type="button" className="user-dropdown-trigger">
+                <span className="user-avatar">{userInitial}</span>
+                <span className="user-name">{userDisplayName}</span>
+              </button>
+            </Dropdown>
+          ) : (
+            <Button
+              type="primary"
+              className="header-login-button"
+              onClick={handleLoginShortcut}
+            >
+              {translate('navLogin')}
+            </Button>
+          )}
         </div>
       </Header>
       <Content className="app-content">
         <Space direction="vertical" size="large" style={{ width: '100%' }}>
+          {navigationState.forbidden && (
+            <Alert
+              type="error"
+              showIcon
+              message={translate('navAccessDeniedTitle')}
+              description={translate('navAccessDeniedDescription')}
+            />
+          )}
           <Card title={translate('backendStatus')} bordered={false} className="card-block status-card">
             <Space direction="vertical" size="middle" style={{ width: '100%' }}>
               {ping && (
@@ -677,12 +722,13 @@ function AppView({ client, localization, session, navigation, planList, planDeta
             </Space>
           </Card>
 
-          <Card title={translate('authSectionTitle')} bordered={false} className="card-block">
-            {sessionState.session ? (
-              <Space direction="vertical" size="middle" style={{ width: '100%' }}>
-                <Alert
-                  type="success"
-                  showIcon
+          <div ref={authSectionRef} style={{ width: '100%' }}>
+            <Card title={translate('authSectionTitle')} bordered={false} className="card-block">
+              {sessionState.session ? (
+                <Space direction="vertical" size="middle" style={{ width: '100%' }}>
+                  <Alert
+                    type="success"
+                    showIcon
                   message={translate('authWelcome', {
                     name: sessionState.session.displayName,
                   })}
@@ -755,8 +801,9 @@ function AppView({ client, localization, session, navigation, planList, planDeta
                   />
                 )}
               </Space>
-            )}
-          </Card>
+              )}
+            </Card>
+          </div>
 
           <Space size="small" className="plan-view-toggle" wrap>
             {planViewOptions.map((option) => (
@@ -843,7 +890,9 @@ function App() {
     [localization.locale]
   );
   const session = useSessionController(client);
-  const navigation = useNavigationController(client, session.state.session);
+  const navigation = useNavigationController(client, session.state.session, {
+    onUnauthorized: session.logout,
+  });
   const planList = usePlanListController(client, session.state.session);
   const planDetail = usePlanDetailController(client, session.state.session);
   const router = useHistoryRouter();

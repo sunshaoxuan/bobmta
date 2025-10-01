@@ -21,6 +21,8 @@ type NavigationState = {
   items: NavigationMenuItem[];
   loading: boolean;
   error: ApiError | null;
+  unauthorized: boolean;
+  forbidden: boolean;
 };
 
 type NavigationController = {
@@ -32,6 +34,8 @@ const initialState: NavigationState = {
   items: [],
   loading: false,
   error: null,
+  unauthorized: false,
+  forbidden: false,
 };
 
 const MOCK_MENU: NavigationMenuPayload[] = [
@@ -76,9 +80,14 @@ function filterMenuByRoles(
   return filtered.length > 0 ? filtered : [];
 }
 
+type NavigationControllerOptions = {
+  onUnauthorized?: () => void;
+};
+
 export function useNavigationController(
   client: ApiClient,
-  session: LoginResponse | null
+  session: LoginResponse | null,
+  options: NavigationControllerOptions = {}
 ): NavigationController {
   const [state, setState] = useState<NavigationState>(initialState);
   const requestRef = useRef<AbortController | null>(null);
@@ -94,13 +103,25 @@ export function useNavigationController(
     const roles = session?.roles ?? [];
     const fallback = applyMenu(MOCK_MENU, roles);
     if (!session) {
-      setState({ items: fallback, loading: false, error: null });
+      setState({
+        items: fallback,
+        loading: false,
+        error: null,
+        unauthorized: false,
+        forbidden: false,
+      });
       return;
     }
     requestRef.current?.abort();
     const controller = new AbortController();
     requestRef.current = controller;
-    setState((current) => ({ ...current, loading: true, error: null }));
+    setState((current) => ({
+      ...current,
+      loading: true,
+      error: null,
+      unauthorized: false,
+      forbidden: false,
+    }));
     try {
       const payload = await fetchNavigationMenu(client, {
         authToken: sessionToken,
@@ -111,7 +132,13 @@ export function useNavigationController(
       }
       const filtered = applyMenu(payload, roles);
       const items = filtered.length > 0 ? filtered : fallback;
-      setState({ items, loading: false, error: null });
+      setState({
+        items,
+        loading: false,
+        error: null,
+        unauthorized: false,
+        forbidden: false,
+      });
     } catch (error) {
       if (controller.signal.aborted) {
         return;
@@ -119,13 +146,40 @@ export function useNavigationController(
       const apiError: ApiError = isApiError(error)
         ? (error as ApiError)
         : ({ type: 'network', message: (error as Error)?.message ?? null } as ApiError);
-      setState({ items: fallback, loading: false, error: apiError });
+      if (apiError.type === 'status' && apiError.status === 401) {
+        options.onUnauthorized?.();
+        setState({
+          items: fallback,
+          loading: false,
+          error: apiError,
+          unauthorized: true,
+          forbidden: false,
+        });
+        return;
+      }
+      if (apiError.type === 'status' && apiError.status === 403) {
+        setState({
+          items: fallback,
+          loading: false,
+          error: apiError,
+          unauthorized: false,
+          forbidden: true,
+        });
+        return;
+      }
+      setState({
+        items: fallback,
+        loading: false,
+        error: apiError,
+        unauthorized: false,
+        forbidden: false,
+      });
     } finally {
       if (requestRef.current === controller) {
         requestRef.current = null;
       }
     }
-  }, [applyMenu, client, roleSignature, session, sessionToken]);
+  }, [applyMenu, client, options.onUnauthorized, roleSignature, session, sessionToken]);
 
   useEffect(() => {
     void loadMenu();
@@ -150,4 +204,9 @@ export function useNavigationController(
   );
 }
 
-export type { NavigationController, NavigationMenuItem, NavigationState };
+export type {
+  NavigationController,
+  NavigationMenuItem,
+  NavigationState,
+  NavigationControllerOptions,
+};
