@@ -17,6 +17,7 @@ import {
   Layout,
   Menu,
   Progress,
+  Segmented,
   Select,
   Space,
   Tag,
@@ -758,18 +759,18 @@ function AppView({ client, localization, session, navigation, planList, planDeta
             )}
           </Card>
 
-          <Space size="small" className="plan-view-toggle" wrap>
-            {planViewOptions.map((option) => (
-              <Button
-                key={option.value}
-                type={viewMode === option.value ? 'primary' : 'default'}
-                size="small"
-                onClick={() => setViewMode(option.value)}
-              >
-                {option.label}
-              </Button>
-            ))}
-          </Space>
+          <div className="plan-view-toggle">
+            <Segmented
+              size="small"
+              value={viewMode}
+              options={planViewOptions}
+              onChange={(nextValue) => {
+                if (typeof nextValue === 'string') {
+                  setViewMode(nextValue as PlanListViewMode);
+                }
+              }}
+            />
+          </div>
 
           {viewMode === 'table' && (
             <PlanListBoard
@@ -822,10 +823,18 @@ function AppView({ client, localization, session, navigation, planList, planDeta
             />
           )}
           {viewMode === 'customer' && (
-            <PlanByCustomerView plans={planState.records} translate={translate} />
+            <PlanByCustomerView
+              plans={planState.records}
+              groups={planState.customerGroups}
+              translate={translate}
+            />
           )}
           {viewMode === 'calendar' && (
-            <PlanCalendarView plans={planState.records} translate={translate} />
+            <PlanCalendarView
+              plans={planState.records}
+              events={planState.calendarEvents}
+              translate={translate}
+            />
           )}
         </Space>
       </Content>

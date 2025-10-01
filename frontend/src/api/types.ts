@@ -34,6 +34,12 @@ export type PlanSummary = {
   plannedEndTime?: string | null;
   participants: string[];
   progress: number;
+  customer?: {
+    id?: string | null;
+    name?: string | null;
+  } | null;
+  customerId?: string | null;
+  customerName?: string | null;
 };
 
 export type PlanParticipant = {

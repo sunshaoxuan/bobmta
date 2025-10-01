@@ -14,15 +14,21 @@ const { Text, Title } = Typography;
 
 export type PlanByCustomerViewProps = {
   plans?: PlanSummary[];
+  groups?: PlanCustomerGroup[];
   translate: LocalizationState['translate'];
 };
 
-export function PlanByCustomerView({ plans, translate }: PlanByCustomerViewProps) {
+export function PlanByCustomerView({ plans, groups, translate }: PlanByCustomerViewProps) {
   const dataSource = useMemo(() => {
+    if (groups && groups.length > 0) {
+      return groups;
+    }
     const source: PlanSummaryWithCustomer[] =
-      plans && plans.length > 0 ? (plans as PlanSummaryWithCustomer[]) : (listMockPlans() as PlanSummaryWithCustomer[]);
+      plans && plans.length > 0
+        ? (plans as PlanSummaryWithCustomer[])
+        : (listMockPlans() as PlanSummaryWithCustomer[]);
     return aggregatePlansByCustomer(source, { sortBy: 'total', descending: true });
-  }, [plans]);
+  }, [plans, groups]);
 
   if (dataSource.length === 0) {
     return (
