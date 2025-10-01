@@ -12,13 +12,10 @@ import {
   Button,
   Card,
   ConfigProvider,
-  Dropdown,
   Input,
   Layout,
-  Menu,
   Progress,
   Segmented,
-  Select,
   Space,
   Tag,
   Typography,
@@ -47,6 +44,7 @@ import { PLAN_STATUS_COLOR, PLAN_STATUS_LABEL } from './constants/planStatus';
 import { PlanListBoard } from './components/PlanListBoard';
 import { PlanByCustomerView } from './components/PlanByCustomerView';
 import { PlanCalendarView } from './components/PlanCalendarView';
+import { HeaderNav } from './components/HeaderNav';
 import {
   useSessionController,
   type SessionController,
@@ -69,8 +67,8 @@ import {
 import { useHistoryRouter, type HistoryRouter } from './router/router';
 import { buildPlanDetailPath, parsePlanRoute } from './router/planRoutes';
 
-const { Header, Content } = Layout;
-const { Title, Paragraph, Text } = Typography;
+const { Content } = Layout;
+const { Text } = Typography;
 
 type CredentialsState = {
   username: string;
@@ -90,6 +88,7 @@ type AppViewProps = {
 function AppView({ client, localization, session, navigation, planList, planDetail, router }: AppViewProps) {
   const { locale, translate, availableLocales, loading, setLocale } = localization;
   const { state: sessionState, login, logout } = session;
+  const isAuthenticated = Boolean(sessionState.session);
   const { state: planState, refresh, changePage, changePageSize, restore: restorePlanList } = planList;
   const {
     state: planDetailState,
@@ -458,24 +457,31 @@ function AppView({ client, localization, session, navigation, planList, planDeta
   );
 
   const navigationState = navigation.state;
-  const navigationErrorLabel = useMemo(() => {
-    if (!navigationState.error) {
+  const navigationError = useMemo(() => {
+    if (!sessionState.session) {
       return null;
     }
-    if (navigationState.error.type === 'network') {
+    return sessionState.navigation.error ?? navigationState.error;
+  }, [navigationState.error, sessionState.navigation.error, sessionState.session]);
+
+  const navigationErrorLabel = useMemo(() => {
+    if (!navigationError) {
+      return null;
+    }
+    if (navigationError.type === 'network') {
       return translate('backendErrorNetwork');
     }
-    if (navigationState.error.type === 'status') {
-      if (navigationState.error.status === 403) {
+    if (navigationError.type === 'status') {
+      if (navigationError.status === 403) {
         return translate('navAccessDeniedTitle');
       }
-      if (navigationState.error.status === 401) {
+      if (navigationError.status === 401) {
         return translate('planLoginRequired');
       }
-      return translate('backendErrorStatus', { status: navigationState.error.status });
+      return translate('backendErrorStatus', { status: navigationError.status });
     }
     return translate('backendErrorNetwork');
-  }, [navigationState.error, translate]);
+  }, [navigationError, translate]);
   const normalizePathname = useCallback((pathname: string) => {
     if (!pathname) {
       return '/';
@@ -501,13 +507,13 @@ function AppView({ client, localization, session, navigation, planList, planDeta
     [translate]
   );
 
-  const navigationMenuItems = useMemo(
+  const headerMenuItems = useMemo(
     () =>
-      navigationState.items.map((item) => ({
+      sessionState.navigation.items.map((item) => ({
         key: item.key,
         label: translate(item.labelKey),
       })),
-    [navigationState.items, translate]
+    [sessionState.navigation.items, translate]
   );
 
   const activeMenuKey = useMemo(() => {
@@ -636,61 +642,26 @@ function AppView({ client, localization, session, navigation, planList, planDeta
 
   return (
     <Layout className="app-layout">
-      <Header className="app-header">
-        <div className="app-header-left">
-          <div className="app-brand">
-            <Title level={3} className="app-title">
-              {translate('appTitle')}
-            </Title>
-            <Paragraph className="app-subtitle">
-              {translate('appDescription')}
-            </Paragraph>
-          </div>
-          <Menu
-            mode="horizontal"
-            className="app-header-menu"
-            items={navigationMenuItems}
-            selectedKeys={menuSelectedKeys}
-            onClick={handleMenuClick}
-          />
-          {navigationErrorLabel && (
-            <Tag color="volcano" className="nav-error-badge">
-              {navigationErrorLabel}
-            </Tag>
-          )}
-        </div>
-        <div className="app-header-right">
-          <Space align="center" size="middle" className="locale-switcher">
-            <Text strong>{translate('localeLabel')}</Text>
-            <Select
-              className="locale-select"
-              value={locale}
-              onChange={(value: string) => setLocale(value as Locale)}
-              loading={loading}
-              options={localeOptions}
-            />
-          </Space>
-          {sessionState.session ? (
-            <Dropdown
-              menu={{ items: userMenuItems, onClick: handleUserMenuClick }}
-              placement="bottomRight"
-            >
-              <button type="button" className="user-dropdown-trigger">
-                <span className="user-avatar">{userInitial}</span>
-                <span className="user-name">{userDisplayName}</span>
-              </button>
-            </Dropdown>
-          ) : (
-            <Button
-              type="primary"
-              className="header-login-button"
-              onClick={handleLoginShortcut}
-            >
-              {translate('navLogin')}
-            </Button>
-          )}
-        </div>
-      </Header>
+      <HeaderNav
+        title={translate('appTitle')}
+        subtitle={translate('appDescription')}
+        localeLabel={translate('localeLabel')}
+        loginLabel={translate('navLogin')}
+        localeValue={locale}
+        localeOptions={localeOptions}
+        localeLoading={loading}
+        onLocaleChange={(value) => setLocale(value as Locale)}
+        menuItems={isAuthenticated ? headerMenuItems : []}
+        menuSelectedKeys={isAuthenticated ? menuSelectedKeys : undefined}
+        onMenuClick={handleMenuClick}
+        navigationErrorLabel={isAuthenticated ? navigationErrorLabel : null}
+        isAuthenticated={isAuthenticated}
+        userInitial={userInitial}
+        userDisplayName={userDisplayName}
+        userMenuItems={userMenuItems}
+        onUserMenuClick={handleUserMenuClick}
+        onLoginClick={handleLoginShortcut}
+      />
       <Content className="app-content">
         <Space direction="vertical" size="large" style={{ width: '100%' }}>
           {navigationState.forbidden && (

@@ -13,9 +13,13 @@
   background: rgba(255, 255, 255, 0.92);
   backdrop-filter: blur(12px);
   box-shadow: 0 10px 25px rgba(56, 95, 255, 0.08);
-  position: sticky;
+  position: fixed;
   top: 0;
-  z-index: 10;
+  left: 0;
+  right: 0;
+  width: 100%;
+  box-sizing: border-box;
+  z-index: 20;
 }
 
 .app-header-left {
@@ -222,7 +226,7 @@
 }
 
 .app-content {
-  padding: 32px;
+  padding: 120px 32px 32px;
   max-width: 1120px;
   margin: 0 auto;
   width: 100%;
