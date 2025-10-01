@@ -30,6 +30,7 @@ type HeaderNavProps = {
   isAuthenticated: boolean;
   userInitial: string;
   userDisplayName: string;
+  userRoles: string[];
   userMenuItems: MenuProps['items'];
   onUserMenuClick: MenuProps['onClick'];
   onLoginClick: () => void;
@@ -51,20 +52,31 @@ export function HeaderNav({
   isAuthenticated,
   userInitial,
   userDisplayName,
+  userRoles,
   userMenuItems,
   onUserMenuClick,
   onLoginClick,
 }: HeaderNavProps) {
   const showMenu = isAuthenticated && Boolean(menuItems && menuItems.length > 0);
+  const primaryRole = isAuthenticated && userRoles.length > 0 ? userRoles[0] : null;
+  const secondaryRoleCount = primaryRole ? Math.max(userRoles.length - 1, 0) : 0;
+  const roleBadgeLabel = primaryRole
+    ? `${primaryRole}${secondaryRoleCount > 0 ? ` +${secondaryRoleCount}` : ''}`
+    : null;
 
   return (
     <Header className="app-header">
       <div className="app-header-left">
         <div className="app-brand">
-          <Title level={3} className="app-title">
-            {title}
-          </Title>
-          <Paragraph className="app-subtitle">{subtitle}</Paragraph>
+          <div className="app-brand-mark" aria-hidden="true">
+            <span className="app-brand-logo">BOB</span>
+          </div>
+          <div className="app-brand-text">
+            <Title level={3} className="app-title">
+              {title}
+            </Title>
+            <Paragraph className="app-subtitle">{subtitle}</Paragraph>
+          </div>
         </div>
         {showMenu && (
           <Menu
@@ -95,8 +107,13 @@ export function HeaderNav({
         {isAuthenticated ? (
           <Dropdown menu={{ items: userMenuItems, onClick: onUserMenuClick }} placement="bottomRight">
             <button type="button" className="user-dropdown-trigger">
-              <span className="user-avatar">{userInitial}</span>
-              <span className="user-name">{userDisplayName}</span>
+              <span className="user-avatar" aria-hidden="true">
+                {userInitial}
+              </span>
+              <span className="user-bio">
+                <span className="user-name">{userDisplayName}</span>
+                {roleBadgeLabel && <span className="user-role-badge">{roleBadgeLabel}</span>}
+              </span>
             </button>
           </Dropdown>
         ) : (

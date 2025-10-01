@@ -31,6 +31,34 @@
 }
 
 .app-brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 16px;
+  min-width: 0;
+  text-decoration: none;
+}
+
+.app-brand-mark {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  border-radius: 14px;
+  background: linear-gradient(135deg, #1677ff 0%, #69b1ff 100%);
+  color: #ffffff;
+  font-weight: 700;
+  font-size: 14px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  box-shadow: 0 12px 28px rgba(22, 119, 255, 0.28);
+}
+
+.app-brand-logo {
+  margin: 0;
+}
+
+.app-brand-text {
   display: flex;
   flex-direction: column;
   gap: 4px;
@@ -178,6 +206,27 @@
   white-space: nowrap;
 }
 
+.user-bio {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+}
+
+.user-role-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: rgba(22, 119, 255, 0.18);
+  color: #0b56d0;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
 .antd-dropdown {
   position: relative;
   display: inline-flex;
@@ -226,7 +275,7 @@
 }
 
 .app-content {
-  padding: 120px 32px 32px;
+  padding: 140px 32px 40px;
   max-width: 1120px;
   margin: 0 auto;
   width: 100%;
