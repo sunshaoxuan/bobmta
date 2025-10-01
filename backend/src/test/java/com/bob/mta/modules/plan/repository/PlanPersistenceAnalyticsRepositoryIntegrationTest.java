@@ -271,7 +271,7 @@ class PlanPersistenceAnalyticsRepositoryIntegrationTest {
         );
         PlanReminderRule reminderRule = new PlanReminderRule(
                 planRepository.nextReminderId(),
-                PlanReminderTrigger.BEFORE_START,
+                PlanReminderTrigger.BEFORE_PLAN_START,
                 60,
                 List.of("EMAIL", "SMS"),
                 "template-start",

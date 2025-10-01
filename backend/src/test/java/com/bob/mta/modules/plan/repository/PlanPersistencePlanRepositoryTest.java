@@ -101,7 +101,7 @@ class PlanPersistencePlanRepositoryTest {
         PlanActivity activity = new PlanActivity(PlanActivityType.PLAN_CREATED, now.minusMinutes(30),
                 "system", "plan.created", "ref-1", Map.of("source", "test"));
 
-        PlanReminderRule rule = new PlanReminderRule(reminderId, PlanReminderTrigger.BEFORE_START, 45,
+        PlanReminderRule rule = new PlanReminderRule(reminderId, PlanReminderTrigger.BEFORE_PLAN_START, 45,
                 List.of("EMAIL", "SMS"), "template-1", List.of("user-1", "user-2"),
                 "Primary reminder", true);
         PlanReminderPolicy policy = new PlanReminderPolicy(List.of(rule), now.minusMinutes(45), "scheduler");
@@ -138,7 +138,7 @@ class PlanPersistencePlanRepositoryTest {
         assertThat(persistedPolicy.getRules()).hasSize(1);
         PlanReminderRule persistedRule = persistedPolicy.getRules().get(0);
         assertThat(persistedRule.getId()).isEqualTo(reminderId);
-        assertThat(persistedRule.getTrigger()).isEqualTo(PlanReminderTrigger.BEFORE_START);
+        assertThat(persistedRule.getTrigger()).isEqualTo(PlanReminderTrigger.BEFORE_PLAN_START);
         assertThat(persistedRule.getChannels()).containsExactly("EMAIL", "SMS");
         assertThat(persistedRule.getRecipients()).containsExactly("user-1", "user-2");
     }
@@ -160,7 +160,7 @@ class PlanPersistencePlanRepositoryTest {
                 null, PlanNodeActionType.NONE, 100, null, "Updated", List.of());
         PlanNodeExecution execution = new PlanNodeExecution(newNodeId, PlanNodeStatus.DONE,
                 now, now.plusHours(1), "owner-2", "done", null, List.of());
-        PlanReminderRule rule = new PlanReminderRule(repository.nextReminderId(), PlanReminderTrigger.BEFORE_END, 15,
+        PlanReminderRule rule = new PlanReminderRule(repository.nextReminderId(), PlanReminderTrigger.BEFORE_PLAN_END, 15,
                 List.of("EMAIL"), null, List.of(), "Updated rule", false);
         PlanReminderPolicy reminderPolicy = new PlanReminderPolicy(List.of(rule), now, "owner-2");
         Plan updatedPlan = new Plan(planId, "tenant-1", "Initial", "Updated description",
