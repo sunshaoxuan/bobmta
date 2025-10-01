@@ -5,6 +5,7 @@ import type { UiMessageKey } from '../i18n/localization';
 import { PLAN_NODE_STATUS_COLOR, PLAN_NODE_STATUS_LABEL } from '../constants/planNode';
 import type { PlanNodeWithPath, PlanNodeActionType } from '../utils/planNodes';
 import { getPrimaryActionForStatus } from '../utils/planNodes';
+import type { PlanViewMode } from '../constants/planMode';
 
 const { Text } = Typography;
 
@@ -21,6 +22,7 @@ export type PendingNodeAction = {
 } | null;
 
 type PlanNodeActionsProps = {
+  mode: PlanViewMode;
   candidates: PlanNodeWithPath[];
   translate: LocalizationState['translate'];
   onAction: (intent: PlanNodeActionIntent) => void;
@@ -35,6 +37,7 @@ const ACTION_LABEL_KEY: Record<PlanNodeActionType, UiMessageKey> = {
 };
 
 export function PlanNodeActions({
+  mode,
   candidates,
   translate,
   onAction,
@@ -46,7 +49,7 @@ export function PlanNodeActions({
   }
 
   return (
-    <div className="plan-node-actions">
+    <div className="plan-node-actions" data-mode={mode}>
       {candidates.map(({ node, path }) => {
         const primaryAction = getPrimaryActionForStatus(node.status);
         const breadcrumb = path.join(' / ');
