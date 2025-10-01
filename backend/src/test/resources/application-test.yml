@@ -1,0 +1,17 @@
+spring:
+  datasource:
+    url: jdbc:postgresql://localhost:5432/bobmta_test
+    username: bobmta
+    password: secret
+    driver-class-name: org.postgresql.Driver
+  sql:
+    init:
+      mode: never
+mybatis:
+  mapper-locations: classpath:/mapper/*.xml
+  type-handlers-package: com.bob.mta.common.mybatis
+  configuration:
+    map-underscore-to-camel-case: true
+logging:
+  level:
+    root: WARN
