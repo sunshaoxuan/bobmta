@@ -17,7 +17,7 @@
 ## 需求列表
 | 编号 | 功能场景 | 接口需求 | 数据范围/示例 | 后端状态 | 前端状态 | Mock 策略 | 备注 |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| F-000 | 登录与计划列表基线 | `POST /api/v1/auth/login`、`GET /api/v1/plans?page=0&size=20` | 计划列表需返回 `PageResponse<PlanSummary>`，包含进度、参与人数量等字段 | ✅ 完成 | ✅ 完成（迭代 #0） | 未使用 Mock；直接联调 | 继续关注分页参数及多语言头的兼容性 |
+| F-000 | 登录与计划列表基线 | `POST /api/v1/auth/login`、`GET /api/v1/plans?page=0&size=20` | 计划列表需返回 `PageResponse<PlanSummary>`，包含进度、参与人数量等字段 | ✅ 完成 | ✅ 完成（迭代 #0） | 未使用 Mock；直接联调 | 继续关注分页参数及多语言头的兼容性；同步完成导航菜单角色过滤与 403 提示 |
 | F-001 | 计划列表筛选扩展 | `GET /api/v1/plans` 支持负责人、关键字、时间范围与分页参数 | 需确认分页上限、关键字匹配策略及排序顺序 | ✅ 完成 | 🟡 规划中 | 已提供 `queryMockPlanSummaries` 过滤分页样例，覆盖 owner/keyword/status/page/size | 后端提供 `GET /api/v1/plans/filter-options` 与《docs/backend-requests/plan-filter-options.md》，待前端接入 |
 | F-002 | 计划详情与时间线视图 | `GET /api/v1/plans/{id}`、`GET /api/v1/plans/{id}/timeline` | 计划节点、附件、时间线事件的字段需确认必填项 | ✅ 完成 | 🛠️ 开发中 | 已补充计划详情/时间线/提醒 Mock 样例与缓存策略单测，页面以占位组件展示数据结构 | 后端提供 `GET /api/v1/plans/activity-types` 与《docs/backend-requests/plan-timeline-activities.md》，可用于时间线事件展示 |
 | F-003 | 提醒策略配置 | `GET /api/v1/plans/{id}/reminders`、`PUT /api/v1/plans/{id}/reminders`、`GET /api/v1/plans/reminder-options` | 提醒渠道、触发时机、模板 ID 等字段 | ✅ 完成 | 🟡 规划中 | 设计默认策略样例及更新成功响应 | 后端提供提醒配置字典，详见《docs/backend-requests/plan-reminder-options.md》 |
