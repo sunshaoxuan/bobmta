@@ -11,6 +11,7 @@ type PlanReminderBoardProps = {
   reminders: PlanReminderSummary[];
   translate: LocalizationState['translate'];
   mode: PlanViewMode;
+  allowEdit: boolean;
   onEdit: (reminder: PlanReminderSummary) => void;
   onToggle: (reminder: PlanReminderSummary) => void;
   selectedReminderId: string | null;
@@ -22,6 +23,7 @@ export function PlanReminderBoard({
   reminders,
   translate,
   mode,
+  allowEdit,
   onEdit,
   onToggle,
   selectedReminderId,
@@ -31,8 +33,6 @@ export function PlanReminderBoard({
   if (!reminders || reminders.length === 0) {
     return null;
   }
-
-  const allowEdit = mode === 'design';
 
   return (
     <div className="plan-reminder-board" data-mode={mode}>
