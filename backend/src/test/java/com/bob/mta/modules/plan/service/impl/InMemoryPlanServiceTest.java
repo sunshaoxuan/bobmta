@@ -21,6 +21,7 @@ import com.bob.mta.modules.plan.domain.PlanNodeExecution;
 import com.bob.mta.modules.plan.domain.PlanAnalytics;
 import com.bob.mta.modules.plan.repository.InMemoryPlanActionHistoryRepository;
 import com.bob.mta.modules.plan.repository.InMemoryPlanAnalyticsRepository;
+import com.bob.mta.modules.plan.repository.PlanBoardQuery;
 import com.bob.mta.modules.plan.repository.InMemoryPlanRepository;
 import com.bob.mta.modules.plan.service.command.CreatePlanCommand;
 import com.bob.mta.modules.plan.service.command.PlanNodeCommand;
@@ -60,6 +61,130 @@ class InMemoryPlanServiceTest {
     @AfterEach
     void resetLocale() {
         LocaleContextHolder.resetLocaleContext();
+    }
+
+    @Test
+    @DisplayName("getPlanBoard aggregates customer groups and time buckets")
+    void shouldAggregatePlanBoardView() {
+        OffsetDateTime base = OffsetDateTime.parse("2024-04-01T08:00:00+08:00");
+        CreatePlanCommand customerA = new CreatePlanCommand(
+                "tenant-board",
+                "客户A巡检",
+                "客户A巡检任务",
+                "cust-board-a",
+                "board-owner",
+                base.plusHours(2),
+                base.plusHours(5),
+                "Asia/Shanghai",
+                List.of("board-owner"),
+                List.of(new PlanNodeCommand(null, "检查列表", "CHECKLIST", "board-owner", 1, 60,
+                        PlanNodeActionType.NONE, 100, null, "", List.of()))
+        );
+        CreatePlanCommand customerB = new CreatePlanCommand(
+                "tenant-board",
+                "客户B巡检",
+                "客户B巡检任务",
+                "cust-board-b",
+                "board-owner",
+                base.plusDays(1).plusHours(1),
+                base.plusDays(1).plusHours(4),
+                "Asia/Shanghai",
+                List.of("board-owner"),
+                List.of(new PlanNodeCommand(null, "巡检步骤", "CHECKLIST", "board-owner", 1, 90,
+                        PlanNodeActionType.NONE, 100, null, "", List.of()))
+        );
+
+        var firstPlan = service.createPlan(customerA);
+        var secondPlan = service.createPlan(customerB);
+        service.publishPlan(firstPlan.getId(), "board-owner");
+        service.publishPlan(secondPlan.getId(), "board-owner");
+
+        PlanBoardQuery query = PlanBoardQuery.builder()
+                .tenantId("tenant-board")
+                .granularity(PlanBoardQuery.TimeGranularity.DAY)
+                .from(base.minusDays(1))
+                .to(base.plusDays(2))
+                .build();
+
+        PlanBoardView board = service.getPlanBoard(query);
+
+        assertThat(board.getMetrics().getTotalPlans()).isEqualTo(2);
+        assertThat(board.getCustomerGroups())
+                .extracting(PlanBoardView.CustomerGroup::getCustomerId)
+                .containsExactlyInAnyOrder("cust-board-a", "cust-board-b");
+        assertThat(board.getTimeBuckets()).hasSize(2);
+        assertThat(board.getTimeBuckets())
+                .extracting(PlanBoardView.TimeBucket::getBucketId)
+                .contains(base.toLocalDate().toString(), base.plusDays(1).toLocalDate().toString());
+    }
+
+    @Test
+    @DisplayName("getPlanBoard respects tenant and customer filters")
+    void shouldFilterPlanBoardByTenantAndCustomers() {
+        OffsetDateTime baseline = OffsetDateTime.parse("2024-05-01T09:00:00+08:00");
+        CreatePlanCommand tenantPlan = new CreatePlanCommand(
+                "tenant-board-filter",
+                "租户内计划",
+                "tenant scoped",
+                "cust-filter-a",
+                "filter-owner",
+                baseline.plusHours(1),
+                baseline.plusHours(3),
+                "Asia/Shanghai",
+                List.of("filter-owner"),
+                List.of(new PlanNodeCommand(null, "准备工作", "CHECKLIST", "filter-owner", 1, 45,
+                        PlanNodeActionType.NONE, 100, null, "", List.of()))
+        );
+        CreatePlanCommand ignoredTenantPlan = new CreatePlanCommand(
+                "tenant-board-other",
+                "其他租户计划",
+                "should be filtered",
+                "cust-filter-b",
+                "filter-owner",
+                baseline.plusHours(2),
+                baseline.plusHours(5),
+                "Asia/Shanghai",
+                List.of("filter-owner"),
+                List.of(new PlanNodeCommand(null, "忽略节点", "CHECKLIST", "filter-owner", 1, 30,
+                        PlanNodeActionType.NONE, 100, null, "", List.of()))
+        );
+
+        var scoped = service.createPlan(tenantPlan);
+        service.publishPlan(scoped.getId(), "filter-owner");
+        service.createPlan(ignoredTenantPlan);
+
+        PlanBoardQuery query = PlanBoardQuery.builder()
+                .tenantId("tenant-board-filter")
+                .customerIds(List.of("cust-filter-a"))
+                .granularity(PlanBoardQuery.TimeGranularity.WEEK)
+                .from(baseline.minusDays(1))
+                .to(baseline.plusDays(7))
+                .build();
+
+        PlanBoardView board = service.getPlanBoard(query);
+
+        assertThat(board.getCustomerGroups())
+                .extracting(PlanBoardView.CustomerGroup::getCustomerId)
+                .containsExactly("cust-filter-a");
+        assertThat(board.getTimeBuckets())
+                .allSatisfy(bucket -> assertThat(bucket.getPlans())
+                        .extracting(PlanBoardView.PlanCard::getCustomerId)
+                        .containsOnly("cust-filter-a"));
+    }
+
+    @Test
+    @DisplayName("getPlanBoard returns empty structures when no plans match")
+    void shouldReturnEmptyPlanBoardWhenNoPlans() {
+        PlanBoardQuery query = PlanBoardQuery.builder()
+                .tenantId("missing-tenant")
+                .granularity(PlanBoardQuery.TimeGranularity.MONTH)
+                .build();
+
+        PlanBoardView board = service.getPlanBoard(query);
+
+        assertThat(board.getMetrics().getTotalPlans()).isZero();
+        assertThat(board.getCustomerGroups()).isEmpty();
+        assertThat(board.getTimeBuckets()).isEmpty();
     }
 
     @Test
