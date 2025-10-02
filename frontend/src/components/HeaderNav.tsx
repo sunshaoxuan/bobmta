@@ -35,6 +35,7 @@ type HeaderNavProps = {
   menuSelectedKeys?: MenuProps['selectedKeys'];
   onMenuClick: MenuProps['onClick'];
   navigationErrorLabel: string | null;
+  isForbidden: boolean;
   isAuthenticated: boolean;
   userInitial: string;
   userDisplayName: string;
@@ -59,6 +60,7 @@ export function HeaderNav({
   menuSelectedKeys,
   onMenuClick,
   navigationErrorLabel,
+  isForbidden,
   isAuthenticated,
   userInitial,
   userDisplayName,
@@ -133,6 +135,28 @@ export function HeaderNav({
     [onBrandClick]
   );
 
+  const statusTag = useMemo(() => {
+    if (!navigationErrorLabel) {
+      return null;
+    }
+    const classNames = ['nav-status-badge'];
+    if (isForbidden) {
+      classNames.push('nav-status-forbidden');
+    } else {
+      classNames.push('nav-status-error');
+    }
+    return (
+      <Tag
+        color={isForbidden ? 'gold' : 'volcano'}
+        className={classNames.join(' ')}
+        role="status"
+        aria-live="polite"
+      >
+        {navigationErrorLabel}
+      </Tag>
+    );
+  }, [isForbidden, navigationErrorLabel]);
+
   return (
     <Header className="app-header">
       <div className="app-header-left">
@@ -156,11 +180,7 @@ export function HeaderNav({
             onClick={onMenuClick}
           />
         )}
-        {isAuthenticated && navigationErrorLabel && (
-          <Tag color="volcano" className="nav-error-badge">
-            {navigationErrorLabel}
-          </Tag>
-        )}
+        {isAuthenticated && statusTag}
       </div>
       <div className="app-header-right">
         <Space align="center" size="middle" className="locale-switcher">
