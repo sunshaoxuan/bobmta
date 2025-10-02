@@ -72,15 +72,17 @@ export function PlanReminderBoard({
                   {translate('planDetailReminderActionEdit')}
                 </Button>
               ) : null}
-              <Button
-                type="default"
-                size="small"
-                onClick={() => onToggle(reminder)}
-                loading={isPending}
-                disabled={isPending}
-              >
-                {translate('planDetailReminderActionToggle')}
-              </Button>
+              {allowEdit ? (
+                <Button
+                  type="default"
+                  size="small"
+                  onClick={() => onToggle(reminder)}
+                  loading={isPending}
+                  disabled={isPending}
+                >
+                  {translate('planDetailReminderActionToggle')}
+                </Button>
+              ) : null}
             </Space>
           </article>
         );

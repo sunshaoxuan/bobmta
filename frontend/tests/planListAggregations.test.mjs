@@ -10,6 +10,7 @@ import {
   getPlanCalendarEventAnchor,
   getPlanCalendarEventTime,
   mapPlanCalendarEventsByDate,
+  selectUpcomingPlanCalendarEvents,
 } from '../dist/utils/planList.js';
 
 function createPlan(id, overrides = {}) {
@@ -416,5 +417,57 @@ test('groupCalendarEvents skips invalid timestamps and preserves ordering', () =
   assert.deepEqual(
     buckets[0].events.map((event) => event.plan.id),
     ['p-25', 'p-26']
+  );
+});
+
+test('selectUpcomingPlanCalendarEvents prioritizes future events and respects limit', () => {
+  const plans = [
+    createPlan('past', {
+      plannedStartTime: '2025-05-01T08:00:00.000Z',
+      plannedEndTime: '2025-05-01T10:00:00.000Z',
+    }),
+    createPlan('future-a', {
+      plannedStartTime: '2025-05-03T09:00:00.000Z',
+      plannedEndTime: '2025-05-03T10:00:00.000Z',
+    }),
+    createPlan('future-b', {
+      plannedStartTime: null,
+      plannedEndTime: '2025-05-04T07:00:00.000Z',
+    }),
+  ];
+
+  const events = createPlanCalendarEvents(plans);
+  const referenceTime = new Date('2025-05-02T00:00:00.000Z').getTime();
+  const upcoming = selectUpcomingPlanCalendarEvents(events, { referenceTime, limit: 2 });
+
+  assert.deepEqual(
+    upcoming.map((event) => event.plan.id),
+    ['future-a', 'future-b']
+  );
+});
+
+test('selectUpcomingPlanCalendarEvents falls back to earliest events when none upcoming', () => {
+  const plans = [
+    createPlan('early', {
+      plannedStartTime: '2025-05-01T08:00:00.000Z',
+      plannedEndTime: '2025-05-01T10:00:00.000Z',
+    }),
+    createPlan('mid', {
+      plannedStartTime: '2025-05-02T09:00:00.000Z',
+      plannedEndTime: '2025-05-02T10:00:00.000Z',
+    }),
+    createPlan('late', {
+      plannedStartTime: '2025-05-03T09:00:00.000Z',
+      plannedEndTime: '2025-05-03T10:00:00.000Z',
+    }),
+  ];
+
+  const events = createPlanCalendarEvents(plans);
+  const referenceTime = new Date('2025-05-10T00:00:00.000Z').getTime();
+  const fallback = selectUpcomingPlanCalendarEvents(events, { referenceTime, limit: 2 });
+
+  assert.deepEqual(
+    fallback.map((event) => event.plan.id),
+    ['early', 'mid']
   );
 });

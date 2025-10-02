@@ -85,6 +85,57 @@ export function getPlanCalendarEventTime(event: PlanCalendarEvent): number {
   return Number.isFinite(time) ? time : Number.POSITIVE_INFINITY;
 }
 
+export function selectUpcomingPlanCalendarEvents<
+  T extends PlanSummaryWithCustomer = PlanSummaryWithCustomer
+>(
+  events: readonly PlanCalendarEvent<T>[],
+  options?: { referenceTime?: number; limit?: number }
+): PlanCalendarEvent<T>[] {
+  if (!events || events.length === 0) {
+    return [];
+  }
+  const limitOption = options?.limit;
+  const limit =
+    typeof limitOption === 'number' && Number.isFinite(limitOption)
+      ? Math.max(0, Math.floor(limitOption))
+      : 20;
+  if (limit === 0) {
+    return [];
+  }
+  const referenceOption = options?.referenceTime;
+  const referenceTime =
+    typeof referenceOption === 'number' && Number.isFinite(referenceOption)
+      ? referenceOption
+      : Date.now();
+
+  const sorted = events
+    .slice()
+    .sort((a, b) => {
+      const timeA = getPlanCalendarEventTime(a);
+      const timeB = getPlanCalendarEventTime(b);
+      if (timeA === timeB) {
+        const titleA = (a.plan?.title ?? '').toString();
+        const titleB = (b.plan?.title ?? '').toString();
+        return titleA.localeCompare(titleB);
+      }
+      return timeA - timeB;
+    });
+
+  const upcoming = sorted.filter((event) => {
+    const anchorTime = getPlanCalendarEventTime(event);
+    if (!Number.isFinite(anchorTime) || anchorTime === Number.POSITIVE_INFINITY) {
+      return true;
+    }
+    return anchorTime >= referenceTime;
+  });
+
+  if (upcoming.length > 0) {
+    return upcoming.slice(0, limit);
+  }
+
+  return sorted.slice(0, limit);
+}
+
 function formatDateKey(anchor: string, timeZone?: string): string | null {
   const date = new Date(anchor);
   if (Number.isNaN(date.getTime())) {
