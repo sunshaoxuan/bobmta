@@ -179,6 +179,35 @@ test('derivePlanDetailContext reverts to design mode when plan returns to draft'
   assert.equal(revertedContext.currentNodeId, 'NODE-3');
 });
 
+test('derivePlanDetailContext finds nested in-progress nodes during execution', () => {
+  const context = derivePlanDetailContext(
+    createDetail({
+      status: 'IN_PROGRESS',
+      nodes: [
+        {
+          id: 'NODE-ROOT',
+          name: 'Root Node',
+          order: 1,
+          status: 'DONE',
+          actionType: 'MANUAL',
+          children: [
+            {
+              id: 'NODE-CHILD',
+              name: 'Child Node',
+              order: 1,
+              status: 'IN_PROGRESS',
+              actionType: 'MANUAL',
+            },
+          ],
+        },
+      ],
+    })
+  );
+
+  assert.equal(context.mode, 'execution');
+  assert.equal(context.currentNodeId, 'NODE-CHILD');
+});
+
 test('selectPlanDetailMode follows context across design and execution transitions', () => {
   const designState = createState(
     createDetail({
