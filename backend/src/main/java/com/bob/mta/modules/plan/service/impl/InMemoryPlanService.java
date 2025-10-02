@@ -65,6 +65,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.function.Function;
+import java.util.function.Supplier;
 import java.util.UUID;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -78,6 +79,8 @@ public class InMemoryPlanService implements PlanService {
 
     private static final DateTimeFormatter CONFLICT_WINDOW_FORMATTER =
             DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm", Locale.US);
+
+    private static final int MAX_ACTION_ATTEMPTS = 3;
 
     private static final List<PlanStatus> STATUS_ORDER = List.of(
             PlanStatus.DESIGN,
@@ -1124,6 +1127,11 @@ public class InMemoryPlanService implements PlanService {
         if (StringUtils.hasText(resultSummary)) {
             attributes.put("result", resultSummary);
         }
+        dispatchResult.context().forEach((key, value) -> {
+            if (value != null) {
+                attributes.putIfAbsent("context." + key, value);
+            }
+        });
         dispatchResult.metadata().forEach((key, value) -> {
             if (value != null) {
                 attributes.put("meta." + key, value);
@@ -1140,6 +1148,7 @@ public class InMemoryPlanService implements PlanService {
                 dispatchResult.status(),
                 dispatchResult.message(),
                 dispatchResult.error(),
+                dispatchResult.context(),
                 dispatchResult.metadata()
         );
         actionHistoryRepository.append(history);
@@ -1157,11 +1166,11 @@ public class InMemoryPlanService implements PlanService {
                                                     String trigger, String resultSummary) {
         String actionRef = node.getActionRef();
         PlanNodeActionType actionType = node.getActionType() == null ? PlanNodeActionType.NONE : node.getActionType();
+        Map<String, String> context = buildActionContext(plan, node, operator, trigger, resultSummary);
         if (!StringUtils.hasText(actionRef)) {
             return new ActionDispatchResult(PlanActionStatus.SKIPPED, "plan.action.missingRef",
-                    message("plan.error.nodeActionMissingRef"), Map.of("reason", "MISSING_REF"));
+                    message("plan.error.nodeActionMissingRef"), context, Map.of("reason", "MISSING_REF"));
         }
-        Map<String, String> context = buildActionContext(plan, node, operator, trigger, resultSummary);
         try {
             return switch (actionType) {
                 case EMAIL -> dispatchEmail(actionRef, context);
@@ -1169,12 +1178,12 @@ public class InMemoryPlanService implements PlanService {
                 case LINK -> generateLink(actionRef, context);
                 case REMOTE -> generateRemoteSession(actionRef, context);
                 case FILE, API_CALL -> new ActionDispatchResult(PlanActionStatus.SKIPPED,
-                        "plan.action.noAutomation", null, Map.of("reason", "NOT_SUPPORTED"));
+                        "plan.action.noAutomation", null, context, Map.of("reason", "NOT_SUPPORTED"));
                 case MANUAL, NONE -> null;
             };
         } catch (Exception ex) {
             return new ActionDispatchResult(PlanActionStatus.FAILED, "plan.action.failed",
-                    ex.getMessage(), Map.of("reason", "EXCEPTION"));
+                    ex.getMessage(), context, Map.of("reason", "EXCEPTION"));
         }
     }
 
@@ -1208,8 +1217,9 @@ public class InMemoryPlanService implements PlanService {
     private ActionDispatchResult dispatchEmail(String actionRef, Map<String, String> context) {
         long templateId = parseTemplateId(actionRef);
         RenderedTemplate template = templateService.render(templateId, context, LocaleContextHolder.getLocale());
-        NotificationResult result = notificationGateway.sendEmail(new EmailMessage(
-                template.getTo(), template.getCc(), template.getSubject(), template.getContent()));
+        NotificationDispatchAttempt attempt = sendWithRetry("EMAIL", () -> notificationGateway.sendEmail(new EmailMessage(
+                template.getTo(), template.getCc(), template.getSubject(), template.getContent())));
+        NotificationResult result = attempt.result();
         Map<String, String> metadata = new LinkedHashMap<>();
         metadata.put("templateId", String.valueOf(templateId));
         if (StringUtils.hasText(template.getEndpoint())) {
@@ -1217,21 +1227,24 @@ public class InMemoryPlanService implements PlanService {
         }
         metadata.putAll(template.getMetadata());
         metadata.putAll(result.getMetadata());
+        metadata.put("attempts", String.valueOf(attempt.attempts()));
         return new ActionDispatchResult(result.isSuccess() ? PlanActionStatus.SUCCESS : PlanActionStatus.FAILED,
-                result.getMessage(), result.isSuccess() ? null : result.getError(), metadata);
+                result.getMessage(), result.isSuccess() ? null : result.getError(), context, metadata);
     }
 
     private ActionDispatchResult dispatchInstantMessage(String actionRef, Map<String, String> context) {
         long templateId = parseTemplateId(actionRef);
         RenderedTemplate template = templateService.render(templateId, context, LocaleContextHolder.getLocale());
-        NotificationResult result = notificationGateway.sendInstantMessage(new InstantMessage(
-                template.getTo(), template.getContent()));
+        NotificationDispatchAttempt attempt = sendWithRetry("IM", () -> notificationGateway.sendInstantMessage(new InstantMessage(
+                template.getTo(), template.getContent())));
+        NotificationResult result = attempt.result();
         Map<String, String> metadata = new LinkedHashMap<>();
         metadata.put("templateId", String.valueOf(templateId));
         metadata.putAll(template.getMetadata());
         metadata.putAll(result.getMetadata());
+        metadata.put("attempts", String.valueOf(attempt.attempts()));
         return new ActionDispatchResult(result.isSuccess() ? PlanActionStatus.SUCCESS : PlanActionStatus.FAILED,
-                result.getMessage(), result.isSuccess() ? null : result.getError(), metadata);
+                result.getMessage(), result.isSuccess() ? null : result.getError(), context, metadata);
     }
 
     private ActionDispatchResult generateLink(String actionRef, Map<String, String> context) {
@@ -1243,10 +1256,11 @@ public class InMemoryPlanService implements PlanService {
             metadata.put("endpoint", template.getEndpoint());
         }
         metadata.putAll(template.getMetadata());
+        metadata.putIfAbsent("attempts", "1");
         boolean success = StringUtils.hasText(template.getEndpoint());
         return new ActionDispatchResult(success ? PlanActionStatus.SUCCESS : PlanActionStatus.SKIPPED,
                 success ? "plan.action.linkGenerated" : "plan.action.linkMissing",
-                success ? null : message("plan.error.nodeActionLinkMissing"), metadata);
+                success ? null : message("plan.error.nodeActionLinkMissing"), context, metadata);
     }
 
     private ActionDispatchResult generateRemoteSession(String actionRef, Map<String, String> context) {
@@ -1260,10 +1274,36 @@ public class InMemoryPlanService implements PlanService {
         if (StringUtils.hasText(template.getAttachmentFileName())) {
             metadata.put("artifactName", template.getAttachmentFileName());
         }
+        metadata.putIfAbsent("attempts", "1");
         boolean success = StringUtils.hasText(template.getEndpoint()) || !template.getMetadata().isEmpty();
         return new ActionDispatchResult(success ? PlanActionStatus.SUCCESS : PlanActionStatus.SKIPPED,
                 success ? "plan.action.remoteReady" : "plan.action.remoteMissing",
-                success ? null : message("plan.error.nodeActionRemoteMissing"), metadata);
+                success ? null : message("plan.error.nodeActionRemoteMissing"), context, metadata);
+    }
+
+    private NotificationDispatchAttempt sendWithRetry(String channel, Supplier<NotificationResult> supplier) {
+        NotificationResult lastResult = NotificationResult.failure(channel, "plan.action.failed",
+                message("plan.error.nodeActionNoResponse", channel), Map.of("reason", "NO_RESPONSE"));
+        int attempts = 0;
+        while (attempts < MAX_ACTION_ATTEMPTS) {
+            attempts++;
+            try {
+                NotificationResult candidate = supplier.get();
+                if (candidate != null) {
+                    lastResult = candidate;
+                } else {
+                    lastResult = NotificationResult.failure(channel, "plan.action.failed",
+                            message("plan.error.nodeActionNoResponse", channel), Map.of("reason", "NO_RESPONSE"));
+                }
+            } catch (Exception ex) {
+                lastResult = NotificationResult.failure(channel, "plan.action.failed", ex.getMessage(),
+                        Map.of("reason", "EXCEPTION"));
+            }
+            if (lastResult.isSuccess()) {
+                break;
+            }
+        }
+        return new NotificationDispatchAttempt(lastResult, attempts == 0 ? 1 : attempts);
     }
 
     private long parseTemplateId(String actionRef) {
@@ -1274,10 +1314,20 @@ public class InMemoryPlanService implements PlanService {
         }
     }
 
+    private record NotificationDispatchAttempt(NotificationResult result, int attempts) {
+
+        private NotificationDispatchAttempt {
+            result = Objects.requireNonNull(result, "result");
+            attempts = Math.max(attempts, 1);
+        }
+    }
+
     private record ActionDispatchResult(PlanActionStatus status, String message, String error,
+                                        Map<String, String> context,
                                         Map<String, String> metadata) {
 
         private ActionDispatchResult {
+            context = context == null ? Map.of() : Map.copyOf(context);
             metadata = metadata == null ? Map.of() : Map.copyOf(metadata);
         }
     }

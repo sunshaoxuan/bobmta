@@ -21,16 +21,18 @@ export function ExecutionModePanel({
   const hasNodes = totalCount > 0;
 
   return (
-    <Space direction="vertical" size={4} className="plan-mode-panel plan-mode-panel-execution">
-      <Paragraph type="secondary" className="plan-node-action-helper">
+    <Space
+      direction="vertical"
+      size={4}
+      className="plan-node-action-helper plan-mode-panel plan-mode-panel-execution"
+    >
+      <Text strong className="plan-mode-panel-title">
+        <Tag color="geekblue">{translate(PLAN_MODE_LABEL.execution)}</Tag>
+        <span className="plan-mode-panel-value">{translate('planDetailModeExecution')}</span>
+      </Text>
+      <Paragraph type="secondary" className="plan-mode-panel-description">
         {translate('planDetailModeExecutionHint')}
       </Paragraph>
-      <Text type="secondary" className="plan-mode-panel-label">
-        <Tag color="geekblue">
-          {translate(PLAN_MODE_LABEL.execution)}
-        </Tag>
-        {translate('planDetailModeDesignHint')}
-      </Text>
       {hasNodes ? (
         <Space size={8} wrap>
           {currentNodeName ? (

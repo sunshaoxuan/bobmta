@@ -13,16 +13,17 @@ export function DesignModePanel({ translate }: DesignModePanelProps) {
   return (
     <Space
       direction="vertical"
-      size={2}
+      size={4}
       className="plan-node-action-helper plan-mode-panel plan-mode-panel-design"
     >
+      <Text strong className="plan-mode-panel-title">
+        <Tag color="purple">{translate(PLAN_MODE_LABEL.design)}</Tag>
+        <span className="plan-mode-panel-value">{translate('planDetailModeDesign')}</span>
+      </Text>
       <Paragraph type="secondary" style={{ marginBottom: 0 }}>
         {translate('planDetailModeDesignHint')}
       </Paragraph>
       <Text type="secondary" className="plan-mode-panel-label">
-        <Tag color="purple">
-          {translate(PLAN_MODE_LABEL.design)}
-        </Tag>
         {translate('planDetailNodeEdit')}
       </Text>
     </Space>

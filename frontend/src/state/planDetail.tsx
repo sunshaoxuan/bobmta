@@ -84,11 +84,15 @@ export type PlanDetailController = {
 };
 
 export function selectPlanDetailMode(state: PlanDetailState): PlanViewMode {
-  return state.mode;
+  return state.context.mode;
 }
 
 export function selectPlanDetailCurrentNodeId(state: PlanDetailState): string | null {
-  return state.currentNodeId;
+  return state.context.currentNodeId;
+}
+
+export function selectPlanDetailContext(state: PlanDetailState): PlanDetailContext {
+  return state.context;
 }
 
 export type PlanNodeActionInput =
