@@ -116,4 +116,4 @@
 ## 交付状态
 
 - ✅ 后端已在 `PlanService#getPlanBoard` 与 `PlanController#board` 提供实现，新增 SQL 聚合查询与未知客户分组逻辑，并补充单测与示例响应。
-- 🔄 前端可依据本文档调整 `PlanListBoard` 的请求逻辑与数据映射。
+- ✅ 前端 `PlanListBoard` 已提供 `Segmented` 视图切换，并通过 `PlanByCustomerView`、`PlanCalendarView` 显示客户分组与多粒度日历。派生逻辑在 `planList` 状态中复用后端返回的数据，缺失时会本地聚合以保持体验一致。
