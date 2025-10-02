@@ -1068,6 +1068,63 @@ class InMemoryPlanServiceTest {
                 .containsEntry("actionStatus", PlanActionStatus.SUCCESS.name());
     }
 
+    @Test
+    void shouldInvokeApiCallAndPersistHistory() {
+        long templateId = 8800L;
+        templateService.register(templateId, new RenderedTemplate(
+                null,
+                "{\"action\":\"notify\"}",
+                List.of(),
+                List.of(),
+                "https://hooks.internal/api",
+                null,
+                null,
+                "application/json",
+                Map.of(
+                        "method", "patch",
+                        "header.X-Trace", "trace-123",
+                        "scenario", "post-ops"
+                )));
+
+        CreatePlanCommand command = new CreatePlanCommand(
+                "tenant-api", "API 调用计划", "说明", "cust-api", "owner-api",
+                OffsetDateTime.now().plusDays(1), OffsetDateTime.now().plusDays(1).plusHours(1),
+                "Asia/Shanghai", List.of("owner-api"),
+                List.of(new PlanNodeCommand(null, "调用自动化", "TASK", "owner-api", 1, 20,
+                        PlanNodeActionType.API_CALL, 100, String.valueOf(templateId), "", List.of()))
+        );
+        Plan created = service.createPlan(command);
+        service.publishPlan(created.getId(), "owner-api");
+        service.startNode(created.getId(), created.getNodes().get(0).getId(), "operator-api");
+
+        Plan completed = service.completeNode(created.getId(), created.getNodes().get(0).getId(),
+                "operator-api", "ok", null, List.of());
+
+        assertThat(notificationGateway.getApiCalls()).isNotEmpty();
+        var apiRequest = notificationGateway.getApiCalls().get(notificationGateway.getApiCalls().size() - 1);
+        assertThat(apiRequest.getEndpoint()).isEqualTo("https://hooks.internal/api");
+        assertThat(apiRequest.getMethod()).isEqualTo("PATCH");
+        assertThat(apiRequest.getBody()).contains("notify");
+        assertThat(apiRequest.getHeaders()).containsEntry("X-Trace", "trace-123");
+
+        PlanActionHistory history = actionHistoryRepository.findByPlanId(created.getId())
+                .get(actionHistoryRepository.findByPlanId(created.getId()).size() - 1);
+        assertThat(history.getStatus()).isEqualTo(PlanActionStatus.SUCCESS);
+        assertThat(history.getMetadata())
+                .containsEntry("templateId", String.valueOf(templateId))
+                .containsEntry("endpoint", "https://hooks.internal/api")
+                .containsEntry("method", "PATCH")
+                .containsEntry("scenario", "post-ops")
+                .containsEntry("attempts", "1");
+
+        PlanActivity actionActivity = latestActivity(completed, PlanActivityType.NODE_ACTION_EXECUTED);
+        assertThat(actionActivity.getAttributes())
+                .containsEntry("actionStatus", PlanActionStatus.SUCCESS.name())
+                .containsEntry("meta.endpoint", "https://hooks.internal/api")
+                .containsEntry("meta.method", "PATCH")
+                .containsEntry("context.result", "ok");
+    }
+
     private PlanActivity latestActivity(Plan plan, PlanActivityType type) {
         return plan.getActivities().stream()
                 .filter(activity -> activity.getType() == type)
