@@ -19,6 +19,8 @@ type HeaderNavMenuItem = {
   key: string;
   label: string;
   roles?: string[];
+  disabled?: boolean;
+  children?: HeaderNavMenuItem[];
 };
 
 type HeaderNavProps = {
@@ -82,40 +84,73 @@ export function HeaderNav({
 }: HeaderNavProps) {
   const normalizedUserRoles = permissions.normalizedRoles;
 
+  const filterMenuItemsByRoles = useCallback(
+    (items: HeaderNavMenuItem[]): HeaderNavMenuItem[] => {
+      if (items.length === 0) {
+        return [];
+      }
+      const allowedRoles = new Set(normalizedUserRoles);
+      const mapItem = (item: HeaderNavMenuItem): HeaderNavMenuItem | null => {
+        const children = item.children ? filterMenuItemsByRoles(item.children) : [];
+        const normalizedRoles = (item.roles ?? []).map((role) => role.trim().toUpperCase());
+        const allowed =
+          normalizedRoles.length === 0 || normalizedRoles.some((role) => allowedRoles.has(role));
+        if (!allowed && children.length === 0) {
+          return null;
+        }
+        const shouldDisable = !allowed && children.length > 0;
+        return {
+          ...item,
+          disabled: shouldDisable ? true : item.disabled,
+          children: children.length > 0 ? children : undefined,
+        };
+      };
+
+      return items
+        .map((item) => mapItem(item))
+        .filter((item): item is HeaderNavMenuItem => Boolean(item));
+    },
+    [normalizedUserRoles]
+  );
+
   const visibleMenuItems = useMemo<HeaderNavMenuItem[]>(() => {
     if (!menuItems || menuItems.length === 0) {
       return [];
     }
-    if (normalizedUserRoles.length === 0) {
-      return menuItems.filter((item) => !item.roles || item.roles.length === 0);
-    }
-    const allowedRoles = new Set(normalizedUserRoles);
-    return menuItems.filter((item) => {
-      if (!item.roles || item.roles.length === 0) {
-        return true;
-      }
-      return item.roles.some((role) => allowedRoles.has(role.trim().toUpperCase()));
-    });
-  }, [menuItems, normalizedUserRoles]);
+    return filterMenuItemsByRoles(menuItems);
+  }, [filterMenuItemsByRoles, menuItems]);
 
-  const antMenuItems = useMemo<MenuProps['items']>(
-    () =>
-      visibleMenuItems.map((item) => ({
+  const collectVisibleMenuKeys = useCallback((items: HeaderNavMenuItem[], keys: Set<string>) => {
+    items.forEach((item) => {
+      keys.add(item.key);
+      if (item.children) {
+        collectVisibleMenuKeys(item.children, keys);
+      }
+    });
+    return keys;
+  }, []);
+
+  const visibleMenuKeySet = useMemo(() => collectVisibleMenuKeys(visibleMenuItems, new Set<string>()), [collectVisibleMenuKeys, visibleMenuItems]);
+
+  const antMenuItems = useMemo<MenuProps['items']>(() => {
+    const mapMenu = (items: HeaderNavMenuItem[]): NonNullable<MenuProps['items']> =>
+      items.map((item) => ({
         key: item.key,
         label: item.label,
-      })),
-    [visibleMenuItems]
-  );
+        disabled: item.disabled,
+        children: item.children ? mapMenu(item.children) : undefined,
+      }));
+    return mapMenu(visibleMenuItems);
+  }, [visibleMenuItems]);
 
   const selectedMenuKeys = useMemo<MenuProps['selectedKeys']>(
     () => {
       if (!menuSelectedKeys || menuSelectedKeys.length === 0) {
         return [];
       }
-      const visibleKeys = new Set(visibleMenuItems.map((item) => item.key));
-      return menuSelectedKeys.filter((key) => visibleKeys.has(key));
+      return menuSelectedKeys.filter((key) => visibleMenuKeySet.has(key));
     },
-    [menuSelectedKeys, visibleMenuItems]
+    [menuSelectedKeys, visibleMenuKeySet]
   );
 
   const showMenu = isAuthenticated && visibleMenuItems.length > 0;

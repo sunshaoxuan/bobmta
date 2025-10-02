@@ -59,8 +59,7 @@
   - 计划列表筛选条件与分页状态写入 URL 查询参数并响应浏览器历史返回，刷新或分享链接后能恢复列表视图，并与详情查询参数协同。
   - 封装计划详情时间线面板为可复用组件，统一筛选、提示与高亮逻辑，并新增时间线筛选导出工具以支撑 Node Test 验证。
   - 抽离计划列表面板与详情预览为 `PlanListBoard` 组件，收敛筛选、分页、缓存提示与节点/提醒预览交互，同时提炼负责人提取工具，降低后续路由重构耦合度。
-  - ✅ 记录 F-001/F-002 依赖的筛选字典与时间线事件字典接口均已进入生产环境，示例 `curl` 与契约链接已同步更新至需求清单及 README，默认联调命中真实接口，仅在离线/测试时降级至 `mockPlanFilterOptions.json`、`mockPlanActivityTypes.json` 与 `queryMockPlanSummaries`。
-- ✅ 重构 `HeaderNav` 组件承载品牌标识与固定导航，使用 `Layout.Header`、`Menu`、`Dropdown` 组织品牌、导航与用户菜单；Session 容器同步输出导航配置、角色权限、`navigationPathMap`/`navigationPaths`/`canAccessPath` 等能力，组件内按角色过滤菜单项并在 401/403 时回退 Mock。401 会清理会话并提示重新登录，未登录仅展示访客徽标与登录按钮、隐藏菜单项，403 时在导航区提示权限告警。
+  - ✅ 重构 `HeaderNav` 组件承载品牌标识与固定导航，使用 `Layout.Header`、`Menu`、`Dropdown` 组织品牌、导航与用户菜单；Session 容器同步输出导航配置、角色权限、`navigationPathMap`/`navigationPaths`/`canAccessPath` 等能力，组件内按角色过滤菜单项并在 401/403 时回退 Mock，同时保留后端菜单 `children` 层级便于后续扩展子菜单。401 会清理会话并提示重新登录，未登录仅展示访客徽标与登录按钮、隐藏菜单项，403 时在导航区提示权限告警。
   - ✅ 新增前端路由授权校验，遇到未授权路径时展示 403 占位与返回概览按钮，防止出现无提示的空白页面。
   - ✅ 升级计划列表多视图为 Tabs + Segmented 联动，新增客户 List/Tree 视图与 Calendar 日历视图，复用派生聚合与事件映射，并针对日历即将开始区块按时间锚点筛选未来事件；Node Test 验证客户/日期分组与锚点推断结果。
   - ✅ 拆分 `PlanByCustomerView`/`PlanCalendarView` 组件承载客户树与日历展示，状态层同步暴露客户聚合与日历事件派生方法，日历视图支持切换日/周/月/年粒度并根据周起始日对齐时间桶；新增 Node Test 覆盖名称排序、年度区间与周起始边界。

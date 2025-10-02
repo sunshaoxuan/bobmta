@@ -489,15 +489,25 @@ function AppView({ client, localization, session, planList, planDetail, router }
     [translate]
   );
 
-  const headerMenuItems = useMemo(
-    () =>
-      sessionNavigationMenu.map((item) => ({
+  const headerMenuItems = useMemo(() => {
+    type HeaderMenuItem = {
+      key: string;
+      label: string;
+      roles: string[];
+      disabled?: boolean;
+      children?: HeaderMenuItem[];
+    };
+
+    const mapMenuItems = (items: typeof sessionNavigationMenu): HeaderMenuItem[] =>
+      items.map((item) => ({
         key: item.key,
         label: translate(item.labelKey),
         roles: item.roles,
-      })),
-    [sessionNavigationMenu, translate]
-  );
+        children: item.children ? mapMenuItems(item.children) : undefined,
+      }));
+
+    return mapMenuItems(sessionNavigationMenu);
+  }, [sessionNavigationMenu, translate]);
 
   const flattenedNavigationItems = useMemo(
     () => flattenNavigationItems(sessionNavigationItems),
