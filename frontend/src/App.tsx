@@ -652,10 +652,10 @@ function AppView({ client, localization, session, navigation, planList, planDeta
         onLocaleChange={(value) => setLocale(value as Locale)}
         brandHref="/"
         onBrandClick={handleBrandNavigateHome}
-        menuItems={isAuthenticated ? headerMenuItems : []}
-        menuSelectedKeys={isAuthenticated ? menuSelectedKeys : undefined}
+        menuItems={headerMenuItems}
+        menuSelectedKeys={menuSelectedKeys}
         onMenuClick={handleMenuClick}
-        navigationErrorLabel={isAuthenticated ? navigationErrorLabel : null}
+        navigationErrorLabel={navigationErrorLabel}
         isAuthenticated={isAuthenticated}
         userInitial={userInitial}
         userDisplayName={userDisplayName}
