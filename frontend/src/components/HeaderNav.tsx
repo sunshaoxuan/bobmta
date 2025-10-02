@@ -1,4 +1,4 @@
-import React, { useMemo } from '../../vendor/react/index.js';
+import React, { useCallback, useMemo } from '../../vendor/react/index.js';
 import {
   Button,
   Dropdown,
@@ -25,6 +25,8 @@ type HeaderNavProps = {
   subtitle: string;
   localeLabel: string;
   loginLabel: string;
+  brandHref?: string;
+  onBrandClick?: () => void;
   localeValue: string;
   localeOptions: Array<{ label: string; value: string }>;
   localeLoading: boolean;
@@ -47,6 +49,8 @@ export function HeaderNav({
   subtitle,
   localeLabel,
   loginLabel,
+  brandHref = '/',
+  onBrandClick,
   localeValue,
   localeOptions,
   localeLoading,
@@ -118,10 +122,21 @@ export function HeaderNav({
     ? `${primaryRole}${secondaryRoleCount > 0 ? ` +${secondaryRoleCount}` : ''}`
     : null;
 
+  const handleBrandClick = useCallback(
+    (event: Event) => {
+      if (!onBrandClick) {
+        return;
+      }
+      event.preventDefault();
+      onBrandClick();
+    },
+    [onBrandClick]
+  );
+
   return (
     <Header className="app-header">
       <div className="app-header-left">
-        <a className="app-brand" href="/" aria-label={title}>
+        <a className="app-brand" href={brandHref} aria-label={title} onClick={handleBrandClick}>
           <div className="app-brand-mark" aria-hidden="true">
             <span className="app-brand-logo">BOB</span>
           </div>

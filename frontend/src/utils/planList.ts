@@ -37,7 +37,7 @@ export function mapPlanCalendarEventsByDate<
   const timeZone = options?.timeZone;
   const map: PlanCalendarEventMap<T> = {};
   events.forEach((event) => {
-    const anchor = resolveEventAnchor(event);
+    const anchor = getPlanCalendarEventAnchor(event);
     if (!anchor) {
       return;
     }
@@ -52,8 +52,8 @@ export function mapPlanCalendarEventsByDate<
   });
   Object.keys(map).forEach((key) => {
     map[key].sort((a, b) => {
-      const timeA = resolveEventTime(a);
-      const timeB = resolveEventTime(b);
+      const timeA = getPlanCalendarEventTime(a);
+      const timeB = getPlanCalendarEventTime(b);
       if (timeA === timeB) {
         return a.plan.id.localeCompare(b.plan.id);
       }
@@ -63,7 +63,9 @@ export function mapPlanCalendarEventsByDate<
   return map;
 }
 
-function resolveEventAnchor(event: PlanCalendarEvent): string | null {
+export function getPlanCalendarEventAnchor(
+  event: PlanCalendarEvent
+): string | null {
   if (event.startTime) {
     return event.startTime;
   }
@@ -74,8 +76,8 @@ function resolveEventAnchor(event: PlanCalendarEvent): string | null {
   return plan?.plannedStartTime ?? plan?.plannedEndTime ?? null;
 }
 
-function resolveEventTime(event: PlanCalendarEvent): number {
-  const anchor = resolveEventAnchor(event);
+export function getPlanCalendarEventTime(event: PlanCalendarEvent): number {
+  const anchor = getPlanCalendarEventAnchor(event);
   if (!anchor) {
     return Number.POSITIVE_INFINITY;
   }
