@@ -21,7 +21,8 @@ import com.bob.mta.modules.plan.domain.PlanNodeExecution;
 import com.bob.mta.modules.plan.domain.PlanAnalytics;
 import com.bob.mta.modules.plan.repository.InMemoryPlanActionHistoryRepository;
 import com.bob.mta.modules.plan.repository.InMemoryPlanAnalyticsRepository;
-import com.bob.mta.modules.plan.repository.PlanBoardQuery;
+import com.bob.mta.modules.plan.repository.PlanBoardGrouping;
+import com.bob.mta.modules.plan.repository.PlanBoardWindow;
 import com.bob.mta.modules.plan.repository.InMemoryPlanRepository;
 import com.bob.mta.modules.plan.service.command.CreatePlanCommand;
 import com.bob.mta.modules.plan.service.command.PlanNodeCommand;
@@ -99,14 +100,12 @@ class InMemoryPlanServiceTest {
         service.publishPlan(firstPlan.getId(), "board-owner");
         service.publishPlan(secondPlan.getId(), "board-owner");
 
-        PlanBoardQuery query = PlanBoardQuery.builder()
-                .tenantId("tenant-board")
-                .granularity(PlanBoardQuery.TimeGranularity.DAY)
+        PlanBoardWindow window = PlanBoardWindow.builder()
                 .from(base.minusDays(1))
                 .to(base.plusDays(2))
                 .build();
 
-        PlanBoardView board = service.getPlanBoard(query);
+        PlanBoardView board = service.getPlanBoard("tenant-board", window, PlanBoardGrouping.DAY);
 
         assertThat(board.getMetrics().getTotalPlans()).isEqualTo(2);
         assertThat(board.getCustomerGroups())
@@ -153,15 +152,13 @@ class InMemoryPlanServiceTest {
         service.publishPlan(scoped.getId(), "filter-owner");
         service.createPlan(ignoredTenantPlan);
 
-        PlanBoardQuery query = PlanBoardQuery.builder()
-                .tenantId("tenant-board-filter")
+        PlanBoardWindow window = PlanBoardWindow.builder()
                 .customerIds(List.of("cust-filter-a"))
-                .granularity(PlanBoardQuery.TimeGranularity.WEEK)
                 .from(baseline.minusDays(1))
                 .to(baseline.plusDays(7))
                 .build();
 
-        PlanBoardView board = service.getPlanBoard(query);
+        PlanBoardView board = service.getPlanBoard("tenant-board-filter", window, PlanBoardGrouping.WEEK);
 
         assertThat(board.getCustomerGroups())
                 .extracting(PlanBoardView.CustomerGroup::getCustomerId)
@@ -175,12 +172,8 @@ class InMemoryPlanServiceTest {
     @Test
     @DisplayName("getPlanBoard returns empty structures when no plans match")
     void shouldReturnEmptyPlanBoardWhenNoPlans() {
-        PlanBoardQuery query = PlanBoardQuery.builder()
-                .tenantId("missing-tenant")
-                .granularity(PlanBoardQuery.TimeGranularity.MONTH)
-                .build();
-
-        PlanBoardView board = service.getPlanBoard(query);
+        PlanBoardView board = service.getPlanBoard("missing-tenant",
+                PlanBoardWindow.builder().build(), PlanBoardGrouping.MONTH);
 
         assertThat(board.getMetrics().getTotalPlans()).isZero();
         assertThat(board.getCustomerGroups()).isEmpty();

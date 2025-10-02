@@ -26,8 +26,10 @@
     "activePlans": 2,
     "completedPlans": 0,
     "overduePlans": 1,
+    "dueSoonPlans": 1,
     "averageProgress": 45.5,
-    "averageDurationHours": 2.5
+    "averageDurationHours": 2.5,
+    "completionRate": 0.0
   },
   "customerGroups": [
     {
@@ -36,6 +38,8 @@
       "totalPlans": 1,
       "activePlans": 1,
       "completedPlans": 0,
+      "overduePlans": 0,
+      "dueSoonPlans": 1,
       "averageProgress": 30.0,
       "earliestStart": "2024-04-02T08:00:00+08:00",
       "latestEnd": "2024-04-02T10:30:00+08:00",
@@ -49,7 +53,11 @@
           "plannedStartTime": "2024-04-02T08:00:00+08:00",
           "plannedEndTime": "2024-04-02T10:30:00+08:00",
           "timezone": "Asia/Shanghai",
-          "progress": 30
+          "progress": 30,
+          "overdue": false,
+          "dueSoon": true,
+          "minutesUntilDue": 90,
+          "minutesOverdue": null
         }
       ]
     }
@@ -63,6 +71,7 @@
       "activePlans": 1,
       "completedPlans": 0,
       "overduePlans": 0,
+      "dueSoonPlans": 1,
       "plans": [
         {
           "id": "PLAN-6001",
@@ -73,7 +82,11 @@
           "plannedStartTime": "2024-04-02T08:00:00+08:00",
           "plannedEndTime": "2024-04-02T10:30:00+08:00",
           "timezone": "Asia/Shanghai",
-          "progress": 30
+          "progress": 30,
+          "overdue": false,
+          "dueSoon": true,
+          "minutesUntilDue": 90,
+          "minutesOverdue": null
         }
       ]
     }
@@ -86,8 +99,12 @@
 - `granularity`：表示当前响应采用的时间粒度，取值为 `DAY`/`WEEK`/`MONTH`/`YEAR`。
 - `metrics.averageProgress`：所有命中计划的平均执行进度，保留 1 位小数。
 - `metrics.averageDurationHours`：根据 `plannedStartTime` 与 `plannedEndTime` 计算的平均计划时长（小时）。
+- `metrics.dueSoonPlans`：在 24 小时内即将到期的活跃计划数量，结合 `overduePlans` 便于判定风险分布。
+- `metrics.completionRate`：已完成计划的百分比（0-100），保留 1 位小数。
 - `customerGroups`：按 `customerId` 聚合的分组信息，包含活跃/完成数量、时间窗口范围以及计划卡片。
 - `timeBuckets`：按粒度拆分的时间桶，`bucketId` 作为前端 Tab/日历的 key，`plans` 用于快速渲染对应视图。
+- `plans[].overdue` / `plans[].dueSoon`：派生风险指标，分别表示计划已逾期或在默认阈值内即将到期。
+- `plans[].minutesUntilDue` / `plans[].minutesOverdue`：结合风险标识的分钟粒度倒计时，便于前端展示剩余时间或逾期时长。
 
 ## 验收说明
 

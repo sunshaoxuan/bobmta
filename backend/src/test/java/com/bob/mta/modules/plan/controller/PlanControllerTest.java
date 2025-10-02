@@ -29,7 +29,7 @@ import com.bob.mta.modules.plan.dto.PlanSummaryResponse;
 import com.bob.mta.modules.plan.repository.InMemoryPlanActionHistoryRepository;
 import com.bob.mta.modules.plan.repository.InMemoryPlanAnalyticsRepository;
 import com.bob.mta.modules.plan.repository.InMemoryPlanRepository;
-import com.bob.mta.modules.plan.repository.PlanBoardQuery;
+import com.bob.mta.modules.plan.repository.PlanBoardGrouping;
 import com.bob.mta.modules.plan.service.impl.InMemoryPlanService;
 import com.bob.mta.modules.plan.service.impl.RecordingNotificationGateway;
 import com.bob.mta.modules.plan.service.impl.TestTemplateService;
@@ -244,7 +244,7 @@ class PlanControllerTest {
                 List.of(PlanStatus.SCHEDULED),
                 null,
                 null,
-                PlanBoardQuery.TimeGranularity.DAY);
+                PlanBoardGrouping.DAY);
 
         PlanBoardResponse board = response.getData();
         assertThat(board.getMetrics().getTotalPlans()).isEqualTo(2);
@@ -253,6 +253,7 @@ class PlanControllerTest {
         assertThat(board.getTimeBuckets().get(0).getPlans())
                 .extracting(PlanBoardResponse.PlanCardResponse::getCustomerId)
                 .containsAnyOf("cust-board-1", "cust-board-2");
+        assertThat(board.getMetrics().getDueSoonPlans()).isGreaterThanOrEqualTo(0);
     }
 
     @Test

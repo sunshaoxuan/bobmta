@@ -1,7 +1,7 @@
 package com.bob.mta.modules.plan.service;
 
 import com.bob.mta.modules.plan.domain.PlanStatus;
-import com.bob.mta.modules.plan.repository.PlanBoardQuery;
+import com.bob.mta.modules.plan.repository.PlanBoardGrouping;
 
 import java.time.OffsetDateTime;
 import java.util.List;
@@ -11,12 +11,12 @@ public class PlanBoardView {
     private final List<CustomerGroup> customerGroups;
     private final List<TimeBucket> timeBuckets;
     private final Metrics metrics;
-    private final PlanBoardQuery.TimeGranularity granularity;
+    private final PlanBoardGrouping granularity;
 
     public PlanBoardView(List<CustomerGroup> customerGroups,
                          List<TimeBucket> timeBuckets,
                          Metrics metrics,
-                         PlanBoardQuery.TimeGranularity granularity) {
+                         PlanBoardGrouping granularity) {
         this.customerGroups = customerGroups == null ? List.of() : List.copyOf(customerGroups);
         this.timeBuckets = timeBuckets == null ? List.of() : List.copyOf(timeBuckets);
         this.metrics = metrics;
@@ -35,7 +35,7 @@ public class PlanBoardView {
         return metrics;
     }
 
-    public PlanBoardQuery.TimeGranularity getGranularity() {
+    public PlanBoardGrouping getGranularity() {
         return granularity;
     }
 
@@ -45,6 +45,8 @@ public class PlanBoardView {
         private final long totalPlans;
         private final long activePlans;
         private final long completedPlans;
+        private final long overduePlans;
+        private final long dueSoonPlans;
         private final double averageProgress;
         private final OffsetDateTime earliestStart;
         private final OffsetDateTime latestEnd;
@@ -55,6 +57,8 @@ public class PlanBoardView {
                              long totalPlans,
                              long activePlans,
                              long completedPlans,
+                             long overduePlans,
+                             long dueSoonPlans,
                              double averageProgress,
                              OffsetDateTime earliestStart,
                              OffsetDateTime latestEnd,
@@ -64,6 +68,8 @@ public class PlanBoardView {
             this.totalPlans = totalPlans;
             this.activePlans = activePlans;
             this.completedPlans = completedPlans;
+            this.overduePlans = overduePlans;
+            this.dueSoonPlans = dueSoonPlans;
             this.averageProgress = averageProgress;
             this.earliestStart = earliestStart;
             this.latestEnd = latestEnd;
@@ -88,6 +94,14 @@ public class PlanBoardView {
 
         public long getCompletedPlans() {
             return completedPlans;
+        }
+
+        public long getOverduePlans() {
+            return overduePlans;
+        }
+
+        public long getDueSoonPlans() {
+            return dueSoonPlans;
         }
 
         public double getAverageProgress() {
@@ -115,6 +129,7 @@ public class PlanBoardView {
         private final long activePlans;
         private final long completedPlans;
         private final long overduePlans;
+        private final long dueSoonPlans;
         private final List<PlanCard> plans;
 
         public TimeBucket(String bucketId,
@@ -124,6 +139,7 @@ public class PlanBoardView {
                           long activePlans,
                           long completedPlans,
                           long overduePlans,
+                          long dueSoonPlans,
                           List<PlanCard> plans) {
             this.bucketId = bucketId;
             this.start = start;
@@ -132,6 +148,7 @@ public class PlanBoardView {
             this.activePlans = activePlans;
             this.completedPlans = completedPlans;
             this.overduePlans = overduePlans;
+            this.dueSoonPlans = dueSoonPlans;
             this.plans = plans == null ? List.of() : List.copyOf(plans);
         }
 
@@ -163,6 +180,10 @@ public class PlanBoardView {
             return overduePlans;
         }
 
+        public long getDueSoonPlans() {
+            return dueSoonPlans;
+        }
+
         public List<PlanCard> getPlans() {
             return plans;
         }
@@ -178,6 +199,10 @@ public class PlanBoardView {
         private final OffsetDateTime plannedEndTime;
         private final String timezone;
         private final int progress;
+        private final boolean overdue;
+        private final boolean dueSoon;
+        private final Long minutesUntilDue;
+        private final Long minutesOverdue;
 
         public PlanCard(String id,
                         String title,
@@ -187,7 +212,11 @@ public class PlanBoardView {
                         OffsetDateTime plannedStartTime,
                         OffsetDateTime plannedEndTime,
                         String timezone,
-                        int progress) {
+                        int progress,
+                        boolean overdue,
+                        boolean dueSoon,
+                        Long minutesUntilDue,
+                        Long minutesOverdue) {
             this.id = id;
             this.title = title;
             this.status = status;
@@ -197,6 +226,10 @@ public class PlanBoardView {
             this.plannedEndTime = plannedEndTime;
             this.timezone = timezone;
             this.progress = progress;
+            this.overdue = overdue;
+            this.dueSoon = dueSoon;
+            this.minutesUntilDue = minutesUntilDue;
+            this.minutesOverdue = minutesOverdue;
         }
 
         public String getId() {
@@ -234,6 +267,22 @@ public class PlanBoardView {
         public int getProgress() {
             return progress;
         }
+
+        public boolean isOverdue() {
+            return overdue;
+        }
+
+        public boolean isDueSoon() {
+            return dueSoon;
+        }
+
+        public Long getMinutesUntilDue() {
+            return minutesUntilDue;
+        }
+
+        public Long getMinutesOverdue() {
+            return minutesOverdue;
+        }
     }
 
     public static class Metrics {
@@ -241,21 +290,27 @@ public class PlanBoardView {
         private final long activePlans;
         private final long completedPlans;
         private final long overduePlans;
+        private final long dueSoonPlans;
         private final double averageProgress;
         private final double averageDurationHours;
+        private final double completionRate;
 
         public Metrics(long totalPlans,
                        long activePlans,
                        long completedPlans,
                        long overduePlans,
+                       long dueSoonPlans,
                        double averageProgress,
-                       double averageDurationHours) {
+                       double averageDurationHours,
+                       double completionRate) {
             this.totalPlans = totalPlans;
             this.activePlans = activePlans;
             this.completedPlans = completedPlans;
             this.overduePlans = overduePlans;
+            this.dueSoonPlans = dueSoonPlans;
             this.averageProgress = averageProgress;
             this.averageDurationHours = averageDurationHours;
+            this.completionRate = completionRate;
         }
 
         public long getTotalPlans() {
@@ -274,12 +329,20 @@ public class PlanBoardView {
             return overduePlans;
         }
 
+        public long getDueSoonPlans() {
+            return dueSoonPlans;
+        }
+
         public double getAverageProgress() {
             return averageProgress;
         }
 
         public double getAverageDurationHours() {
             return averageDurationHours;
+        }
+
+        public double getCompletionRate() {
+            return completionRate;
         }
     }
 }

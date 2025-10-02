@@ -1,5 +1,6 @@
 package com.bob.mta.modules.plan.repository;
 
+import com.bob.mta.modules.plan.domain.Plan;
 import com.bob.mta.modules.plan.domain.PlanAnalytics;
 import com.bob.mta.modules.plan.domain.PlanStatus;
 import com.bob.mta.modules.plan.persistence.PlanAggregateMapper;
@@ -8,21 +9,27 @@ import com.bob.mta.modules.plan.persistence.PlanOwnerLoadEntity;
 import com.bob.mta.modules.plan.persistence.PlanRiskPlanEntity;
 import com.bob.mta.modules.plan.persistence.PlanStatusCountEntity;
 import com.bob.mta.modules.plan.persistence.PlanUpcomingPlanEntity;
+import com.bob.mta.modules.plan.service.PlanBoardAggregator;
+import com.bob.mta.modules.plan.service.PlanBoardView;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.stereotype.Repository;
 
 import java.util.EnumMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 @Repository
 @ConditionalOnBean(PlanAggregateMapper.class)
 public class PlanPersistenceAnalyticsRepository implements PlanAnalyticsRepository {
 
     private final PlanAggregateMapper mapper;
+    private final PlanRepository planRepository;
 
-    public PlanPersistenceAnalyticsRepository(PlanAggregateMapper mapper) {
+    public PlanPersistenceAnalyticsRepository(PlanAggregateMapper mapper, PlanRepository planRepository) {
         this.mapper = mapper;
+        this.planRepository = planRepository;
     }
 
     @Override
@@ -86,6 +93,21 @@ public class PlanPersistenceAnalyticsRepository implements PlanAnalyticsReposito
 
         return new PlanAnalytics(total, design, scheduled, inProgress, completed, canceled, overdue, upcoming,
                 ownerLoadAnalytics, riskPlanAnalytics);
+    }
+
+    @Override
+    public PlanBoardView getPlanBoard(String tenantId, PlanBoardWindow window, PlanBoardGrouping grouping) {
+        PlanBoardWindow effectiveWindow = window == null ? PlanBoardWindow.builder().build() : window;
+        PlanBoardGrouping effectiveGrouping = grouping == null ? PlanBoardGrouping.WEEK : grouping;
+        PlanSearchCriteria criteria = effectiveWindow.toCriteria(tenantId);
+        List<Plan> candidates = planRepository.findByCriteria(criteria);
+        if (effectiveWindow.hasCustomerFilter() && effectiveWindow.getCustomerIds().size() != 1) {
+            Set<String> allowed = new LinkedHashSet<>(effectiveWindow.getCustomerIds());
+            candidates = candidates.stream()
+                    .filter(plan -> plan.getCustomerId() != null && allowed.contains(plan.getCustomerId()))
+                    .toList();
+        }
+        return PlanBoardAggregator.aggregate(candidates, effectiveGrouping);
     }
 
     private int calculateProgress(Long completedNodes, Long totalNodes) {
