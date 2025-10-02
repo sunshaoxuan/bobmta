@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo, useState } from '../../vendor/react/index.js';
+import React, { useCallback, useEffect, useMemo, useState } from '../../vendor/react/index.js';
 import {
   Calendar,
   Card,
@@ -48,6 +48,18 @@ export function PlanCalendarView({
 }: PlanCalendarViewProps) {
   const [calendarMode, setCalendarMode] = useState<CalendarMode>('month');
   const [granularity, setGranularity] = useState<PlanCalendarGranularity>('month');
+
+  useEffect(() => {
+    setCalendarMode((current) => {
+      if (granularity === 'year' && current !== 'year') {
+        return 'year';
+      }
+      if (granularity !== 'year' && current !== 'month') {
+        return 'month';
+      }
+      return current;
+    });
+  }, [granularity]);
 
   const granularityOptions = useMemo(
     () => [

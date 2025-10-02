@@ -6,7 +6,6 @@ import {
   Pagination,
   Segmented,
   Space,
-  Tabs,
   Table,
   Tag,
   Typography,
@@ -205,26 +204,17 @@ export function PlanListBoard({
     />
   );
 
-  const tabItems = useMemo(
-    () => [
-      {
-        key: 'table',
-        label: translate('planSectionTitle'),
-        children: tableView,
-      },
-      {
-        key: 'customer',
-        label: translate('planDetailCustomerLabel'),
-        children: customerView,
-      },
-      {
-        key: 'calendar',
-        label: translate('planDetailTimelineTitle'),
-        children: calendarView,
-      },
-    ],
-    [calendarView, customerView, tableView, translate]
-  );
+  const viewContent = useMemo(() => {
+    switch (viewMode) {
+      case 'customer':
+        return customerView;
+      case 'calendar':
+        return calendarView;
+      case 'table':
+      default:
+        return tableView;
+    }
+  }, [calendarView, customerView, tableView, viewMode]);
 
   return (
     <Card
@@ -291,13 +281,7 @@ export function PlanListBoard({
             errorDetail={errorDetailMessage}
             emptyHint={emptyHint}
           >
-            <Tabs
-              activeKey={viewMode}
-              items={tabItems}
-              onChange={(key: string) => {
-                onChangeViewMode(key as PlanListViewMode);
-              }}
-            />
+            {viewContent}
           </RemoteState>
         </Space>
       )}
