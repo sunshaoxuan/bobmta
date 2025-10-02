@@ -16,7 +16,8 @@ class PlanBoardResponseTest {
     @Test
     @DisplayName("from() should provide zero metrics when source view omits metrics")
     void shouldProvideDefaultMetricsWhenSourceHasNoMetrics() {
-        PlanBoardView view = new PlanBoardView(List.of(), List.of(), null, PlanBoardGrouping.DAY);
+        OffsetDateTime reference = OffsetDateTime.parse("2024-06-01T00:00:00Z");
+        PlanBoardView view = new PlanBoardView(List.of(), List.of(), null, PlanBoardGrouping.DAY, reference);
 
         PlanBoardResponse response = PlanBoardResponse.from(view);
 
@@ -25,6 +26,7 @@ class PlanBoardResponseTest {
         assertThat(response.getMetrics().getCompletionRate()).isZero();
         assertThat(response.getMetrics().getAverageDurationHours()).isZero();
         assertThat(response.getGranularity()).isEqualTo(PlanBoardGrouping.DAY.name());
+        assertThat(response.getReferenceTime()).isEqualTo(reference);
         assertThat(response.getCustomerGroups()).isEmpty();
         assertThat(response.getTimeBuckets()).isEmpty();
     }
@@ -83,11 +85,13 @@ class PlanBoardResponseTest {
                 2.5,
                 50.0
         );
-        PlanBoardView view = new PlanBoardView(List.of(group), List.of(bucket), metrics, PlanBoardGrouping.WEEK);
+        OffsetDateTime reference = OffsetDateTime.parse("2024-06-03T10:00:00Z");
+        PlanBoardView view = new PlanBoardView(List.of(group), List.of(bucket), metrics, PlanBoardGrouping.WEEK, reference);
 
         PlanBoardResponse response = PlanBoardResponse.from(view);
 
         assertThat(response.getGranularity()).isEqualTo(PlanBoardGrouping.WEEK.name());
+        assertThat(response.getReferenceTime()).isEqualTo(reference);
         assertThat(response.getMetrics().getCompletionRate()).isEqualTo(50.0);
         assertThat(response.getMetrics().getAverageDurationHours()).isEqualTo(2.5);
         assertThat(response.getCustomerGroups()).hasSize(1);

@@ -14,15 +14,18 @@ public class PlanBoardView {
     private final List<TimeBucket> timeBuckets;
     private final Metrics metrics;
     private final PlanBoardGrouping granularity;
+    private final OffsetDateTime referenceTime;
 
     public PlanBoardView(List<CustomerGroup> customerGroups,
                          List<TimeBucket> timeBuckets,
                          Metrics metrics,
-                         PlanBoardGrouping granularity) {
+                         PlanBoardGrouping granularity,
+                         OffsetDateTime referenceTime) {
         this.customerGroups = customerGroups == null ? List.of() : List.copyOf(customerGroups);
         this.timeBuckets = timeBuckets == null ? List.of() : List.copyOf(timeBuckets);
         this.metrics = metrics;
         this.granularity = granularity;
+        this.referenceTime = referenceTime;
     }
 
     public List<CustomerGroup> getCustomerGroups() {
@@ -39,6 +42,10 @@ public class PlanBoardView {
 
     public PlanBoardGrouping getGranularity() {
         return granularity;
+    }
+
+    public OffsetDateTime getReferenceTime() {
+        return referenceTime;
     }
 
     public static class CustomerGroup {

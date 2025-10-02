@@ -23,6 +23,7 @@
 ```jsonc
 {
   "granularity": "DAY",
+  "referenceTime": "2024-04-02T00:00:00Z",
   "metrics": {
     "totalPlans": 2,
     "activePlans": 2,
@@ -99,6 +100,7 @@
 ### 字段说明
 
 - `granularity`：表示当前响应采用的时间粒度，取值为 `DAY`/`WEEK`/`MONTH`/`YEAR`。
+- `referenceTime`：派生指标计算时采用的参考时间（UTC），前端可用来判断倒计时差异或触发刷新。
 - `metrics.averageProgress`：所有命中计划的平均执行进度，保留 1 位小数。
 - `metrics.averageDurationHours`：根据 `plannedStartTime` 与 `plannedEndTime` 计算的平均计划时长（小时）。
 - `metrics.dueSoonPlans`：在 24 小时内即将到期的活跃计划数量，结合 `overduePlans` 便于判定风险分布。

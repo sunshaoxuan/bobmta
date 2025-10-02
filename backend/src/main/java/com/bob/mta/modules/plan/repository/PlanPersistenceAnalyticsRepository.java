@@ -180,7 +180,7 @@ public class PlanPersistenceAnalyticsRepository implements PlanAnalyticsReposito
                 .toList();
 
         PlanBoardView.Metrics metrics = computeMetrics(planEntities);
-        return new PlanBoardView(customerGroups, timeBuckets, metrics, effectiveGrouping);
+        return new PlanBoardView(customerGroups, timeBuckets, metrics, effectiveGrouping, reference);
     }
 
     private int calculateProgress(Long completedNodes, Long totalNodes) {

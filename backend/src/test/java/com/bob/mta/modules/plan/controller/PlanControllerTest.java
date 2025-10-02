@@ -271,8 +271,9 @@ class PlanControllerTest {
     @Test
     void boardShouldSanitizeFiltersBeforeDelegating() {
         PlanService planServiceMock = Mockito.mock(PlanService.class);
+        OffsetDateTime reference = OffsetDateTime.parse("2024-06-05T00:00:00Z");
         PlanBoardView emptyView = new PlanBoardView(List.of(), List.of(),
-                new PlanBoardView.Metrics(0, 0, 0, 0, 0, 0, 0, 0), PlanBoardGrouping.WEEK);
+                new PlanBoardView.Metrics(0, 0, 0, 0, 0, 0, 0, 0), PlanBoardGrouping.WEEK, reference);
         when(planServiceMock.getPlanBoard(any(), any())).thenReturn(emptyView);
         AuditRecorder recorder = new AuditRecorder(auditService, new ObjectMapper());
         PlanController sanitizedController = new PlanController(planServiceMock, recorder, fileService, messageResolver);

@@ -7,19 +7,24 @@ import java.util.List;
 
 public class PlanBoardResponse {
 
+    private static final MetricsResponse ZERO_METRICS = new MetricsResponse(0, 0, 0, 0, 0, 0, 0, 0);
+
     private final List<CustomerGroupResponse> customerGroups;
     private final List<TimeBucketResponse> timeBuckets;
     private final MetricsResponse metrics;
     private final String granularity;
+    private final OffsetDateTime referenceTime;
 
     public PlanBoardResponse(List<CustomerGroupResponse> customerGroups,
                              List<TimeBucketResponse> timeBuckets,
                              MetricsResponse metrics,
-                             String granularity) {
-        this.customerGroups = customerGroups;
-        this.timeBuckets = timeBuckets;
-        this.metrics = metrics;
+                             String granularity,
+                             OffsetDateTime referenceTime) {
+        this.customerGroups = customerGroups == null ? List.of() : List.copyOf(customerGroups);
+        this.timeBuckets = timeBuckets == null ? List.of() : List.copyOf(timeBuckets);
+        this.metrics = metrics == null ? ZERO_METRICS : metrics;
         this.granularity = granularity;
+        this.referenceTime = referenceTime;
     }
 
     public static PlanBoardResponse from(PlanBoardView view) {
@@ -30,10 +35,10 @@ public class PlanBoardResponse {
                 .map(TimeBucketResponse::from)
                 .toList();
         MetricsResponse metricsResponse = view.getMetrics() == null
-                ? new MetricsResponse(0, 0, 0, 0, 0, 0, 0, 0)
+                ? ZERO_METRICS
                 : MetricsResponse.from(view.getMetrics());
         String granularity = view.getGranularity() == null ? null : view.getGranularity().name();
-        return new PlanBoardResponse(groups, buckets, metricsResponse, granularity);
+        return new PlanBoardResponse(groups, buckets, metricsResponse, granularity, view.getReferenceTime());
     }
 
     public List<CustomerGroupResponse> getCustomerGroups() {
@@ -50,6 +55,10 @@ public class PlanBoardResponse {
 
     public String getGranularity() {
         return granularity;
+    }
+
+    public OffsetDateTime getReferenceTime() {
+        return referenceTime;
     }
 
     public static class CustomerGroupResponse {
@@ -86,7 +95,7 @@ public class PlanBoardResponse {
             this.averageProgress = averageProgress;
             this.earliestStart = earliestStart;
             this.latestEnd = latestEnd;
-            this.plans = plans;
+            this.plans = plans == null ? List.of() : List.copyOf(plans);
         }
 
         public static CustomerGroupResponse from(PlanBoardView.CustomerGroup group) {
@@ -181,7 +190,7 @@ public class PlanBoardResponse {
             this.completedPlans = completedPlans;
             this.overduePlans = overduePlans;
             this.dueSoonPlans = dueSoonPlans;
-            this.plans = plans;
+            this.plans = plans == null ? List.of() : List.copyOf(plans);
         }
 
         public static TimeBucketResponse from(PlanBoardView.TimeBucket bucket) {
