@@ -60,6 +60,7 @@
   - 计划列表筛选条件与分页状态写入 URL 查询参数并响应浏览器历史返回，刷新或分享链接后能恢复列表视图，并与详情查询参数协同。
   - 封装计划详情时间线面板为可复用组件，统一筛选、提示与高亮逻辑，并新增时间线筛选导出工具以支撑 Node Test 验证。
   - 抽离计划列表面板与详情预览为 `PlanListBoard` 组件，收敛筛选、分页、缓存提示与节点/提醒预览交互，同时提炼负责人提取工具，降低后续路由重构耦合度。
+  - ✅ 记录 F-001/F-002 依赖的筛选字典与时间线事件字典接口均已进入生产环境，示例 `curl` 与契约链接已同步更新至需求清单及 README，默认联调命中真实接口，仅在离线/测试时降级至 `mockPlanFilterOptions.json`、`mockPlanActivityTypes.json` 与 `queryMockPlanSummaries`。
 - ✅ 重构 `HeaderNav` 组件承载品牌标识与固定导航，使用 `Layout.Header`、`Menu`、`Dropdown` 组织品牌、导航与用户菜单；Session 容器同步输出导航配置、角色权限、`navigationPathMap`/`navigationPaths`/`canAccessPath` 等能力，组件内按角色过滤菜单项并在 401/403 时回退 Mock。401 会清理会话并提示重新登录，未登录仅展示访客徽标与登录按钮、隐藏菜单项，403 时在导航区提示权限告警。
   - ✅ 新增前端路由授权校验，遇到未授权路径时展示 403 占位与返回概览按钮，防止出现无提示的空白页面。
   - ✅ 升级计划列表多视图为 Tabs + Segmented 联动，新增客户 List/Tree 视图与 Calendar 日历视图，复用派生聚合与事件映射，并针对日历即将开始区块按时间锚点筛选未来事件；Node Test 验证客户/日期分组与锚点推断结果。
@@ -103,8 +104,10 @@
 | 鉴权 | POST | `/api/v1/auth/login` | 登录，返回 Token、过期时间与角色 | 已实现，支持联调 |
 | 鉴权 | GET | `/api/v1/auth/me` | 查询当前登录用户 | 待后端确认多语言头处理 |
 | 运维计划 | GET | `/api/v1/plans` | 计划列表，支持分页/筛选 | 已实现（需分页参数约定） |
+| 运维计划 | GET | `/api/v1/plans/filter-options` | 列表筛选字典 | 生产可用（契约见 `docs/backend-requests/plan-filter-options.md`） |
 | 运维计划 | GET | `/api/v1/plans/{id}` | 计划详情 | 已提供，后续详情视图使用 |
 | 运维计划 | GET | `/api/v1/plans/{id}/timeline` | 时间线 | 计划后续迭代引用 |
+| 运维计划 | GET | `/api/v1/plans/activity-types` | 时间线事件字典 | 生产可用（契约见 `docs/backend-requests/plan-timeline-activities.md`） |
 | 提醒策略 | GET | `/api/v1/plans/{id}/reminders` | 提醒策略查询 | 待联调 |
 | 提醒策略 | PUT | `/api/v1/plans/{id}/reminders` | 更新提醒策略 | 待联调 |
 | 驾驶舱 | GET | `/api/v1/plans/analytics` | 计划统计分析 | 待联调 |
