@@ -17,6 +17,7 @@ export type SessionNavigationMenuConfigItem = {
   path: string;
   labelKey: UiMessageKey;
   roles: string[];
+  children?: SessionNavigationMenuConfigItem[];
 };
 
 export type SessionNavigationState = {
@@ -137,12 +138,16 @@ const filterNavigationByRoles = (
 const normalizeNavigationConfig = (
   items: NavigationMenuPayload[]
 ): SessionNavigationMenuConfigItem[] =>
-  items.map((item) => ({
-    key: item.key,
-    path: normalizePath(item.path),
-    labelKey: item.labelKey,
-    roles: normalizeRoles(item.roles ?? []),
-  }));
+  items.map((item) => {
+    const normalizedChildren = item.children ? normalizeNavigationConfig(item.children) : undefined;
+    return {
+      key: item.key,
+      path: normalizePath(item.path),
+      labelKey: item.labelKey,
+      roles: normalizeRoles(item.roles ?? []),
+      children: normalizedChildren && normalizedChildren.length > 0 ? normalizedChildren : undefined,
+    };
+  });
 
 const defaultNavigationConfig: SessionNavigationMenuConfigItem[] = normalizeNavigationConfig(
   MOCK_NAVIGATION_MENU
