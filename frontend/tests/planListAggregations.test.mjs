@@ -214,6 +214,21 @@ test('groupCalendarEvents aligns week buckets to configured start day', () => {
   assert.equal(bucket.end, '2025-05-12T00:00:00.000Z');
 });
 
+test('groupCalendarEvents coerces invalid week start boundaries to Monday', () => {
+  const plans = [
+    createPlan('p-19a', {
+      plannedStartTime: '2025-05-07T12:00:00.000Z',
+      plannedEndTime: '2025-05-07T13:00:00.000Z',
+    }),
+  ];
+
+  const events = createPlanCalendarEvents(plans);
+  const [bucket] = groupCalendarEvents(events, { granularity: 'week', weekStartsOn: -4 });
+  assert.ok(bucket);
+  assert.equal(bucket.start, '2025-05-05T00:00:00.000Z');
+  assert.equal(bucket.end, '2025-05-12T00:00:00.000Z');
+});
+
 test('groupCalendarEvents aggregates yearly buckets when requested', () => {
   const plans = [
     createPlan('p-20', {
