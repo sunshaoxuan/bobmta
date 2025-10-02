@@ -1,4 +1,4 @@
-import React from '../../vendor/react/index.js';
+import React, { type ReactNode } from '../../vendor/react/index.js';
 import { Space, Tag, Typography } from '../../vendor/antd/index.js';
 import type { LocalizationState } from '../i18n/useLocalization';
 import { PLAN_MODE_LABEL } from '../constants/planMode';
@@ -7,14 +7,16 @@ const { Paragraph, Text } = Typography;
 
 type DesignModePanelProps = {
   translate: LocalizationState['translate'];
+  children?: ReactNode;
 };
 
-export function DesignModePanel({ translate }: DesignModePanelProps) {
+export function DesignModePanel({ translate, children }: DesignModePanelProps) {
   return (
     <Space
       direction="vertical"
       size={4}
       className="plan-node-action-helper plan-mode-panel plan-mode-panel-design"
+      style={{ width: '100%' }}
     >
       <Text strong className="plan-mode-panel-title">
         <Tag color="purple">{translate(PLAN_MODE_LABEL.design)}</Tag>
@@ -26,6 +28,7 @@ export function DesignModePanel({ translate }: DesignModePanelProps) {
       <Text type="secondary" className="plan-mode-panel-label">
         {translate('planDetailNodeEdit')}
       </Text>
+      {children ? <Space direction="vertical" size="small">{children}</Space> : null}
     </Space>
   );
 }

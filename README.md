@@ -217,10 +217,13 @@
   - ✅ 已完成：依据计划状态区分设计/执行模式，执行态高亮当前节点并锁定已完成节点，模式面板提示切换回设计态；PlanPreview 按 `PlanDetail.status` 映射模式标签并向节点树、提醒看板与操作面板传递模式控制编辑，设计态继续开放节点编辑入口且提醒编辑按钮仅在设计态可见；同步状态容器暴露模式与当前节点信息，并新增单元测试覆盖取消态、设计↔执行切换、回退到草稿与嵌套节点执行场景，同时拆分模式提示面板以分别渲染设计/执行提示、弱化执行态已完成节点并补充模式/活跃节点选择器与切换回退用例。
   - ✅ 已完成：重构全局 `HeaderNav` 组件，使用 `Layout.Header` + `Menu` + `Dropdown` 承载品牌区、角色敏感导航与用户菜单，新增固定吸顶布局；Session 状态同步暴露导航配置、用户菜单与角色信息，组件内部按角色过滤菜单并在接口异常时降级为 Mock。未登录场景展示访客徽标及登录按钮，命中 403 会在导航栏提示权限告警并保留 Mock 菜单回退，401 自动清理会话并提示重新登录入口。
   - ✅ 已完成：在鉴权态下校验前端路由授权，未匹配的路径会展示 403 提示与返回概览按钮，避免用户访问未开放的页面时出现空白视图。
-  - ✅ 已完成：升级计划多视图为 Tabs + Segmented 联动切换，沿用筛选条件渲染表格、客户树形列表与日历视图，客户视图以 List/Tree 呈现负责人与状态分布，日历视图接入事件映射与多粒度聚合，并在即将开始列表中过滤出基于时间锚点的未来事件；Node Test 覆盖客户聚合、日历分组与时间锚点推断逻辑。
+  - ✅ 已完成：升级计划多视图为 Tabs + Segmented 联动切换，沿用筛选条件渲染表格、客户树形列表与日历视图，客户视图以 List/Tree 呈现负责人与状态分布，日历视图接入事件映射与多粒度聚合，并在即将开始列表中过滤出基于时间锚点的未来事件；PlanListBoard 将 `Segmented` 与 `Tabs` 共用的 `viewMode` 状态同步写回 URL，Node Test 覆盖客户聚合、日历分组与时间锚点推断逻辑。
   - ✅ 已完成：封装 `PlanByCustomerView` 与 `PlanCalendarView` 组件复用计划聚合结果，客户视图展示状态树与负责人标签，日历视图支持日/周/月/年颗粒度分桶并联动列表渲染；配套在 `planList` 状态模块输出客户聚合与日历事件派生方法，并以 Node Test 校验排序、周起始日与年度区间边界。
   - 📌 下一步：等待后端提供节点执行与提醒更新接口后对接真实调用，并补齐操作失败提示与权限校验的前端展现。
-  - ✅ 已确认：后端已在 2025-09 发布 `GET /api/v1/plans/filter-options`（详见《[计划列表筛选字典接口说明](docs/backend-requests/plan-filter-options.md#响应结构)》）与 `GET /api/v1/plans/activity-types`（详见《[计划时间线事件字典说明](docs/backend-requests/plan-timeline-activities.md#响应结构)》）；前端目前以 `mockPlanFilterOptions.json`/`mockPlanActivityTypes.json` 对齐文档字段，持续通过 Node Test 校验筛选枚举排序、时间窗提示与时间线属性渲染，待切换真实接口时同步落地缓存刷新与降级策略。
+  - ✅ 已确认：F-001/F-002 依赖的后端字典接口已在 2025-09-29 发布并进入生产环境。
+    - `GET /api/v1/plans/filter-options`：契约详见《[计划列表筛选字典接口说明](docs/backend-requests/plan-filter-options.md#响应结构)》，可通过 `curl -H "Accept-Language: zh-CN" "${HOST}/api/v1/plans/filter-options?tenantId=acme"` 验证多语言标签与时间窗示例。
+    - `GET /api/v1/plans/activity-types`：契约详见《[计划时间线事件字典说明](docs/backend-requests/plan-timeline-activities.md#响应结构)》，可通过 `curl -H "Accept-Language: ja-JP" "${HOST}/api/v1/plans/activity-types"` 核对消息键与属性描述。
+    - Mock 仍使用 `mockPlanFilterOptions.json`/`mockPlanActivityTypes.json` 镜像文档字段，保持与 2025-09 契约一致，持续通过 Node Test 校验筛选枚举排序、时间窗提示与时间线属性渲染，后续切换真实接口时同步落地缓存刷新与降级策略。
 
 ### ⏭️ 下一步
 - 迭代 #2：设计前端状态管理与缓存方案，区分用户会话、计划查询缓存与多语言资源加载，完善 Mock 数据与单元测试基线。

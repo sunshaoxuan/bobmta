@@ -1,4 +1,4 @@
-import React from '../../vendor/react/index.js';
+import React, { type ReactNode } from '../../vendor/react/index.js';
 import { Space, Tag, Typography } from '../../vendor/antd/index.js';
 import type { LocalizationState } from '../i18n/useLocalization';
 import { PLAN_MODE_LABEL } from '../constants/planMode';
@@ -10,6 +10,7 @@ type ExecutionModePanelProps = {
   currentNodeName: string | null;
   completedCount: number;
   totalCount: number;
+  children?: ReactNode;
 };
 
 export function ExecutionModePanel({
@@ -17,6 +18,7 @@ export function ExecutionModePanel({
   currentNodeName,
   completedCount,
   totalCount,
+  children,
 }: ExecutionModePanelProps) {
   const hasNodes = totalCount > 0;
 
@@ -25,6 +27,7 @@ export function ExecutionModePanel({
       direction="vertical"
       size={4}
       className="plan-node-action-helper plan-mode-panel plan-mode-panel-execution"
+      style={{ width: '100%' }}
     >
       <Text strong className="plan-mode-panel-title">
         <Tag color="geekblue">{translate(PLAN_MODE_LABEL.execution)}</Tag>
@@ -49,6 +52,7 @@ export function ExecutionModePanel({
           </Tag>
         </Space>
       ) : null}
+      {children ? <Space direction="vertical" size="small">{children}</Space> : null}
     </Space>
   );
 }

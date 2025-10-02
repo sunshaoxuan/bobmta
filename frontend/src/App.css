@@ -765,6 +765,44 @@
   padding: 0 4px;
 }
 
+.plan-view-tabs {
+  width: 100%;
+}
+
+.plan-view-tabs .antd-tabs-nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.plan-view-tabs .antd-tabs-tab {
+  border: none;
+  background: transparent;
+  padding: 6px 14px;
+  border-radius: 10px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #1d1d1f;
+  cursor: pointer;
+  transition: background 0.2s ease, color 0.2s ease;
+}
+
+.plan-view-tabs .antd-tabs-tab:hover {
+  background: rgba(22, 119, 255, 0.12);
+  color: #0b56d0;
+}
+
+.plan-view-tabs .antd-tabs-tab-active {
+  background: rgba(22, 119, 255, 0.16);
+  color: #0b56d0;
+  box-shadow: 0 6px 16px rgba(22, 119, 255, 0.18);
+}
+
+.plan-view-tabs .antd-tabs-content {
+  width: 100%;
+}
+
 .antd-segmented {
   display: inline-flex;
   align-items: stretch;
