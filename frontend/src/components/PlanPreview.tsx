@@ -26,7 +26,7 @@ import type {
 import type { Locale, UiMessageKey } from '../i18n/localization';
 import type { LocalizationState } from '../i18n/useLocalization';
 import { PLAN_STATUS_COLOR, PLAN_STATUS_LABEL } from '../constants/planStatus';
-import { PLAN_MODE_LABEL, type PlanViewMode } from '../constants/planMode';
+import { PLAN_MODE_LABEL, PLAN_STATUS_MODE, type PlanViewMode } from '../constants/planMode';
 import { PLAN_REMINDER_CHANNEL_COLOR, PLAN_REMINDER_CHANNEL_LABEL } from '../constants/planReminder';
 import { formatDateTime, formatPlanWindow } from '../utils/planFormatting';
 import type { PlanDetailState } from '../state/planDetail';
@@ -54,7 +54,6 @@ import { formatApiErrorMessage } from '../utils/apiErrors';
 const { Text, Paragraph } = Typography;
 
 type PlanPreviewModeDefinition = {
-  mode: PlanViewMode;
   tagColor: string;
   sections: {
     nodes: {
@@ -65,17 +64,12 @@ type PlanPreviewModeDefinition = {
     actions: {
       title: UiMessageKey;
       showModePanel: boolean;
-      showActionList: boolean;
     };
   };
   allowReminderEdit: boolean;
 };
-
-type PlanPreviewStatusKey = PlanStatus | 'UNKNOWN';
-
-const PLAN_PREVIEW_STATUS_DEFINITIONS: Record<PlanPreviewStatusKey, PlanPreviewModeDefinition> = {
-  DESIGN: {
-    mode: 'design',
+const PLAN_PREVIEW_MODE_DEFINITIONS: Record<PlanViewMode, PlanPreviewModeDefinition> = {
+  design: {
     tagColor: 'purple',
     sections: {
       nodes: {
@@ -86,13 +80,11 @@ const PLAN_PREVIEW_STATUS_DEFINITIONS: Record<PlanPreviewStatusKey, PlanPreviewM
       actions: {
         title: 'planDetailActionsTitleDesign',
         showModePanel: true,
-        showActionList: false,
       },
     },
     allowReminderEdit: true,
   },
-  SCHEDULED: {
-    mode: 'execution',
+  execution: {
     tagColor: 'geekblue',
     sections: {
       nodes: {
@@ -103,78 +95,9 @@ const PLAN_PREVIEW_STATUS_DEFINITIONS: Record<PlanPreviewStatusKey, PlanPreviewM
       actions: {
         title: 'planDetailActionsTitleExecution',
         showModePanel: true,
-        showActionList: true,
       },
     },
     allowReminderEdit: false,
-  },
-  IN_PROGRESS: {
-    mode: 'execution',
-    tagColor: 'geekblue',
-    sections: {
-      nodes: {
-        title: 'planDetailNodesTitleExecution',
-        showModePanel: true,
-        allowEdit: false,
-      },
-      actions: {
-        title: 'planDetailActionsTitleExecution',
-        showModePanel: true,
-        showActionList: true,
-      },
-    },
-    allowReminderEdit: false,
-  },
-  COMPLETED: {
-    mode: 'execution',
-    tagColor: 'geekblue',
-    sections: {
-      nodes: {
-        title: 'planDetailNodesTitleExecution',
-        showModePanel: true,
-        allowEdit: false,
-      },
-      actions: {
-        title: 'planDetailActionsTitleExecution',
-        showModePanel: true,
-        showActionList: false,
-      },
-    },
-    allowReminderEdit: false,
-  },
-  CANCELLED: {
-    mode: 'execution',
-    tagColor: 'geekblue',
-    sections: {
-      nodes: {
-        title: 'planDetailNodesTitleExecution',
-        showModePanel: true,
-        allowEdit: false,
-      },
-      actions: {
-        title: 'planDetailActionsTitleExecution',
-        showModePanel: true,
-        showActionList: false,
-      },
-    },
-    allowReminderEdit: false,
-  },
-  UNKNOWN: {
-    mode: 'design',
-    tagColor: 'purple',
-    sections: {
-      nodes: {
-        title: 'planDetailNodesTitleDesign',
-        showModePanel: true,
-        allowEdit: true,
-      },
-      actions: {
-        title: 'planDetailActionsTitleDesign',
-        showModePanel: true,
-        showActionList: false,
-      },
-    },
-    allowReminderEdit: true,
   },
 };
 
@@ -215,11 +138,13 @@ export function PlanPreview({
   const detailOrigin = isActiveDetail ? detailState.origin : null;
   const detailContext = isActiveDetail ? detailState.context : null;
   const previewStatus: PlanStatus | null = detailContext?.planStatus ?? detail?.status ?? plan?.status ?? null;
-  const statusKey: PlanPreviewStatusKey = previewStatus ?? 'UNKNOWN';
-  const modeDefinition = PLAN_PREVIEW_STATUS_DEFINITIONS[statusKey];
-  const mode: PlanViewMode = detailContext ? detailContext.mode : modeDefinition.mode;
+  const fallbackMode: PlanViewMode = previewStatus ? PLAN_STATUS_MODE[previewStatus] : 'design';
+  const mode: PlanViewMode = detailContext ? detailContext.mode : fallbackMode;
+  const modeDefinition = PLAN_PREVIEW_MODE_DEFINITIONS[mode];
   const nodesSection = modeDefinition.sections.nodes;
   const actionsSection = modeDefinition.sections.actions;
+  const showActionList =
+    mode === 'execution' && previewStatus ? ['SCHEDULED', 'IN_PROGRESS'].includes(previewStatus) : false;
   const currentNodeId = detailContext ? detailContext.currentNodeId : null;
   const [editingNodeId, setEditingNodeId] = useState<string | null>(null);
   const lastUpdatedLabel =
@@ -252,8 +177,8 @@ export function PlanPreview({
   const timelineCategoryFilter = detailState.filters.timeline.activeCategory;
 
   const actionableNodes: PlanNodeWithPath[] = useMemo(
-    () => (actionsSection.showActionList ? getActionablePlanNodes(nodes) : []),
-    [actionsSection.showActionList, nodes]
+    () => (showActionList ? getActionablePlanNodes(nodes) : []),
+    [nodes, showActionList]
   );
   const nodeLookup = useMemo(() => {
     const map = new Map<string, PlanNodeWithPath>();
@@ -711,7 +636,7 @@ export function PlanPreview({
               status={detailStatus}
               error={detailError}
               translate={translate}
-              empty={actionsSection.showActionList ? actionableNodes.length === 0 : false}
+              empty={showActionList ? actionableNodes.length === 0 : false}
               onRetry={onRefreshDetail}
               errorDetail={detailErrorDetail}
               emptyMessage={translate('planDetailActionsEmpty')}
@@ -727,7 +652,7 @@ export function PlanPreview({
                 })
               }
             >
-              {actionsSection.showActionList ? (
+              {showActionList ? (
                 <PlanNodeActions
                   mode={mode}
                   candidates={actionableNodes}
@@ -887,38 +812,18 @@ function renderModeAwareHelper({
   }
 
   if (mode === 'design') {
-    const designPanel = <DesignModePanel translate={translate} />;
-
-    if (!helper) {
-      return designPanel;
-    }
-
-    return (
-      <Space direction="vertical" size="small" style={{ width: '100%' }}>
-        {designPanel}
-        {helper}
-      </Space>
-    );
+    return <DesignModePanel translate={translate}>{helper}</DesignModePanel>;
   }
 
-  const executionPanel = (
+  return (
     <ExecutionModePanel
       translate={translate}
       currentNodeName={currentNodeName}
       completedCount={completedCount}
       totalCount={totalCount}
-    />
-  );
-
-  if (!helper) {
-    return executionPanel;
-  }
-
-  return (
-    <Space direction="vertical" size="small" style={{ width: '100%' }}>
-      {executionPanel}
+    >
       {helper}
-    </Space>
+    </ExecutionModePanel>
   );
 }
 

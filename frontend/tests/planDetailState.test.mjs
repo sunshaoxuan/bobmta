@@ -273,7 +273,10 @@ test('selectPlanDetailCurrentNodeId resets when detail context is cleared', () =
 
   assert.equal(selectPlanDetailMode(clearedState), 'design');
   assert.equal(selectPlanDetailCurrentNodeId(clearedState), null);
-  assert.equal(selectPlanDetailContext(clearedState).currentNodeId, null);
+  const clearedContext = selectPlanDetailContext(clearedState);
+  assert.equal(clearedContext.planStatus, null);
+  assert.equal(clearedContext.mode, 'design');
+  assert.equal(clearedContext.currentNodeId, null);
 });
 
 test('derivePlanDetailContext keeps execution mode but clears current node when cancelled plan is fully completed', () => {
@@ -322,7 +325,10 @@ test('selectPlanDetail selectors rely on context over legacy state fields', () =
 
   assert.equal(selectPlanDetailMode(tamperedState), 'execution');
   assert.equal(selectPlanDetailCurrentNodeId(tamperedState), 'NODE-2');
-  assert.equal(selectPlanDetailContext(tamperedState).currentNodeId, 'NODE-2');
+  const tamperedContext = selectPlanDetailContext(tamperedState);
+  assert.equal(tamperedContext.planStatus, 'IN_PROGRESS');
+  assert.equal(tamperedContext.mode, 'execution');
+  assert.equal(tamperedContext.currentNodeId, 'NODE-2');
 });
 
 test('derivePlanDetailContext defaults to design mode when detail is missing', () => {
