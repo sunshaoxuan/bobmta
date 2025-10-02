@@ -598,6 +598,10 @@ function AppView({ client, localization, session, navigation, planList, planDeta
 
   const menuSelectedKeys = activeMenuKey ? [activeMenuKey] : [];
 
+  const handleBrandNavigateHome = useCallback(() => {
+    navigate({ pathname: '/' });
+  }, [navigate]);
+
   const userDisplayName = sessionState.session?.displayName ?? translate('navUserGuest');
   const userInitial = useMemo(() => {
     if (!sessionState.session) {
@@ -646,6 +650,8 @@ function AppView({ client, localization, session, navigation, planList, planDeta
         localeOptions={localeOptions}
         localeLoading={loading}
         onLocaleChange={(value) => setLocale(value as Locale)}
+        brandHref="/"
+        onBrandClick={handleBrandNavigateHome}
         menuItems={isAuthenticated ? headerMenuItems : []}
         menuSelectedKeys={isAuthenticated ? menuSelectedKeys : undefined}
         onMenuClick={handleMenuClick}
@@ -653,7 +659,7 @@ function AppView({ client, localization, session, navigation, planList, planDeta
         isAuthenticated={isAuthenticated}
         userInitial={userInitial}
         userDisplayName={userDisplayName}
-        userRoles={sessionState.permissions.roles}
+        userRoles={sessionState.permissions.normalizedRoles}
         userMenuItems={sessionUserMenuItems}
         onUserMenuClick={handleUserMenuClick}
         onLoginClick={handleLoginShortcut}
