@@ -296,6 +296,78 @@ class InMemoryPlanServiceActionTest {
                 .containsEntry("result", "handover comment");
     }
 
+    @Test
+    void startNode_shouldGenerateLinkAndRecordMetadata() {
+        Plan plan = seedPlan("plan-link-success", PlanStatus.SCHEDULED, PlanNodeStatus.PENDING,
+                PlanNodeActionType.LINK, "401", "ivy");
+        aggregateRepository.planRepository.save(plan);
+        RenderedTemplate template = new RenderedTemplate(
+                null,
+                null,
+                List.of(),
+                List.of(),
+                "https://kb.example.com/task",
+                null,
+                null,
+                null,
+                Map.of("doc", "kb-article")
+        );
+        when(templateService.render(anyLong(), anyMap(), any(Locale.class))).thenReturn(template);
+
+        Plan updated = planService.startNode(plan.getId(), plan.getNodes().get(0).getId(), "operator-7");
+
+        assertThat(actionHistoryRepository.entries).hasSize(1);
+        PlanActionHistory history = actionHistoryRepository.entries.get(0);
+        assertThat(history.getStatus()).isEqualTo(PlanActionStatus.SUCCESS);
+        assertThat(history.getMetadata())
+                .containsEntry("templateId", "401")
+                .containsEntry("endpoint", "https://kb.example.com/task")
+                .containsEntry("doc", "kb-article")
+                .containsEntry("attempts", "1");
+
+        PlanActivity actionActivity = findActionActivity(updated);
+        assertThat(actionActivity.getAttributes())
+                .containsEntry("actionStatus", PlanActionStatus.SUCCESS.name())
+                .containsEntry("meta.endpoint", "https://kb.example.com/task")
+                .containsEntry("meta.doc", "kb-article")
+                .containsEntry("context.trigger", "start");
+    }
+
+    @Test
+    void completeNode_shouldRecordLinkActionAsSkippedWhenEndpointMissing() {
+        Plan plan = seedPlan("plan-link-missing", PlanStatus.IN_PROGRESS, PlanNodeStatus.IN_PROGRESS,
+                PlanNodeActionType.LINK, "402", "jake");
+        aggregateRepository.planRepository.save(plan);
+        RenderedTemplate template = new RenderedTemplate(
+                null,
+                null,
+                List.of(),
+                List.of(),
+                "",
+                null,
+                null,
+                null,
+                Map.of()
+        );
+        when(templateService.render(anyLong(), anyMap(), any(Locale.class))).thenReturn(template);
+
+        Plan updated = planService.completeNode(plan.getId(), plan.getNodes().get(0).getId(),
+                "operator-8", "done", null, null);
+
+        assertThat(actionHistoryRepository.entries).hasSize(1);
+        PlanActionHistory history = actionHistoryRepository.entries.get(0);
+        assertThat(history.getStatus()).isEqualTo(PlanActionStatus.SKIPPED);
+        assertThat(history.getMessage()).isEqualTo("plan.action.linkMissing");
+        assertThat(history.getError()).isEqualTo(messageResolver.getMessage("plan.error.nodeActionLinkMissing"));
+        assertThat(history.getMetadata()).containsEntry("attempts", "1");
+
+        PlanActivity actionActivity = findActionActivity(updated);
+        assertThat(actionActivity.getAttributes())
+                .containsEntry("actionStatus", PlanActionStatus.SKIPPED.name())
+                .containsEntry("actionMessage", "plan.action.linkMissing")
+                .containsEntry("actionError", messageResolver.getMessage("plan.error.nodeActionLinkMissing"));
+    }
+
     private Plan seedPlan(String planId, PlanStatus planStatus, PlanNodeStatus executionStatus,
                           PlanNodeActionType actionType, String actionRef, String assignee) {
         PlanNode node = new PlanNode(
