@@ -134,6 +134,37 @@ test('groupCalendarEvents buckets events by granularity and preserves ordering',
   assert.ok(weekBuckets.every((bucket) => bucket.events.length >= 1));
 });
 
+test('groupCalendarEvents respects custom week starting day', () => {
+  const plans = [
+    createPlan('week-1', {
+      plannedStartTime: '2025-05-05T09:00:00.000Z',
+      plannedEndTime: '2025-05-05T11:00:00.000Z',
+    }),
+    createPlan('week-2', {
+      plannedStartTime: '2025-05-11T09:00:00.000Z',
+      plannedEndTime: '2025-05-11T10:30:00.000Z',
+    }),
+  ];
+
+  const events = createPlanCalendarEvents(plans);
+  const mondayBuckets = groupCalendarEvents(events, { granularity: 'week', weekStartsOn: 1 });
+  assert.equal(mondayBuckets.length, 1);
+  assert.equal(mondayBuckets[0].start.slice(0, 10), '2025-05-05');
+  assert.deepEqual(
+    mondayBuckets[0].events.map((event) => event.plan.id),
+    ['week-1', 'week-2']
+  );
+
+  const sundayBuckets = groupCalendarEvents(events, { granularity: 'week', weekStartsOn: 0 });
+  assert.equal(sundayBuckets.length, 2);
+  assert.equal(sundayBuckets[0].start.slice(0, 10), '2025-05-04');
+  assert.equal(sundayBuckets[1].start.slice(0, 10), '2025-05-11');
+  assert.deepEqual(
+    sundayBuckets.map((bucket) => bucket.events.map((event) => event.plan.id)),
+    [['week-1'], ['week-2']]
+  );
+});
+
 test('transformPlansToCalendarBuckets reuses event aggregation', () => {
   const plans = [
     createPlan('p-10', {
@@ -219,4 +250,30 @@ test('getPlanCalendarEventAnchor/time prefer start then end timestamps', () => {
   };
   assert.equal(getPlanCalendarEventAnchor(missingEvent), null);
   assert.equal(getPlanCalendarEventTime(missingEvent), Number.POSITIVE_INFINITY);
+});
+
+test('aggregatePlansByCustomer sorts by name when totals match', () => {
+  const plans = [
+    createPlan('sort-1', {
+      customer: { id: 'c-a', name: 'Zeta Industries' },
+      customerId: 'c-a',
+      customerName: 'Zeta Industries',
+    }),
+    createPlan('sort-2', {
+      customer: { id: 'c-b', name: 'Alpha Labs' },
+      customerId: 'c-b',
+      customerName: 'Alpha Labs',
+    }),
+    createPlan('sort-3', {
+      customer: { id: 'c-c', name: 'beta corp' },
+      customerId: 'c-c',
+      customerName: 'beta corp',
+    }),
+  ];
+
+  const groups = aggregatePlansByCustomer(plans, { sortBy: 'name' });
+  assert.deepEqual(
+    groups.map((group) => group.customerName),
+    ['Alpha Labs', 'beta corp', 'Zeta Industries']
+  );
 });
