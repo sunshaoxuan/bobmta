@@ -106,6 +106,41 @@ test('aggregatePlansByCustomer sorts alphabetically when using name comparator',
   );
 });
 
+test('aggregatePlansByCustomer merges case-insensitive names without identifiers', () => {
+  const plans = [
+    createPlan('p-22', {
+      customer: null,
+      customerId: null,
+      customerName: 'Northwind  ',
+      owner: 'Eve',
+    }),
+    createPlan('p-23', {
+      customer: null,
+      customerId: null,
+      customerName: 'northwind',
+      owner: 'Frank',
+    }),
+    createPlan('p-24', {
+      customer: null,
+      customerId: null,
+      customerName: '   ',
+      owner: 'Grace',
+    }),
+  ];
+
+  const groups = aggregatePlansByCustomer(plans, { sortBy: 'name' });
+  assert.equal(groups.length, 2);
+
+  const namedGroup = groups.find((group) => group.customerName === 'Northwind');
+  assert.ok(namedGroup);
+  assert.equal(namedGroup.total, 2);
+  assert.deepEqual(namedGroup.owners, ['Eve', 'Frank']);
+
+  const fallbackGroup = groups.find((group) => !group.hasCustomer);
+  assert.ok(fallbackGroup);
+  assert.equal(fallbackGroup.total, 1);
+});
+
 test('createPlanCalendarEvents sorts by anchor time and computes duration', () => {
   const plans = [
     createPlan('p-5', {
