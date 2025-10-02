@@ -55,6 +55,7 @@ import static org.mockito.ArgumentMatchers.anyMap;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 class InMemoryPlanServiceActionTest {
@@ -493,6 +494,32 @@ class InMemoryPlanServiceActionTest {
                 .containsEntry("actionStatus", PlanActionStatus.SKIPPED.name())
                 .containsEntry("actionMessage", "plan.action.linkMissing")
                 .containsEntry("actionError", messageResolver.getMessage("plan.error.nodeActionLinkMissing"));
+    }
+
+    @Test
+    void startNode_shouldSkipFileActionAndRecordReason() {
+        Plan plan = seedPlan("plan-file-skip", PlanStatus.SCHEDULED, PlanNodeStatus.PENDING,
+                PlanNodeActionType.FILE, "manual-asset", "mia");
+        aggregateRepository.planRepository.save(plan);
+
+        Plan updated = planService.startNode(plan.getId(), plan.getNodes().get(0).getId(), "operator-10");
+
+        verifyNoInteractions(templateService, notificationGateway);
+        assertThat(actionHistoryRepository.entries).hasSize(1);
+        PlanActionHistory history = actionHistoryRepository.entries.get(0);
+        assertThat(history.getStatus()).isEqualTo(PlanActionStatus.SKIPPED);
+        assertThat(history.getMessage()).isEqualTo("plan.action.noAutomation");
+        assertThat(history.getMetadata()).containsEntry("reason", "NOT_SUPPORTED");
+        assertThat(history.getContext())
+                .containsEntry("planId", plan.getId())
+                .containsEntry("trigger", "start");
+
+        PlanActivity actionActivity = findActionActivity(updated);
+        assertThat(actionActivity.getAttributes())
+                .containsEntry("actionType", PlanNodeActionType.FILE.name())
+                .containsEntry("actionStatus", PlanActionStatus.SKIPPED.name())
+                .containsEntry("actionMessage", "plan.action.noAutomation")
+                .containsEntry("meta.reason", "NOT_SUPPORTED");
     }
 
     private Plan seedPlan(String planId, PlanStatus planStatus, PlanNodeStatus executionStatus,
