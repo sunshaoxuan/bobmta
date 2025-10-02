@@ -123,6 +123,21 @@ test('derivePlanDetailContext switches mode when plan moves from design to execu
   assert.equal(executionContext.currentNodeId, 'NODE-2');
 });
 
+test('derivePlanDetailContext keeps execution mode but clears current node when cancelled plan is fully completed', () => {
+  const context = derivePlanDetailContext(
+    createDetail({
+      status: 'CANCELLED',
+      nodes: [
+        { id: 'NODE-1', name: 'Done Node', order: 1, status: 'DONE', actionType: 'MANUAL' },
+        { id: 'NODE-2', name: 'Skipped Node', order: 2, status: 'SKIPPED', actionType: 'MANUAL' },
+      ],
+    })
+  );
+
+  assert.equal(context.mode, 'execution');
+  assert.equal(context.currentNodeId, null);
+});
+
 test('derivePlanDetailContext defaults to design mode when detail is missing', () => {
   const context = derivePlanDetailContext(null);
 
