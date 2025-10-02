@@ -490,6 +490,11 @@ public class InMemoryPlanService implements PlanService {
                 nodeId,
                 attributes
         ));
+        PlanActivity actionActivity = executeNodeAction(current, updatedNode, operator, now, "handover",
+                StringUtils.hasText(comment) ? comment : null);
+        if (actionActivity != null) {
+            activities = appendActivity(activities, actionActivity);
+        }
         Plan updated = current.withNodes(nodes, current.getExecutions(), now, activities);
         plans().save(updated);
         persistAggregateState(updated);
@@ -1196,11 +1201,20 @@ public class InMemoryPlanService implements PlanService {
         if (plan.getTitle() != null) {
             context.put("planTitle", plan.getTitle());
         }
+        if (StringUtils.hasText(plan.getOwner())) {
+            context.put("planOwner", plan.getOwner());
+        }
+        if (plan.getStatus() != null) {
+            context.put("planStatus", plan.getStatus().name());
+        }
         if (node.getId() != null) {
             context.put("nodeId", node.getId());
         }
         if (node.getName() != null) {
             context.put("nodeName", node.getName());
+        }
+        if (StringUtils.hasText(node.getAssignee())) {
+            context.put("nodeAssignee", node.getAssignee());
         }
         if (StringUtils.hasText(operator)) {
             context.put("operator", operator);
