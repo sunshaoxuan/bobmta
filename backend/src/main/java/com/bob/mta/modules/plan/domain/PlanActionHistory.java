@@ -17,6 +17,7 @@ public class PlanActionHistory {
     private final PlanActionStatus status;
     private final String message;
     private final String error;
+    private final Map<String, String> context;
     private final Map<String, String> metadata;
 
     public PlanActionHistory(String id,
@@ -29,6 +30,7 @@ public class PlanActionHistory {
                              PlanActionStatus status,
                              String message,
                              String error,
+                             Map<String, String> context,
                              Map<String, String> metadata) {
         this.id = Objects.requireNonNull(id, "id");
         this.planId = Objects.requireNonNull(planId, "planId");
@@ -40,6 +42,7 @@ public class PlanActionHistory {
         this.status = Objects.requireNonNull(status, "status");
         this.message = message;
         this.error = error;
+        this.context = context == null ? Map.of() : Map.copyOf(context);
         this.metadata = metadata == null ? Map.of() : Map.copyOf(metadata);
     }
 
@@ -81,6 +84,10 @@ public class PlanActionHistory {
 
     public String getError() {
         return error;
+    }
+
+    public Map<String, String> getContext() {
+        return Collections.unmodifiableMap(context);
     }
 
     public Map<String, String> getMetadata() {
