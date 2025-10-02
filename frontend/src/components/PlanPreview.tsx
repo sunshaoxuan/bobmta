@@ -212,6 +212,13 @@ export function PlanPreview({
     }
   }, [nodesSection.allowEdit]);
 
+  useEffect(() => {
+    if (!remindersSection.allowEdit) {
+      setReminderEditor(null);
+      setSelectedReminderId(null);
+    }
+  }, [remindersSection.allowEdit]);
+
   const mutation = detailState.mutation;
   const nodeMutationContext = mutation.context?.type === 'node' ? mutation.context : null;
   const reminderMutationContext = mutation.context?.type === 'reminder' ? mutation.context : null;
