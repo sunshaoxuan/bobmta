@@ -9,6 +9,7 @@ export type SessionNavigationItem = {
   key: string;
   path: string;
   labelKey: UiMessageKey;
+  children?: SessionNavigationItem[];
 };
 
 export type SessionNavigationMenuConfigItem = {
@@ -21,6 +22,8 @@ export type SessionNavigationMenuConfigItem = {
 export type SessionNavigationState = {
   items: SessionNavigationItem[];
   config: SessionNavigationMenuConfigItem[];
+  pathMap: Record<string, string>;
+  paths: string[];
   loading: boolean;
   error: ApiError | null;
   source: 'mock' | 'remote';
@@ -76,6 +79,9 @@ export type SessionController = {
   permissions: SessionPermissionsState;
   navigationMenu: SessionNavigationMenuConfigItem[];
   navigationItems: SessionNavigationItem[];
+  navigationPathMap: Record<string, string>;
+  navigationPaths: string[];
+  canAccessPath: (path: string) => boolean;
 };
 
 const normalizePath = (path: string): string => {
@@ -119,6 +125,7 @@ const filterNavigationByRoles = (
       key: item.key,
       path: normalizePath(item.path),
       labelKey: item.labelKey,
+      children: children.length > 0 ? children : undefined,
     };
   };
 
@@ -140,6 +147,36 @@ const normalizeNavigationConfig = (
 const defaultNavigationConfig: SessionNavigationMenuConfigItem[] = normalizeNavigationConfig(
   MOCK_NAVIGATION_MENU
 );
+
+const createEmptyNavigationAccess = (): { pathMap: Record<string, string>; paths: string[] } => ({
+  pathMap: {},
+  paths: [],
+});
+
+const buildNavigationAccessArtifacts = (
+  items: SessionNavigationItem[]
+): { pathMap: Record<string, string>; paths: string[] } => {
+  if (items.length === 0) {
+    return createEmptyNavigationAccess();
+  }
+  const pathMap: Record<string, string> = {};
+  const pathSet = new Set<string>();
+  const visit = (list: SessionNavigationItem[]) => {
+    list.forEach((item) => {
+      const normalizedPath = normalizePath(item.path);
+      pathMap[item.key] = normalizedPath;
+      pathSet.add(normalizedPath);
+      if (item.children && item.children.length > 0) {
+        visit(item.children);
+      }
+    });
+  };
+  visit(items);
+  return {
+    pathMap,
+    paths: Array.from(pathSet),
+  };
+};
 
 const ROLE_BASED_USER_MENU_ITEMS: Record<string, SessionUserMenuAction[]> = {
   ADMIN: [{ key: 'user-menu-operations', labelKey: 'navMenuOperations' }],
@@ -216,6 +253,7 @@ const initialState: SessionState = {
   navigation: {
     items: [],
     config: defaultNavigationConfig,
+    ...createEmptyNavigationAccess(),
     loading: false,
     error: null,
     source: 'mock',
@@ -281,6 +319,7 @@ export function useSessionController(client: ApiClient): SessionController {
     const roles = state.session?.roles ?? [];
     const fallbackItems = filterNavigationByRoles(MOCK_NAVIGATION_MENU, roles);
     const fallbackConfig = defaultNavigationConfig;
+    const fallbackAccess = buildNavigationAccessArtifacts(fallbackItems);
 
     if (!hasSession) {
       navigationRequestRef.current?.abort();
@@ -290,6 +329,7 @@ export function useSessionController(client: ApiClient): SessionController {
         navigation: {
           items: [],
           config: fallbackConfig,
+          ...createEmptyNavigationAccess(),
           loading: false,
           error: null,
           source: 'mock',
@@ -328,11 +368,15 @@ export function useSessionController(client: ApiClient): SessionController {
         const normalizedPayload = normalizeNavigationConfig(payload);
         const items = filtered.length > 0 ? filtered : fallbackItems;
         const config = normalizedPayload.length > 0 ? normalizedPayload : fallbackConfig;
+        const filteredAccess = buildNavigationAccessArtifacts(filtered);
+        const access = filtered.length > 0 ? filteredAccess : fallbackAccess;
         setState((current) => ({
           ...current,
           navigation: {
             items,
             config,
+            pathMap: access.pathMap,
+            paths: access.paths,
             loading: false,
             error: null,
             source: filtered.length > 0 ? 'remote' : 'mock',
@@ -357,8 +401,9 @@ export function useSessionController(client: ApiClient): SessionController {
             status: 'idle',
             error: apiError,
             navigation: {
-              items: fallbackItems,
+              items: [],
               config: fallbackConfig,
+              ...createEmptyNavigationAccess(),
               loading: false,
               error: apiError,
               source: 'mock',
@@ -374,6 +419,8 @@ export function useSessionController(client: ApiClient): SessionController {
           navigation: {
             items: fallbackItems,
             config: fallbackConfig,
+            pathMap: fallbackAccess.pathMap,
+            paths: fallbackAccess.paths,
             loading: false,
             error: apiError,
             source: 'mock',
@@ -401,6 +448,28 @@ export function useSessionController(client: ApiClient): SessionController {
     };
   }, []);
 
+  const canAccessPath = useCallback(
+    (path: string) => {
+      if (!state.session) {
+        return false;
+      }
+      if (state.navigation.paths.length === 0) {
+        return false;
+      }
+      const normalizedTarget = normalizePath(path);
+      return state.navigation.paths.some((allowedPath) => {
+        if (normalizedTarget === allowedPath) {
+          return true;
+        }
+        if (allowedPath === '/') {
+          return normalizedTarget === '/';
+        }
+        return normalizedTarget.startsWith(`${allowedPath}/`);
+      });
+    },
+    [state.session, state.navigation.paths]
+  );
+
   return useMemo(
     () => ({
       state,
@@ -410,7 +479,10 @@ export function useSessionController(client: ApiClient): SessionController {
       permissions: state.permissions,
       navigationMenu: state.navigation.config,
       navigationItems: state.navigation.items,
+      navigationPathMap: state.navigation.pathMap,
+      navigationPaths: state.navigation.paths,
+      canAccessPath,
     }),
-    [state, handleLogin, handleLogout]
+    [state, handleLogin, handleLogout, canAccessPath]
   );
 }

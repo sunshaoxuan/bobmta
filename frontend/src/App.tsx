@@ -49,6 +49,7 @@ import { HeaderNav } from './components/HeaderNav';
 import {
   useSessionController,
   type SessionController,
+  type SessionNavigationItem,
 } from './state/session';
 import { formatDateTime, formatPlanWindow } from './utils/planFormatting';
 import { formatApiErrorMessage } from './utils/apiErrors';
@@ -66,6 +67,25 @@ import { buildPlanDetailPath, parsePlanRoute } from './router/planRoutes';
 
 const { Content } = Layout;
 const { Text } = Typography;
+
+type FlattenedNavigationItem = { key: string; path: string };
+
+const flattenNavigationItems = (items: SessionNavigationItem[]): FlattenedNavigationItem[] => {
+  if (items.length === 0) {
+    return [];
+  }
+  const flat: FlattenedNavigationItem[] = [];
+  const visit = (list: SessionNavigationItem[]) => {
+    list.forEach((item) => {
+      flat.push({ key: item.key, path: item.path });
+      if (item.children && item.children.length > 0) {
+        visit(item.children);
+      }
+    });
+  };
+  visit(items);
+  return flat;
+};
 
 type CredentialsState = {
   username: string;
@@ -89,6 +109,9 @@ function AppView({ client, localization, session, planList, planDetail, router }
     logout,
     navigationMenu: sessionNavigationMenu,
     navigationItems: sessionNavigationItems,
+    navigationPathMap: sessionNavigationPathMap,
+    navigationPaths: sessionNavigationPaths,
+    canAccessPath,
   } = session;
   const isAuthenticated = Boolean(sessionState.session);
   const { state: planState, refresh, changePage, changePageSize, restore: restorePlanList } = planList;
@@ -132,7 +155,6 @@ function AppView({ client, localization, session, planList, planDetail, router }
   });
   const [pingError, setPingError] = useState<ApiError | null>(null);
   const [ping, setPing] = useState<{ status: string } | null>(null);
-  const [routeForbidden, setRouteForbidden] = useState(false);
   const describeRemoteError = useCallback(
     (error: ApiError | null) => formatApiErrorMessage(error, translate),
     [translate]
@@ -262,53 +284,6 @@ function AppView({ client, localization, session, planList, planDetail, router }
     }
     setLastVisitedPlanId(previewPlanId);
   }, [previewPlanId, planState.recordIndex]);
-
-  useEffect(() => {
-    if (!sessionState.session) {
-      if (previewPlanId) {
-        navigate({ pathname: '/' }, { replace: true, preserveSearch: true, preserveHash: true });
-      }
-      return;
-    }
-    if (routeForbidden) {
-      return;
-    }
-    if (planState.records.length === 0) {
-      if (previewPlanId) {
-        navigate({ pathname: '/' }, { replace: true, preserveSearch: true, preserveHash: true });
-      }
-      return;
-    }
-    if (previewPlanId && planState.recordIndex[previewPlanId]) {
-      return;
-    }
-    if (suppressedAutoOpenRef.current) {
-      return;
-    }
-    const fromHistory =
-      lastVisitedPlanId && planState.recordIndex[lastVisitedPlanId] ? lastVisitedPlanId : null;
-    const fallbackPlanId = fromHistory ?? planState.records[0]?.id ?? null;
-    if (!fallbackPlanId) {
-      return;
-    }
-    if (previewPlanId === fallbackPlanId) {
-      return;
-    }
-    const shouldReplace = planRoute.type !== 'detail';
-    navigate(
-      { pathname: buildPlanDetailPath(fallbackPlanId) },
-      { replace: shouldReplace, preserveSearch: true, preserveHash: true }
-    );
-  }, [
-    sessionState.session,
-    routeForbidden,
-    planState.records,
-    planState.recordIndex,
-    previewPlanId,
-    lastVisitedPlanId,
-    planRoute.type,
-    navigate,
-  ]);
 
   useEffect(() => {
     const urlState = parsePlanDetailUrlState(location.search);
@@ -472,6 +447,7 @@ function AppView({ client, localization, session, planList, planDetail, router }
     return navigationState.error;
   }, [navigationState.error, sessionState.session]);
   const navigationUnauthorized = navigationState.unauthorized;
+  const navigationPathCount = sessionNavigationPaths.length;
 
   const navigationErrorLabel = useMemo(() => {
     if (!navigationError) {
@@ -497,11 +473,11 @@ function AppView({ client, localization, session, planList, planDetail, router }
 
   const navigationPathMap = useMemo(() => {
     const map = new Map<string, string>();
-    sessionNavigationItems.forEach((item) => {
-      map.set(item.key, normalizePathname(item.path));
+    Object.entries(sessionNavigationPathMap).forEach(([key, path]) => {
+      map.set(key, normalizePathname(path));
     });
     return map;
-  }, [sessionNavigationItems, normalizePathname]);
+  }, [sessionNavigationPathMap, normalizePathname]);
 
   const planViewOptions = useMemo(
     () =>
@@ -523,6 +499,11 @@ function AppView({ client, localization, session, planList, planDetail, router }
     [sessionNavigationMenu, translate]
   );
 
+  const flattenedNavigationItems = useMemo(
+    () => flattenNavigationItems(sessionNavigationItems),
+    [sessionNavigationItems]
+  );
+
   const sessionUserMenuItems = useMemo<MenuProps['items']>(() => {
     return sessionState.userMenu.items.map((item) => {
       if ('type' in item) {
@@ -537,13 +518,13 @@ function AppView({ client, localization, session, planList, planDetail, router }
   }, [sessionState.userMenu.items, translate]);
 
   const activeMenuKey = useMemo(() => {
-    if (sessionNavigationItems.length === 0) {
+    if (flattenedNavigationItems.length === 0) {
       return null;
     }
     const currentPath = normalizePathname(location.pathname);
     let matchedKey: string | null = null;
     let matchedLength = -1;
-    for (const item of sessionNavigationItems) {
+    for (const item of flattenedNavigationItems) {
       const candidate = normalizePathname(item.path);
       if (currentPath === candidate || currentPath.startsWith(`${candidate}/`)) {
         if (candidate.length > matchedLength) {
@@ -552,34 +533,8 @@ function AppView({ client, localization, session, planList, planDetail, router }
         }
       }
     }
-    return matchedKey ?? sessionNavigationItems[0]?.key ?? null;
-  }, [location.pathname, sessionNavigationItems, normalizePathname]);
-
-  useEffect(() => {
-    if (!sessionState.session) {
-      setRouteForbidden(false);
-      return;
-    }
-    if (navigationLoading || sessionNavigationItems.length === 0) {
-      setRouteForbidden(false);
-      return;
-    }
-    const currentPath = normalizePathname(location.pathname);
-    const authorized = sessionNavigationItems.some((item) => {
-      const candidate = normalizePathname(item.path);
-      if (currentPath === candidate) {
-        return true;
-      }
-      return currentPath.startsWith(`${candidate}/`);
-    });
-    setRouteForbidden(!authorized);
-  }, [
-    location.pathname,
-    navigationLoading,
-    sessionNavigationItems,
-    normalizePathname,
-    sessionState.session,
-  ]);
+    return matchedKey ?? flattenedNavigationItems[0]?.key ?? null;
+  }, [flattenedNavigationItems, location.pathname, normalizePathname]);
 
   const handleMenuClick = useCallback(
     ({ key }: { key: string }) => {
@@ -597,6 +552,72 @@ function AppView({ client, localization, session, planList, planDetail, router }
   );
 
   const menuSelectedKeys = activeMenuKey ? [activeMenuKey] : [];
+
+  const isRouteForbidden = useMemo(() => {
+    if (!sessionState.session) {
+      return false;
+    }
+    if (navigationLoading) {
+      return false;
+    }
+    if (navigationPathCount === 0) {
+      return false;
+    }
+    return !canAccessPath(location.pathname);
+  }, [
+    canAccessPath,
+    location.pathname,
+    navigationLoading,
+    navigationPathCount,
+    sessionState.session,
+  ]);
+
+  useEffect(() => {
+    if (!sessionState.session) {
+      if (previewPlanId) {
+        navigate({ pathname: '/' }, { replace: true, preserveSearch: true, preserveHash: true });
+      }
+      return;
+    }
+    if (isRouteForbidden) {
+      return;
+    }
+    if (planState.records.length === 0) {
+      if (previewPlanId) {
+        navigate({ pathname: '/' }, { replace: true, preserveSearch: true, preserveHash: true });
+      }
+      return;
+    }
+    if (previewPlanId && planState.recordIndex[previewPlanId]) {
+      return;
+    }
+    if (suppressedAutoOpenRef.current) {
+      return;
+    }
+    const fromHistory =
+      lastVisitedPlanId && planState.recordIndex[lastVisitedPlanId] ? lastVisitedPlanId : null;
+    const fallbackPlanId = fromHistory ?? planState.records[0]?.id ?? null;
+    if (!fallbackPlanId) {
+      return;
+    }
+    if (previewPlanId === fallbackPlanId) {
+      return;
+    }
+    const shouldReplace = planRoute.type !== 'detail';
+    navigate(
+      { pathname: buildPlanDetailPath(fallbackPlanId) },
+      { replace: shouldReplace, preserveSearch: true, preserveHash: true }
+    );
+  }, [
+    sessionState.session,
+    isRouteForbidden,
+    planState.records,
+    planState.recordIndex,
+    previewPlanId,
+    lastVisitedPlanId,
+    planRoute.type,
+    navigate,
+  ]);
 
   const handleBrandNavigateHome = useCallback(() => {
     navigate({ pathname: '/' });
@@ -632,7 +653,7 @@ function AppView({ client, localization, session, planList, planDetail, router }
   }, []);
 
   const isForbiddenRoute = Boolean(
-    sessionState.session && (navigationState.forbidden || routeForbidden)
+    sessionState.session && (navigationState.forbidden || isRouteForbidden)
   );
   const showForbiddenResult = isForbiddenRoute;
 

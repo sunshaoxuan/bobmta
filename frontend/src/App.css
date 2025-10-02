@@ -1,12 +1,12 @@
 :root {
   --app-header-height: 112px;
   --app-header-spacing: 36px;
-  --app-header-offset: calc(var(--app-header-height) + var(--app-header-spacing));
 }
 
 .app-layout {
   min-height: 100vh;
   background: radial-gradient(circle at top left, #f7faff 0%, #eef3ff 35%, #ffffff 100%);
+  padding-top: var(--app-header-height);
 }
 
 .app-header {
@@ -310,7 +310,7 @@
 }
 
 .app-content {
-  padding: var(--app-header-offset) 32px 40px;
+  padding: var(--app-header-spacing) 32px 40px;
   max-width: 1120px;
   margin: 0 auto;
   width: 100%;
@@ -917,7 +917,7 @@
 
 @media (max-width: 768px) {
   :root {
-    --app-header-offset: 120px;
+    --app-header-spacing: 120px;
   }
 
   .app-header {
@@ -931,7 +931,7 @@
   }
 
   .app-content {
-    padding: var(--app-header-offset) 16px 24px;
+    padding: var(--app-header-spacing) 16px 24px;
   }
 
   .plan-filters {
