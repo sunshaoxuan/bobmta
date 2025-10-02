@@ -65,6 +65,22 @@ test('derivePlanDetailContext returns design mode and first actionable node for 
   assert.equal(context.currentNodeId, 'NODE-1');
 });
 
+test('derivePlanDetailContext keeps design mode when draft plan has no actionable nodes', () => {
+  const detail = createDetail({
+    status: 'DESIGN',
+    nodes: [
+      { id: 'NODE-1', name: 'Archived Node', order: 1, status: 'DONE', actionType: 'MANUAL' },
+      { id: 'NODE-2', name: 'Skipped Node', order: 2, status: 'SKIPPED', actionType: 'MANUAL' },
+    ],
+  });
+
+  const context = derivePlanDetailContext(detail);
+
+  assert.equal(context.planStatus, 'DESIGN');
+  assert.equal(context.mode, 'design');
+  assert.equal(context.currentNodeId, null);
+});
+
 test('derivePlanDetailContext prefers in-progress node in execution mode', () => {
   const detail = createDetail({
     status: 'IN_PROGRESS',
