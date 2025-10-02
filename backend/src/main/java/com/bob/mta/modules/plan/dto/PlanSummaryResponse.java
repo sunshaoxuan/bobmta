@@ -9,6 +9,7 @@ import java.util.List;
 public class PlanSummaryResponse {
 
     private final String id;
+    private final String tenantId;
     private final String title;
     private final String customerId;
     private final String owner;
@@ -25,12 +26,13 @@ public class PlanSummaryResponse {
     private final List<String> participants;
     private final int reminderRuleCount;
 
-    public PlanSummaryResponse(String id, String title, String customerId, String owner, PlanStatus status,
+    public PlanSummaryResponse(String id, String tenantId, String title, String customerId, String owner, PlanStatus status,
                                OffsetDateTime plannedStartTime, OffsetDateTime plannedEndTime,
                                OffsetDateTime actualStartTime, OffsetDateTime actualEndTime,
                                String cancelReason, String canceledBy, OffsetDateTime canceledAt,
                                String timezone, int progress, List<String> participants, int reminderRuleCount) {
         this.id = id;
+        this.tenantId = tenantId;
         this.title = title;
         this.customerId = customerId;
         this.owner = owner;
@@ -51,6 +53,7 @@ public class PlanSummaryResponse {
     public static PlanSummaryResponse from(Plan plan) {
         return new PlanSummaryResponse(
                 plan.getId(),
+                plan.getTenantId(),
                 plan.getTitle(),
                 plan.getCustomerId(),
                 plan.getOwner(),
@@ -71,6 +74,10 @@ public class PlanSummaryResponse {
 
     public String getId() {
         return id;
+    }
+
+    public String getTenantId() {
+        return tenantId;
     }
 
     public String getTitle() {
