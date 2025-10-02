@@ -98,12 +98,12 @@ public class PlanPersistenceAnalyticsRepository implements PlanAnalyticsReposito
     }
 
     @Override
-    public PlanBoardView getPlanBoard(String tenantId, PlanBoardWindow window, PlanBoardGrouping grouping) {
-        PlanBoardWindow effectiveWindow = window == null ? PlanBoardWindow.builder().build() : window;
+    public PlanBoardView getPlanBoard(PlanSearchCriteria criteria, PlanBoardGrouping grouping) {
+        PlanSearchCriteria effectiveCriteria = criteria == null ? PlanSearchCriteria.builder().build() : criteria;
         PlanBoardGrouping effectiveGrouping = grouping == null ? PlanBoardGrouping.WEEK : grouping;
         OffsetDateTime reference = OffsetDateTime.now();
         int dueSoonMinutes = PlanRiskEvaluator.DEFAULT_DUE_SOON_MINUTES;
-        PlanBoardQueryParameters parameters = PlanBoardQueryParameters.from(tenantId, effectiveWindow,
+        PlanBoardQueryParameters parameters = PlanBoardQueryParameters.fromCriteria(effectiveCriteria,
                 effectiveGrouping, reference, dueSoonMinutes);
 
         List<PlanBoardPlanEntity> planEntities = mapper.findPlansForBoard(parameters);

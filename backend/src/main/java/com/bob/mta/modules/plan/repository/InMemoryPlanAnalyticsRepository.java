@@ -119,15 +119,16 @@ public class InMemoryPlanAnalyticsRepository implements PlanAnalyticsRepository 
     }
 
     @Override
-    public PlanBoardView getPlanBoard(String tenantId, PlanBoardWindow window, PlanBoardGrouping grouping) {
-        PlanBoardWindow effectiveWindow = window == null ? PlanBoardWindow.builder().build() : window;
+    public PlanBoardView getPlanBoard(PlanSearchCriteria criteria, PlanBoardGrouping grouping) {
+        PlanSearchCriteria effectiveCriteria = criteria == null
+                ? PlanSearchCriteria.builder().build()
+                : criteria;
         PlanBoardGrouping effectiveGrouping = grouping == null ? PlanBoardGrouping.WEEK : grouping;
         var reference = OffsetDateTime.now();
         int dueSoonMinutes = PlanRiskEvaluator.DEFAULT_DUE_SOON_MINUTES;
-        PlanSearchCriteria criteria = effectiveWindow.toCriteria(tenantId);
-        List<Plan> candidates = planRepository.findByCriteria(criteria);
-        if (effectiveWindow.hasCustomerFilter() && effectiveWindow.getCustomerIds().size() != 1) {
-            Set<String> allowed = new LinkedHashSet<>(effectiveWindow.getCustomerIds());
+        List<Plan> candidates = planRepository.findByCriteria(effectiveCriteria);
+        if (effectiveCriteria.getCustomerIds().size() > 1) {
+            Set<String> allowed = new LinkedHashSet<>(effectiveCriteria.getCustomerIds());
             candidates = candidates.stream()
                     .filter(plan -> plan.getCustomerId() != null && allowed.contains(plan.getCustomerId()))
                     .toList();

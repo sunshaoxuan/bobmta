@@ -1,9 +1,9 @@
 package com.bob.mta.modules.plan.persistence;
 
-import com.bob.mta.modules.plan.domain.PlanStatus;
 import com.bob.mta.modules.plan.domain.PlanRiskEvaluator;
+import com.bob.mta.modules.plan.domain.PlanStatus;
 import com.bob.mta.modules.plan.repository.PlanBoardGrouping;
-import com.bob.mta.modules.plan.repository.PlanBoardWindow;
+import com.bob.mta.modules.plan.repository.PlanSearchCriteria;
 
 import java.time.OffsetDateTime;
 import java.util.Collections;
@@ -19,28 +19,29 @@ public record PlanBoardQueryParameters(String tenantId,
                                        OffsetDateTime referenceTime,
                                        int dueSoonMinutes) {
 
-    public static PlanBoardQueryParameters from(String tenantId,
-                                                PlanBoardWindow window,
-                                                PlanBoardGrouping grouping,
-                                                OffsetDateTime referenceTime,
-                                                int dueSoonMinutes) {
-        PlanBoardWindow effectiveWindow = window == null ? PlanBoardWindow.builder().build() : window;
+    public static PlanBoardQueryParameters fromCriteria(PlanSearchCriteria criteria,
+                                                        PlanBoardGrouping grouping,
+                                                        OffsetDateTime referenceTime,
+                                                        int dueSoonMinutes) {
+        PlanSearchCriteria effectiveCriteria = criteria == null
+                ? PlanSearchCriteria.builder().build()
+                : criteria;
         PlanBoardGrouping effectiveGrouping = grouping == null ? PlanBoardGrouping.WEEK : grouping;
-        List<String> customers = effectiveWindow.hasCustomerFilter()
-                ? List.copyOf(effectiveWindow.getCustomerIds())
-                : List.of();
-        List<PlanStatus> statuses = effectiveWindow.getStatuses().isEmpty()
-                ? List.of()
-                : List.copyOf(effectiveWindow.getStatuses());
         OffsetDateTime reference = referenceTime == null ? OffsetDateTime.now() : referenceTime;
         int dueSoon = dueSoonMinutes <= 0 ? PlanRiskEvaluator.DEFAULT_DUE_SOON_MINUTES : dueSoonMinutes;
+        List<String> customers = effectiveCriteria.getCustomerIds().isEmpty()
+                ? List.of()
+                : List.copyOf(effectiveCriteria.getCustomerIds());
+        List<PlanStatus> statuses = effectiveCriteria.getStatuses().isEmpty()
+                ? List.of()
+                : List.copyOf(effectiveCriteria.getStatuses());
         return new PlanBoardQueryParameters(
-                tenantId,
+                effectiveCriteria.getTenantId(),
                 customers,
-                effectiveWindow.getOwnerId(),
+                effectiveCriteria.getOwner(),
                 statuses,
-                effectiveWindow.getFrom(),
-                effectiveWindow.getTo(),
+                effectiveCriteria.getFrom(),
+                effectiveCriteria.getTo(),
                 effectiveGrouping,
                 reference,
                 dueSoon
