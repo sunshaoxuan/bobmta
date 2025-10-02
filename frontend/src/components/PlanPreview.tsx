@@ -53,20 +53,26 @@ import { formatApiErrorMessage } from '../utils/apiErrors';
 
 const { Text, Paragraph } = Typography;
 
+type PlanPreviewModeSectionDefinition = {
+  title: UiMessageKey;
+  showModePanel: boolean;
+};
+
+type PlanPreviewNodeSectionDefinition = PlanPreviewModeSectionDefinition & {
+  allowEdit: boolean;
+};
+
+type PlanPreviewReminderSectionDefinition = PlanPreviewModeSectionDefinition & {
+  allowEdit: boolean;
+};
+
 type PlanPreviewModeDefinition = {
   tagColor: string;
   sections: {
-    nodes: {
-      title: UiMessageKey;
-      showModePanel: boolean;
-      allowEdit: boolean;
-    };
-    actions: {
-      title: UiMessageKey;
-      showModePanel: boolean;
-    };
+    nodes: PlanPreviewNodeSectionDefinition;
+    actions: PlanPreviewModeSectionDefinition;
+    reminders: PlanPreviewReminderSectionDefinition;
   };
-  allowReminderEdit: boolean;
 };
 const PLAN_PREVIEW_MODE_DEFINITIONS: Record<PlanViewMode, PlanPreviewModeDefinition> = {
   design: {
@@ -81,8 +87,12 @@ const PLAN_PREVIEW_MODE_DEFINITIONS: Record<PlanViewMode, PlanPreviewModeDefinit
         title: 'planDetailActionsTitleDesign',
         showModePanel: true,
       },
+      reminders: {
+        title: 'planDetailRemindersTitle',
+        showModePanel: false,
+        allowEdit: true,
+      },
     },
-    allowReminderEdit: true,
   },
   execution: {
     tagColor: 'geekblue',
@@ -96,8 +106,12 @@ const PLAN_PREVIEW_MODE_DEFINITIONS: Record<PlanViewMode, PlanPreviewModeDefinit
         title: 'planDetailActionsTitleExecution',
         showModePanel: true,
       },
+      reminders: {
+        title: 'planDetailRemindersTitle',
+        showModePanel: false,
+        allowEdit: false,
+      },
     },
-    allowReminderEdit: false,
   },
 };
 
@@ -143,6 +157,7 @@ export function PlanPreview({
   const modeDefinition = PLAN_PREVIEW_MODE_DEFINITIONS[mode];
   const nodesSection = modeDefinition.sections.nodes;
   const actionsSection = modeDefinition.sections.actions;
+  const remindersSection = modeDefinition.sections.reminders;
   const showActionList =
     mode === 'execution' && previewStatus ? ['SCHEDULED', 'IN_PROGRESS'].includes(previewStatus) : false;
   const currentNodeId = detailContext ? detailContext.currentNodeId : null;
@@ -696,7 +711,7 @@ export function PlanPreview({
               errorDetail={detailErrorDetail}
             />
             <PlanDetailSection
-              title={translate('planDetailRemindersTitle')}
+              title={translate(remindersSection.title)}
               status={detailStatus}
               error={detailError}
               translate={translate}
@@ -704,13 +719,23 @@ export function PlanPreview({
               onRetry={onRefreshDetail}
               errorDetail={detailErrorDetail}
               emptyMessage={translate('planDetailRemindersEmpty')}
-              helper={reminderHelper}
+              helper={
+                renderModeAwareHelper({
+                  mode,
+                  helper: reminderHelper,
+                  translate,
+                  currentNodeName,
+                  completedCount: completedNodeIds.size,
+                  totalCount: totalNodeCount,
+                  showModePanel: remindersSection.showModePanel,
+                })
+              }
             >
               <PlanReminderBoard
                 reminders={reminders}
                 translate={translate}
                 mode={mode}
-                allowEdit={modeDefinition.allowReminderEdit}
+                allowEdit={remindersSection.allowEdit}
                 onEdit={handleReminderEdit}
                 onToggle={handleReminderToggle}
                 selectedReminderId={selectedReminderId}

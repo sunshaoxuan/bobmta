@@ -31,6 +31,7 @@ import com.bob.mta.modules.plan.repository.InMemoryPlanAnalyticsRepository;
 import com.bob.mta.modules.plan.repository.InMemoryPlanRepository;
 import com.bob.mta.modules.plan.repository.PlanBoardGrouping;
 import com.bob.mta.modules.plan.service.PlanBoardView;
+import com.bob.mta.modules.plan.service.PlanService;
 import com.bob.mta.modules.plan.service.impl.InMemoryPlanService;
 import com.bob.mta.modules.plan.service.impl.RecordingNotificationGateway;
 import com.bob.mta.modules.plan.service.impl.TestTemplateService;
@@ -41,15 +42,20 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
+import org.mockito.Mockito;
+import org.springframework.context.i18n.LocaleContextHolder;
 import org.springframework.security.authentication.TestingAuthenticationToken;
 import org.springframework.security.core.context.SecurityContextHolder;
-import org.springframework.context.i18n.LocaleContextHolder;
 
 import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.Locale;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 class PlanControllerTest {
 
@@ -260,6 +266,38 @@ class PlanControllerTest {
                 "PlanBoard", "tenant-controller-board", "VIEW_PLAN_BOARD", null));
         assertThat(logs).hasSize(1);
         assertThat(logs.get(0).getNewData()).contains("cust-board-1");
+    }
+
+    @Test
+    void boardShouldSanitizeFiltersBeforeDelegating() {
+        PlanService planServiceMock = Mockito.mock(PlanService.class);
+        PlanBoardView emptyView = new PlanBoardView(List.of(), List.of(),
+                new PlanBoardView.Metrics(0, 0, 0, 0, 0, 0, 0, 0), PlanBoardGrouping.WEEK);
+        when(planServiceMock.getPlanBoard(any(), any())).thenReturn(emptyView);
+        AuditRecorder recorder = new AuditRecorder(auditService, new ObjectMapper());
+        PlanController sanitizedController = new PlanController(planServiceMock, recorder, fileService, messageResolver);
+
+        ApiResponse<PlanBoardResponse> response = sanitizedController.board(
+                "tenant-sanitize",
+                List.of(" cust-a ", "", null, "cust-b", "cust-a"),
+                "owner-sanitize",
+                List.of(PlanStatus.SCHEDULED, null, PlanStatus.SCHEDULED, PlanStatus.COMPLETED),
+                null,
+                null,
+                PlanBoardGrouping.MONTH);
+
+        assertThat(response.getData()).isNotNull();
+
+        ArgumentCaptor<PlanSearchCriteria> criteriaCaptor = ArgumentCaptor.forClass(PlanSearchCriteria.class);
+        ArgumentCaptor<PlanBoardGrouping> groupingCaptor = ArgumentCaptor.forClass(PlanBoardGrouping.class);
+        verify(planServiceMock).getPlanBoard(criteriaCaptor.capture(), groupingCaptor.capture());
+
+        PlanSearchCriteria criteria = criteriaCaptor.getValue();
+        assertThat(criteria.getTenantId()).isEqualTo("tenant-sanitize");
+        assertThat(criteria.getOwner()).isEqualTo("owner-sanitize");
+        assertThat(criteria.getCustomerIds()).containsExactly("cust-a", "cust-b");
+        assertThat(criteria.getStatuses()).containsExactly(PlanStatus.SCHEDULED, PlanStatus.COMPLETED);
+        assertThat(groupingCaptor.getValue()).isEqualTo(PlanBoardGrouping.MONTH);
     }
 
     @Test

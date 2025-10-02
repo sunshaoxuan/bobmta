@@ -73,13 +73,13 @@ export function PlanCalendarView({
 
   const calendarEvents = useMemo(() => {
     if (events && events.length > 0) {
-      return events;
+      return normalizeCalendarEvents(events);
     }
     const source: PlanSummaryWithCustomer[] =
       plans && plans.length > 0
         ? (plans as PlanSummaryWithCustomer[])
         : (listMockPlans() as PlanSummaryWithCustomer[]);
-    return createPlanCalendarEvents(source);
+    return normalizeCalendarEvents(createPlanCalendarEvents(source));
   }, [plans, events]);
 
   const eventsByDate = useMemo(
@@ -274,4 +274,22 @@ function formatRange(startIso: string, endIso: string): string {
   const start = new Date(startIso).toLocaleDateString();
   const end = new Date(endIso).toLocaleDateString();
   return `${start} → ${end}`;
+}
+
+function normalizeCalendarEvents<T extends PlanSummaryWithCustomer>(
+  events: readonly PlanCalendarEvent<T>[]
+): PlanCalendarEvent<T>[] {
+  if (!events || events.length === 0) {
+    return [];
+  }
+  return events
+    .slice()
+    .sort((a, b) => {
+      const timeA = getPlanCalendarEventTime(a);
+      const timeB = getPlanCalendarEventTime(b);
+      if (timeA === timeB) {
+        return (a.plan.title ?? '').localeCompare(b.plan.title ?? '');
+      }
+      return timeA - timeB;
+    });
 }

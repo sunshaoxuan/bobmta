@@ -16,6 +16,7 @@
   - `from` / `to` *(optional, ISO-8601 datetime)*：限制计划预计时间窗的上下界。
   - `granularity` *(optional, enum)*：时间桶粒度，支持 `DAY`/`WEEK`/`MONTH`/`YEAR`，默认 `WEEK`。
   - 所有筛选条件将汇总到 `PlanSearchCriteria` 中，由服务层统一传递至持久层执行聚合。
+  - 空字符串与重复的 `customerId` / `status` 会在控制层被自动去重、裁剪，避免生成冗余的筛选条件与审计快照。
 
 ## 响应
 
@@ -120,3 +121,4 @@
 
 - ✅ 后端已在 `PlanService#getPlanBoard` 与 `PlanController#board` 提供实现，基于 `PlanSearchCriteria` 聚合客户/时间桶并记录审计快照，补充 SQL 聚合与未知客户分组逻辑及单测、示例响应。
 - ✅ 前端 `PlanListBoard` 已提供 `Segmented` 视图切换，并通过 `PlanByCustomerView`、`PlanCalendarView` 显示客户分组与多粒度日历。派生逻辑在 `planList` 状态中复用后端返回的数据，缺失时会本地聚合以保持体验一致。
+- ✅ 客户视图与日历视图会按计划时间排序展示卡片，新增的前端单元测试验证客户分组与时间桶聚合的稳定性，保证多视图切换时的顺序一致。
