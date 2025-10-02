@@ -15,6 +15,7 @@ import {
   Input,
   Layout,
   Progress,
+  Result,
   Segmented,
   Space,
   Tag,
@@ -626,6 +627,14 @@ function AppView({ client, localization, session, navigation, planList, planDeta
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }, []);
 
+  const showForbiddenResult = Boolean(
+    sessionState.session && (navigationState.forbidden || routeForbidden)
+  );
+
+  const handleForbiddenNavigateHome = useCallback(() => {
+    navigate({ pathname: '/' }, { preserveHash: true });
+  }, [navigate]);
+
   return (
     <Layout className="app-layout">
       <HeaderNav
@@ -651,16 +660,19 @@ function AppView({ client, localization, session, navigation, planList, planDeta
       />
       <Content className="app-content">
         <Space direction="vertical" size="large" style={{ width: '100%' }}>
-          {(navigationState.forbidden || routeForbidden) && (
-            <Alert
-              type="error"
-              showIcon
-              message={translate('navAccessDeniedTitle')}
-              description={translate('navAccessDeniedDescription')}
+          {showForbiddenResult ? (
+            <Result
+              className="forbidden-result"
+              status="403"
+              title={translate('navAccessDeniedTitle')}
+              subTitle={translate('navAccessDeniedDescription')}
+              extra={
+                <Button type="primary" onClick={handleForbiddenNavigateHome}>
+                  {translate('navMenuOverview')}
+                </Button>
+              }
             />
-          )}
-
-          {routeForbidden ? null : (
+          ) : (
             <>
               <Card
                 title={translate('backendStatus')}
