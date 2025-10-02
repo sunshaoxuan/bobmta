@@ -31,4 +31,16 @@ public class LoggingNotificationGateway implements NotificationGateway {
         log.info("Sending instant message to {}", recipients);
         return NotificationResult.success("IM", "im.dispatched", metadata);
     }
+
+    @Override
+    public NotificationResult invokeApiCall(ApiCallRequest request) {
+        log.info("Invoking API {} {}", request.getMethod(), request.getEndpoint());
+        Map<String, String> metadata = new LinkedHashMap<>();
+        metadata.put("endpoint", request.getEndpoint());
+        metadata.put("method", request.getMethod());
+        if (!request.getHeaders().isEmpty()) {
+            metadata.put("headers", request.getHeaders().keySet().stream().sorted().collect(Collectors.joining(",")));
+        }
+        return NotificationResult.success("API", "api.invoked", metadata);
+    }
 }

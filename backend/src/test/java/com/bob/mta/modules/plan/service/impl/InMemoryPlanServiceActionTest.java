@@ -3,6 +3,7 @@ package com.bob.mta.modules.plan.service.impl;
 import com.bob.mta.common.i18n.MessageResolver;
 import com.bob.mta.modules.file.domain.FileMetadata;
 import com.bob.mta.modules.file.service.FileService;
+import com.bob.mta.modules.notification.ApiCallRequest;
 import com.bob.mta.modules.notification.EmailMessage;
 import com.bob.mta.modules.notification.InstantMessage;
 import com.bob.mta.modules.notification.NotificationGateway;
@@ -294,6 +295,133 @@ class InMemoryPlanServiceActionTest {
                 .containsEntry("actionError", "template missing")
                 .containsEntry("context.trigger", "handover")
                 .containsEntry("result", "handover comment");
+    }
+
+    @Test
+    void completeNode_shouldInvokeApiCallAndRecordSuccess() {
+        Plan plan = seedPlan("plan-api-success", PlanStatus.IN_PROGRESS, PlanNodeStatus.IN_PROGRESS,
+                PlanNodeActionType.API_CALL, "601", "iris");
+        aggregateRepository.planRepository.save(plan);
+        RenderedTemplate template = new RenderedTemplate(
+                null,
+                "{\"status\":\"done\"}",
+                List.of(),
+                List.of(),
+                "https://hooks.example.com/workflow",
+                null,
+                null,
+                null,
+                Map.of(
+                        "method", "put",
+                        "header.Authorization", "Bearer secret",
+                        "workflow", "incident-bridge"
+                )
+        );
+        when(templateService.render(anyLong(), anyMap(), any(Locale.class))).thenReturn(template);
+        NotificationResult success = NotificationResult.success("API", "api.invoked", Map.of("status", "200"));
+        when(notificationGateway.invokeApiCall(any(ApiCallRequest.class))).thenReturn(success);
+
+        Plan updated = planService.completeNode(plan.getId(), plan.getNodes().get(0).getId(),
+                "operator-7", "resolved", null, null);
+
+        verify(notificationGateway).invokeApiCall(any(ApiCallRequest.class));
+        PlanActionHistory history = actionHistoryRepository.entries.get(0);
+        assertThat(history.getStatus()).isEqualTo(PlanActionStatus.SUCCESS);
+        assertThat(history.getMetadata())
+                .containsEntry("templateId", "601")
+                .containsEntry("endpoint", "https://hooks.example.com/workflow")
+                .containsEntry("method", "PUT")
+                .containsEntry("workflow", "incident-bridge")
+                .containsEntry("status", "200")
+                .containsEntry("attempts", "1")
+                .doesNotContainKey("header.Authorization");
+
+        PlanActivity actionActivity = findActionActivity(updated);
+        assertThat(actionActivity.getAttributes())
+                .containsEntry("actionStatus", PlanActionStatus.SUCCESS.name())
+                .containsEntry("meta.endpoint", "https://hooks.example.com/workflow")
+                .containsEntry("meta.method", "PUT")
+                .containsEntry("meta.status", "200")
+                .containsEntry("context.result", "resolved");
+    }
+
+    @Test
+    void startNode_shouldRetryApiCallAndRecordFailure() {
+        Plan plan = seedPlan("plan-api-failure", PlanStatus.SCHEDULED, PlanNodeStatus.PENDING,
+                PlanNodeActionType.API_CALL, "602", "john");
+        aggregateRepository.planRepository.save(plan);
+        RenderedTemplate template = new RenderedTemplate(
+                null,
+                "{}",
+                List.of(),
+                List.of(),
+                "https://hooks.example.com/failure",
+                null,
+                null,
+                null,
+                Map.of("method", "post")
+        );
+        when(templateService.render(anyLong(), anyMap(), any(Locale.class))).thenReturn(template);
+        when(notificationGateway.invokeApiCall(any(ApiCallRequest.class)))
+                .thenThrow(new IllegalStateException("api gateway down"));
+
+        Plan updated = planService.startNode(plan.getId(), plan.getNodes().get(0).getId(), "operator-8");
+
+        verify(notificationGateway, times(3)).invokeApiCall(any(ApiCallRequest.class));
+        PlanActionHistory history = actionHistoryRepository.entries.get(0);
+        assertThat(history.getStatus()).isEqualTo(PlanActionStatus.FAILED);
+        assertThat(history.getError()).isEqualTo("api gateway down");
+        assertThat(history.getMetadata())
+                .containsEntry("attempts", "3")
+                .containsEntry("endpoint", "https://hooks.example.com/failure")
+                .containsEntry("method", "POST")
+                .containsEntry("reason", "EXCEPTION");
+
+        PlanActivity actionActivity = findActionActivity(updated);
+        assertThat(actionActivity.getAttributes())
+                .containsEntry("actionStatus", PlanActionStatus.FAILED.name())
+                .containsEntry("actionError", "api gateway down")
+                .containsEntry("meta.attempts", "3");
+    }
+
+    @Test
+    void handoverNode_shouldRecordApiCallFailureWhenEndpointMissing() {
+        Plan plan = seedPlan("plan-api-missing-endpoint", PlanStatus.IN_PROGRESS, PlanNodeStatus.PENDING,
+                PlanNodeActionType.API_CALL, "603", "kate");
+        aggregateRepository.planRepository.save(plan);
+        RenderedTemplate template = new RenderedTemplate(
+                null,
+                null,
+                List.of(),
+                List.of(),
+                " ",
+                null,
+                null,
+                null,
+                Map.of("method", "delete")
+        );
+        when(templateService.render(anyLong(), anyMap(), any(Locale.class))).thenReturn(template);
+
+        Plan updated = planService.handoverNode(plan.getId(), plan.getNodes().get(0).getId(),
+                "liam", "handover", "operator-9");
+
+        verify(notificationGateway, times(0)).invokeApiCall(any(ApiCallRequest.class));
+        PlanActionHistory history = actionHistoryRepository.entries.get(0);
+        assertThat(history.getStatus()).isEqualTo(PlanActionStatus.FAILED);
+        assertThat(history.getMessage()).isEqualTo("plan.action.apiMissingEndpoint");
+        assertThat(history.getError()).isEqualTo(messageResolver.getMessage("plan.error.nodeActionApiEndpointMissing"));
+        assertThat(history.getMetadata())
+                .containsEntry("method", "DELETE")
+                .containsEntry("attempts", "0")
+                .containsEntry("reason", "MISSING_ENDPOINT")
+                .doesNotContainKey("endpoint");
+
+        PlanActivity actionActivity = findActionActivity(updated);
+        assertThat(actionActivity.getAttributes())
+                .containsEntry("actionStatus", PlanActionStatus.FAILED.name())
+                .containsEntry("actionMessage", "plan.action.apiMissingEndpoint")
+                .containsEntry("actionError", messageResolver.getMessage("plan.error.nodeActionApiEndpointMissing"))
+                .containsEntry("meta.method", "DELETE");
     }
 
     @Test

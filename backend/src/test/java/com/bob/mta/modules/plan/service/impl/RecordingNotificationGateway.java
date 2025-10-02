@@ -1,5 +1,6 @@
 package com.bob.mta.modules.plan.service.impl;
 
+import com.bob.mta.modules.notification.ApiCallRequest;
 import com.bob.mta.modules.notification.EmailMessage;
 import com.bob.mta.modules.notification.InstantMessage;
 import com.bob.mta.modules.notification.NotificationGateway;
@@ -14,12 +15,16 @@ public class RecordingNotificationGateway implements NotificationGateway {
 
     private final List<EmailMessage> emails = new ArrayList<>();
     private final List<InstantMessage> instantMessages = new ArrayList<>();
+    private final List<ApiCallRequest> apiCalls = new ArrayList<>();
     private boolean emailAlwaysFail;
     private int emailFailuresRemaining;
     private boolean imAlwaysFail;
     private int imFailuresRemaining;
     private String emailError = "email.failed";
     private String imError = "im.failed";
+    private boolean apiAlwaysFail;
+    private int apiFailuresRemaining;
+    private String apiError = "api.failed";
 
     @Override
     public NotificationResult sendEmail(EmailMessage message) {
@@ -52,6 +57,19 @@ public class RecordingNotificationGateway implements NotificationGateway {
         return NotificationResult.success("IM", "im.sent", Map.of("recipients", String.join(",", message.getRecipients())));
     }
 
+    @Override
+    public NotificationResult invokeApiCall(ApiCallRequest request) {
+        apiCalls.add(request);
+        boolean shouldFail = apiAlwaysFail || apiFailuresRemaining > 0;
+        if (apiFailuresRemaining > 0) {
+            apiFailuresRemaining--;
+        }
+        if (shouldFail) {
+            return NotificationResult.failure("API", "api.failed", apiError, Map.of());
+        }
+        return NotificationResult.success("API", "api.invoked", Map.of("endpoint", request.getEndpoint()));
+    }
+
     void failEmail(String error) {
         this.emailAlwaysFail = true;
         this.emailError = error;
@@ -74,11 +92,26 @@ public class RecordingNotificationGateway implements NotificationGateway {
         this.imError = error;
     }
 
+    void failApi(String error) {
+        this.apiAlwaysFail = true;
+        this.apiError = error;
+    }
+
+    void failApiTimes(int times, String error) {
+        this.apiAlwaysFail = false;
+        this.apiFailuresRemaining = Math.max(times, 0);
+        this.apiError = error;
+    }
+
     List<EmailMessage> getEmails() {
         return emails;
     }
 
     List<InstantMessage> getInstantMessages() {
         return instantMessages;
+    }
+
+    List<ApiCallRequest> getApiCalls() {
+        return apiCalls;
     }
 }

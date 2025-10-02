@@ -5,6 +5,7 @@ import com.bob.mta.common.exception.ErrorCode;
 import com.bob.mta.common.i18n.MessageResolver;
 import com.bob.mta.i18n.LocalizationKeys;
 import com.bob.mta.modules.file.service.FileService;
+import com.bob.mta.modules.notification.ApiCallRequest;
 import com.bob.mta.modules.notification.EmailMessage;
 import com.bob.mta.modules.notification.InstantMessage;
 import com.bob.mta.modules.notification.NotificationGateway;
@@ -1182,7 +1183,8 @@ public class InMemoryPlanService implements PlanService {
                 case IM -> dispatchInstantMessage(actionRef, context);
                 case LINK -> generateLink(actionRef, context);
                 case REMOTE -> generateRemoteSession(actionRef, context);
-                case FILE, API_CALL -> new ActionDispatchResult(PlanActionStatus.SKIPPED,
+                case API_CALL -> dispatchApiCall(actionRef, context);
+                case FILE -> new ActionDispatchResult(PlanActionStatus.SKIPPED,
                         "plan.action.noAutomation", null, context, Map.of("reason", "NOT_SUPPORTED"));
                 case MANUAL, NONE -> null;
             };
@@ -1293,6 +1295,60 @@ public class InMemoryPlanService implements PlanService {
         return new ActionDispatchResult(success ? PlanActionStatus.SUCCESS : PlanActionStatus.SKIPPED,
                 success ? "plan.action.remoteReady" : "plan.action.remoteMissing",
                 success ? null : message("plan.error.nodeActionRemoteMissing"), context, metadata);
+    }
+
+    private ActionDispatchResult dispatchApiCall(String actionRef, Map<String, String> context) {
+        long templateId = parseTemplateId(actionRef);
+        RenderedTemplate template = templateService.render(templateId, context, LocaleContextHolder.getLocale());
+        Map<String, String> metadata = new LinkedHashMap<>();
+        metadata.put("templateId", String.valueOf(templateId));
+        String endpoint = template.getEndpoint();
+        if (StringUtils.hasText(endpoint)) {
+            metadata.put("endpoint", endpoint);
+        }
+        Map<String, String> templateMetadata = template.getMetadata();
+        String method = templateMetadata.getOrDefault("method", "POST");
+        method = StringUtils.hasText(method) ? method.trim().toUpperCase(Locale.ROOT) : "POST";
+        metadata.put("method", method);
+        templateMetadata.forEach((key, value) -> {
+            if (key != null && !key.toLowerCase(Locale.ROOT).startsWith("header.")) {
+                metadata.putIfAbsent(key, value);
+            }
+        });
+        if (!StringUtils.hasText(endpoint)) {
+            metadata.put("reason", "MISSING_ENDPOINT");
+            metadata.put("attempts", "0");
+            return new ActionDispatchResult(PlanActionStatus.FAILED, "plan.action.apiMissingEndpoint",
+                    message("plan.error.nodeActionApiEndpointMissing"), context, metadata);
+        }
+        Map<String, String> headers = extractHeaders(templateMetadata);
+        ApiCallRequest request = new ApiCallRequest(endpoint, method, template.getContent(), headers);
+        NotificationDispatchAttempt attempt = sendWithRetry("API", () -> notificationGateway.invokeApiCall(request));
+        NotificationResult result = attempt.result();
+        metadata.putAll(result.getMetadata());
+        metadata.put("attempts", String.valueOf(attempt.attempts()));
+        return new ActionDispatchResult(result.isSuccess() ? PlanActionStatus.SUCCESS : PlanActionStatus.FAILED,
+                result.getMessage(), result.isSuccess() ? null : result.getError(), context, metadata);
+    }
+
+    private Map<String, String> extractHeaders(Map<String, String> metadata) {
+        if (metadata == null || metadata.isEmpty()) {
+            return Map.of();
+        }
+        Map<String, String> headers = new LinkedHashMap<>();
+        metadata.forEach((key, value) -> {
+            if (key == null || value == null) {
+                return;
+            }
+            String lower = key.toLowerCase(Locale.ROOT);
+            if (lower.startsWith("header.")) {
+                String name = key.substring("header.".length()).trim();
+                if (StringUtils.hasText(name)) {
+                    headers.put(name, value);
+                }
+            }
+        });
+        return headers;
     }
 
     private NotificationDispatchAttempt sendWithRetry(String channel, Supplier<NotificationResult> supplier) {
