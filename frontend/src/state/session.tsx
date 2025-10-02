@@ -137,8 +137,7 @@ const normalizeNavigationConfig = (
     roles: normalizeRoles(item.roles ?? []),
   }));
 
-const guestNavigation: SessionNavigationItem[] = filterNavigationByRoles(MOCK_NAVIGATION_MENU, []);
-const guestNavigationConfig: SessionNavigationMenuConfigItem[] = normalizeNavigationConfig(
+const defaultNavigationConfig: SessionNavigationMenuConfigItem[] = normalizeNavigationConfig(
   MOCK_NAVIGATION_MENU
 );
 
@@ -215,8 +214,8 @@ const initialState: SessionState = {
   status: 'idle',
   error: null,
   navigation: {
-    items: guestNavigation,
-    config: guestNavigationConfig,
+    items: [],
+    config: defaultNavigationConfig,
     loading: false,
     error: null,
     source: 'mock',
@@ -281,7 +280,7 @@ export function useSessionController(client: ApiClient): SessionController {
   useEffect(() => {
     const roles = state.session?.roles ?? [];
     const fallbackItems = filterNavigationByRoles(MOCK_NAVIGATION_MENU, roles);
-    const fallbackConfig = guestNavigationConfig;
+    const fallbackConfig = defaultNavigationConfig;
 
     if (!hasSession) {
       navigationRequestRef.current?.abort();
@@ -289,7 +288,7 @@ export function useSessionController(client: ApiClient): SessionController {
       setState((current) => ({
         ...current,
         navigation: {
-          items: fallbackItems,
+          items: [],
           config: fallbackConfig,
           loading: false,
           error: null,
