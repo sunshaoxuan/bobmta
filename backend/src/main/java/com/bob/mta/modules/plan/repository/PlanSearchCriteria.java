@@ -13,6 +13,7 @@ public final class PlanSearchCriteria {
     private final String keyword;
     private final PlanStatus status;
     private final List<PlanStatus> statuses;
+    private final List<String> customerIds;
     private final OffsetDateTime from;
     private final OffsetDateTime to;
     private final Integer limit;
@@ -21,13 +22,24 @@ public final class PlanSearchCriteria {
 
     private PlanSearchCriteria(Builder builder) {
         this.tenantId = builder.tenantId;
-        this.customerId = builder.customerId;
+        String resolvedCustomerId = builder.customerId;
         this.owner = builder.owner;
         this.keyword = builder.keyword;
         this.status = builder.status;
         this.statuses = builder.statuses != null
                 ? builder.statuses
                 : (builder.status == null ? List.of() : List.of(builder.status));
+        if (builder.customerIds != null) {
+            this.customerIds = List.copyOf(builder.customerIds);
+            if (resolvedCustomerId == null && this.customerIds.size() == 1) {
+                resolvedCustomerId = this.customerIds.get(0);
+            }
+        } else if (builder.customerId != null) {
+            this.customerIds = List.of(builder.customerId);
+        } else {
+            this.customerIds = List.of();
+        }
+        this.customerId = resolvedCustomerId;
         this.from = builder.from;
         this.to = builder.to;
         this.limit = builder.limit;
@@ -45,6 +57,10 @@ public final class PlanSearchCriteria {
 
     public String getCustomerId() {
         return customerId;
+    }
+
+    public List<String> getCustomerIds() {
+        return customerIds;
     }
 
     public String getOwner() {
@@ -91,6 +107,7 @@ public final class PlanSearchCriteria {
         private String keyword;
         private PlanStatus status;
         private List<PlanStatus> statuses;
+        private List<String> customerIds;
         private OffsetDateTime from;
         private OffsetDateTime to;
         private Integer limit;
@@ -107,6 +124,17 @@ public final class PlanSearchCriteria {
 
         public Builder customerId(String customerId) {
             this.customerId = customerId;
+            return this;
+        }
+
+        public Builder customerIds(List<String> customerIds) {
+            if (customerIds == null) {
+                this.customerIds = null;
+            } else {
+                this.customerIds = customerIds.stream()
+                        .filter(value -> value != null && !value.isBlank())
+                        .toList();
+            }
             return this;
         }
 
