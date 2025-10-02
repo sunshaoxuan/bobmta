@@ -208,6 +208,44 @@ test('derivePlanDetailContext finds nested in-progress nodes during execution', 
   assert.equal(context.currentNodeId, 'NODE-CHILD');
 });
 
+test('derivePlanDetailContext locates deepest pending node when execution has not started', () => {
+  const context = derivePlanDetailContext(
+    createDetail({
+      status: 'SCHEDULED',
+      nodes: [
+        {
+          id: 'NODE-ROOT',
+          name: 'Root Node',
+          order: 1,
+          status: 'PENDING',
+          actionType: 'MANUAL',
+          children: [
+            {
+              id: 'NODE-BRANCH',
+              name: 'Branch Node',
+              order: 1,
+              status: 'PENDING',
+              actionType: 'MANUAL',
+              children: [
+                {
+                  id: 'NODE-LEAF',
+                  name: 'Leaf Node',
+                  order: 1,
+                  status: 'PENDING',
+                  actionType: 'MANUAL',
+                },
+              ],
+            },
+          ],
+        },
+      ],
+    })
+  );
+
+  assert.equal(context.mode, 'execution');
+  assert.equal(context.currentNodeId, 'NODE-ROOT');
+});
+
 test('selectPlanDetailMode follows context across design and execution transitions', () => {
   const designState = createState(
     createDetail({
