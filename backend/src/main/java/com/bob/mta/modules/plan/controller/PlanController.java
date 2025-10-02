@@ -109,12 +109,22 @@ public class PlanController {
                                                 @RequestParam(defaultValue = "WEEK")
                                                 PlanBoardGrouping granularity) {
         List<PlanStatus> sanitizedStatuses = statuses == null ? null
-                : statuses.stream().filter(Objects::nonNull).toList();
+                : statuses.stream()
+                .filter(Objects::nonNull)
+                .distinct()
+                .toList();
+        List<String> sanitizedCustomers = customerIds == null ? null
+                : customerIds.stream()
+                .filter(Objects::nonNull)
+                .map(String::trim)
+                .filter(StringUtils::hasText)
+                .distinct()
+                .toList();
         PlanSearchCriteria criteria = PlanSearchCriteria.builder()
                 .tenantId(StringUtils.hasText(tenantId) ? tenantId : null)
                 .owner(StringUtils.hasText(owner) ? owner : null)
-                .statuses(sanitizedStatuses)
-                .customerIds(customerIds)
+                .statuses(sanitizedStatuses == null || sanitizedStatuses.isEmpty() ? null : sanitizedStatuses)
+                .customerIds(sanitizedCustomers == null || sanitizedCustomers.isEmpty() ? null : sanitizedCustomers)
                 .from(from)
                 .to(to)
                 .build();
