@@ -5,6 +5,7 @@ import {
   Empty,
   Pagination,
   Segmented,
+  Tabs,
   Space,
   Table,
   Tag,
@@ -204,17 +205,23 @@ export function PlanListBoard({
     />
   );
 
-  const viewContent = useMemo(() => {
-    switch (viewMode) {
-      case 'customer':
-        return customerView;
-      case 'calendar':
-        return calendarView;
-      case 'table':
-      default:
-        return tableView;
-    }
-  }, [calendarView, customerView, tableView, viewMode]);
+  const viewTabs = useMemo(
+    () =>
+      viewOptions.map((option) => {
+        let content = tableView;
+        if (option.value === 'customer') {
+          content = customerView;
+        } else if (option.value === 'calendar') {
+          content = calendarView;
+        }
+        return {
+          key: option.value,
+          label: option.label,
+          children: content,
+        };
+      }),
+    [viewOptions, tableView, customerView, calendarView]
+  );
 
   return (
     <Card
@@ -281,7 +288,16 @@ export function PlanListBoard({
             errorDetail={errorDetailMessage}
             emptyHint={emptyHint}
           >
-            {viewContent}
+            <Tabs
+              className="plan-view-tabs"
+              items={viewTabs}
+              activeKey={viewMode}
+              onChange={(key) => {
+                if (typeof key === 'string' && key !== viewMode) {
+                  onChangeViewMode(key as PlanListViewMode);
+                }
+              }}
+            />
           </RemoteState>
         </Space>
       )}
