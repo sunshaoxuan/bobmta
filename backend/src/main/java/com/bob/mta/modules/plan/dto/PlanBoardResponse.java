@@ -30,7 +30,7 @@ public class PlanBoardResponse {
                 .map(TimeBucketResponse::from)
                 .toList();
         MetricsResponse metricsResponse = view.getMetrics() == null
-                ? new MetricsResponse(0, 0, 0, 0, 0, 0, 0)
+                ? new MetricsResponse(0, 0, 0, 0, 0, 0, 0, 0)
                 : MetricsResponse.from(view.getMetrics());
         String granularity = view.getGranularity() == null ? null : view.getGranularity().name();
         return new PlanBoardResponse(groups, buckets, metricsResponse, granularity);
