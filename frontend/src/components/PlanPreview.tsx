@@ -53,18 +53,18 @@ import { formatApiErrorMessage } from '../utils/apiErrors';
 const { Text, Paragraph } = Typography;
 
 type ModeSectionConfig = {
-  nodesTitle: UiMessageKey;
-  actionsTitle: UiMessageKey;
+  nodes: { title: UiMessageKey; showModePanel: boolean };
+  actions: { title: UiMessageKey; showModePanel: boolean };
 };
 
 const MODE_SECTION_CONFIG: Record<PlanViewMode, ModeSectionConfig> = {
   design: {
-    nodesTitle: 'planDetailNodesTitleDesign',
-    actionsTitle: 'planDetailActionsTitleDesign',
+    nodes: { title: 'planDetailNodesTitleDesign', showModePanel: true },
+    actions: { title: 'planDetailActionsTitleDesign', showModePanel: true },
   },
   execution: {
-    nodesTitle: 'planDetailNodesTitleExecution',
-    actionsTitle: 'planDetailActionsTitleExecution',
+    nodes: { title: 'planDetailNodesTitleExecution', showModePanel: true },
+    actions: { title: 'planDetailActionsTitleExecution', showModePanel: true },
   },
 };
 
@@ -562,7 +562,7 @@ export function PlanPreview({
           ) : null}
           <div className="plan-preview-sections">
             <PlanDetailSection
-              title={translate(modeSections.nodesTitle)}
+              title={translate(modeSections.nodes.title)}
               status={detailStatus}
               error={detailError}
               translate={translate}
@@ -578,7 +578,7 @@ export function PlanPreview({
                 currentNodeName,
                 completedCount: completedNodeIds.size,
                 totalCount: totalNodeCount,
-                showDesignPanel: false,
+                showModePanel: modeSections.nodes.showModePanel,
               })}
             >
               <PlanNodeTree
@@ -593,7 +593,7 @@ export function PlanPreview({
               />
             </PlanDetailSection>
             <PlanDetailSection
-              title={translate(modeSections.actionsTitle)}
+              title={translate(modeSections.actions.title)}
               status={detailStatus}
               error={detailError}
               translate={translate}
@@ -609,7 +609,7 @@ export function PlanPreview({
                   currentNodeName,
                   completedCount: completedNodeIds.size,
                   totalCount: totalNodeCount,
-                  showDesignPanel: mode === 'design',
+                  showModePanel: modeSections.actions.showModePanel,
                 })
               }
             >
@@ -670,6 +670,7 @@ export function PlanPreview({
               <PlanReminderBoard
                 reminders={reminders}
                 translate={translate}
+                mode={mode}
                 onEdit={handleReminderEdit}
                 onToggle={handleReminderToggle}
                 selectedReminderId={selectedReminderId}
@@ -754,7 +755,7 @@ type ModeAwareHelperOptions = {
   currentNodeName: string | null;
   completedCount: number;
   totalCount: number;
-  showDesignPanel?: boolean;
+  showModePanel?: boolean;
 };
 
 function renderModeAwareHelper({
@@ -764,13 +765,13 @@ function renderModeAwareHelper({
   currentNodeName,
   completedCount,
   totalCount,
-  showDesignPanel = false,
+  showModePanel = false,
 }: ModeAwareHelperOptions): ReactNode {
-  if (mode === 'design') {
-    if (!showDesignPanel) {
-      return helper;
-    }
+  if (!showModePanel) {
+    return helper;
+  }
 
+  if (mode === 'design') {
     const designPanel = <DesignModePanel translate={translate} />;
 
     if (!helper) {
