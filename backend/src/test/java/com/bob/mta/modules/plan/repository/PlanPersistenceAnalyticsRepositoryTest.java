@@ -10,7 +10,7 @@ import com.bob.mta.modules.plan.domain.PlanReminderPolicy;
 import com.bob.mta.modules.plan.domain.PlanStatus;
 import com.bob.mta.modules.plan.repository.PlanAnalyticsQuery;
 import com.bob.mta.modules.plan.repository.PlanBoardGrouping;
-import com.bob.mta.modules.plan.repository.PlanBoardWindow;
+import com.bob.mta.modules.plan.repository.PlanSearchCriteria;
 import com.bob.mta.modules.plan.service.PlanBoardView;
 import org.assertj.core.groups.Tuple;
 import org.junit.jupiter.api.BeforeAll;
@@ -172,13 +172,14 @@ class PlanPersistenceAnalyticsRepositoryTest {
 
         persist(scheduled, inProgress, completed, unknownCustomer, otherTenant);
 
-        PlanBoardWindow window = PlanBoardWindow.builder()
+        PlanSearchCriteria criteria = PlanSearchCriteria.builder()
+                .tenantId("tenant-board")
                 .from(baseline.minusDays(3))
                 .to(baseline.plusDays(5))
                 .build();
 
-        PlanBoardView persistence = analyticsRepository.getPlanBoard("tenant-board", window, PlanBoardGrouping.DAY);
-        PlanBoardView inMemory = inMemoryAnalyticsRepository.getPlanBoard("tenant-board", window, PlanBoardGrouping.DAY);
+        PlanBoardView persistence = analyticsRepository.getPlanBoard(criteria, PlanBoardGrouping.DAY);
+        PlanBoardView inMemory = inMemoryAnalyticsRepository.getPlanBoard(criteria, PlanBoardGrouping.DAY);
 
         assertThat(persistence.getMetrics().getTotalPlans()).isEqualTo(inMemory.getMetrics().getTotalPlans());
         assertThat(persistence.getMetrics().getActivePlans()).isEqualTo(inMemory.getMetrics().getActivePlans());

@@ -7,5 +7,5 @@ public interface PlanAnalyticsRepository {
 
     PlanAnalytics summarize(PlanAnalyticsQuery query);
 
-    PlanBoardView getPlanBoard(String tenantId, PlanBoardWindow window, PlanBoardGrouping grouping);
+    PlanBoardView getPlanBoard(PlanSearchCriteria criteria, PlanBoardGrouping grouping);
 }

@@ -38,7 +38,7 @@ import com.bob.mta.modules.plan.service.command.CreatePlanCommand;
 import com.bob.mta.modules.plan.service.command.PlanNodeCommand;
 import com.bob.mta.modules.plan.service.command.UpdatePlanCommand;
 import com.bob.mta.modules.plan.repository.PlanBoardGrouping;
-import com.bob.mta.modules.plan.repository.PlanBoardWindow;
+import com.bob.mta.modules.plan.repository.PlanSearchCriteria;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
@@ -59,6 +59,7 @@ import org.springframework.util.StringUtils;
 
 import java.time.OffsetDateTime;
 import java.util.List;
+import java.util.Objects;
 
 @RestController
 @RequestMapping("/api/v1/plans")
@@ -107,19 +108,22 @@ public class PlanController {
                                                 @RequestParam(required = false) OffsetDateTime to,
                                                 @RequestParam(defaultValue = "WEEK")
                                                 PlanBoardGrouping granularity) {
-        PlanBoardWindow.Builder builder = PlanBoardWindow.builder()
+        List<PlanStatus> sanitizedStatuses = statuses == null ? null
+                : statuses.stream().filter(Objects::nonNull).toList();
+        PlanSearchCriteria criteria = PlanSearchCriteria.builder()
+                .tenantId(StringUtils.hasText(tenantId) ? tenantId : null)
+                .owner(StringUtils.hasText(owner) ? owner : null)
+                .statuses(sanitizedStatuses)
+                .customerIds(customerIds)
                 .from(from)
                 .to(to)
-                .ownerId(StringUtils.hasText(owner) ? owner : null)
-                .statuses(statuses);
-        if (customerIds != null && !customerIds.isEmpty()) {
-            builder.customerIds(customerIds);
-        }
-        PlanBoardWindow window = builder.build();
-        String tenantScope = StringUtils.hasText(tenantId) ? tenantId : null;
+                .build();
         PlanBoardGrouping grouping = granularity == null ? PlanBoardGrouping.WEEK : granularity;
-        return ApiResponse.success(PlanBoardResponse.from(
-                planService.getPlanBoard(tenantScope, window, grouping)));
+        PlanBoardResponse response = PlanBoardResponse.from(planService.getPlanBoard(criteria, grouping));
+        String tenantScope = StringUtils.hasText(criteria.getTenantId()) ? criteria.getTenantId() : "GLOBAL";
+        auditRecorder.record("PlanBoard", tenantScope, "VIEW_PLAN_BOARD",
+                messageResolver.getMessage(LocalizationKeys.Audit.PLAN_BOARD_VIEW), null, response);
+        return ApiResponse.success(response);
     }
 
     @PreAuthorize("hasAnyRole('ADMIN','OPERATOR')")

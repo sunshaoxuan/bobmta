@@ -23,7 +23,7 @@ import com.bob.mta.modules.plan.domain.PlanStatus;
 import com.bob.mta.modules.plan.repository.InMemoryPlanActionHistoryRepository;
 import com.bob.mta.modules.plan.repository.InMemoryPlanAnalyticsRepository;
 import com.bob.mta.modules.plan.repository.PlanBoardGrouping;
-import com.bob.mta.modules.plan.repository.PlanBoardWindow;
+import com.bob.mta.modules.plan.repository.PlanSearchCriteria;
 import com.bob.mta.modules.plan.repository.InMemoryPlanRepository;
 import com.bob.mta.modules.plan.service.command.CreatePlanCommand;
 import com.bob.mta.modules.plan.service.command.PlanNodeCommand;
@@ -101,12 +101,13 @@ class InMemoryPlanServiceTest {
         service.publishPlan(firstPlan.getId(), "board-owner");
         service.publishPlan(secondPlan.getId(), "board-owner");
 
-        PlanBoardWindow window = PlanBoardWindow.builder()
+        PlanSearchCriteria criteria = PlanSearchCriteria.builder()
+                .tenantId("tenant-board")
                 .from(base.minusDays(1))
                 .to(base.plusDays(2))
                 .build();
 
-        PlanBoardView board = service.getPlanBoard("tenant-board", window, PlanBoardGrouping.DAY);
+        PlanBoardView board = service.getPlanBoard(criteria, PlanBoardGrouping.DAY);
 
         assertThat(board.getMetrics().getTotalPlans()).isEqualTo(2);
         assertThat(board.getCustomerGroups())
@@ -153,13 +154,14 @@ class InMemoryPlanServiceTest {
         service.publishPlan(scoped.getId(), "filter-owner");
         service.createPlan(ignoredTenantPlan);
 
-        PlanBoardWindow window = PlanBoardWindow.builder()
+        PlanSearchCriteria criteria = PlanSearchCriteria.builder()
+                .tenantId("tenant-board-filter")
                 .customerIds(List.of("cust-filter-a"))
                 .from(baseline.minusDays(1))
                 .to(baseline.plusDays(7))
                 .build();
 
-        PlanBoardView board = service.getPlanBoard("tenant-board-filter", window, PlanBoardGrouping.WEEK);
+        PlanBoardView board = service.getPlanBoard(criteria, PlanBoardGrouping.WEEK);
 
         assertThat(board.getCustomerGroups())
                 .extracting(PlanBoardView.CustomerGroup::getCustomerId)
@@ -173,8 +175,11 @@ class InMemoryPlanServiceTest {
     @Test
     @DisplayName("getPlanBoard returns empty structures when no plans match")
     void shouldReturnEmptyPlanBoardWhenNoPlans() {
-        PlanBoardView board = service.getPlanBoard("missing-tenant",
-                PlanBoardWindow.builder().build(), PlanBoardGrouping.MONTH);
+        PlanSearchCriteria criteria = PlanSearchCriteria.builder()
+                .tenantId("missing-tenant")
+                .build();
+
+        PlanBoardView board = service.getPlanBoard(criteria, PlanBoardGrouping.MONTH);
 
         assertThat(board.getMetrics().getTotalPlans()).isZero();
         assertThat(board.getCustomerGroups()).isEmpty();
@@ -202,12 +207,13 @@ class InMemoryPlanServiceTest {
         var plan = service.createPlan(unknownCustomer);
         service.publishPlan(plan.getId(), "unknown-owner");
 
-        PlanBoardWindow window = PlanBoardWindow.builder()
+        PlanSearchCriteria criteria = PlanSearchCriteria.builder()
+                .tenantId("tenant-board-unknown")
                 .from(baseline.minusDays(1))
                 .to(baseline.plusDays(1))
                 .build();
 
-        PlanBoardView board = service.getPlanBoard("tenant-board-unknown", window, PlanBoardGrouping.DAY);
+        PlanBoardView board = service.getPlanBoard(criteria, PlanBoardGrouping.DAY);
 
         assertThat(board.getCustomerGroups())
                 .extracting(PlanBoardView.CustomerGroup::getCustomerId)
@@ -284,12 +290,13 @@ class InMemoryPlanServiceTest {
         service.publishPlan(planC.getId(), "sort-owner");
         service.publishPlan(planD.getId(), "sort-owner");
 
-        PlanBoardWindow window = PlanBoardWindow.builder()
+        PlanSearchCriteria criteria = PlanSearchCriteria.builder()
+                .tenantId("tenant-board-sort")
                 .from(base.minusDays(1))
                 .to(base.plusDays(5))
                 .build();
 
-        PlanBoardView board = service.getPlanBoard("tenant-board-sort", window, PlanBoardGrouping.DAY);
+        PlanBoardView board = service.getPlanBoard(criteria, PlanBoardGrouping.DAY);
 
         assertThat(board.getCustomerGroups())
                 .extracting(PlanBoardView.CustomerGroup::getCustomerId)
@@ -334,13 +341,14 @@ class InMemoryPlanServiceTest {
         service.publishPlan(canceled.getId(), "status-owner");
         service.cancelPlan(canceled.getId(), "status-owner", "测试取消");
 
-        PlanBoardWindow window = PlanBoardWindow.builder()
+        PlanSearchCriteria criteria = PlanSearchCriteria.builder()
+                .tenantId("tenant-board-status")
                 .from(base.minusDays(1))
                 .to(base.plusDays(3))
                 .statuses(List.of(PlanStatus.SCHEDULED))
                 .build();
 
-        PlanBoardView board = service.getPlanBoard("tenant-board-status", window, PlanBoardGrouping.WEEK);
+        PlanBoardView board = service.getPlanBoard(criteria, PlanBoardGrouping.WEEK);
 
         assertThat(board.getCustomerGroups())
                 .extracting(PlanBoardView.CustomerGroup::getCustomerId)

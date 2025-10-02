@@ -8,7 +8,7 @@ import com.bob.mta.modules.plan.domain.PlanReminderRule;
 import com.bob.mta.modules.plan.domain.PlanReminderSchedule;
 import com.bob.mta.modules.plan.domain.PlanStatus;
 import com.bob.mta.modules.plan.repository.PlanBoardGrouping;
-import com.bob.mta.modules.plan.repository.PlanBoardWindow;
+import com.bob.mta.modules.plan.repository.PlanSearchCriteria;
 import com.bob.mta.modules.plan.service.command.CreatePlanCommand;
 import com.bob.mta.modules.plan.service.command.UpdatePlanCommand;
 
@@ -56,7 +56,7 @@ public interface PlanService {
     PlanAnalytics getAnalytics(String tenantId, String customerId, String ownerId,
                                OffsetDateTime from, OffsetDateTime to);
 
-    PlanBoardView getPlanBoard(String tenantId, PlanBoardWindow window, PlanBoardGrouping grouping);
+    PlanBoardView getPlanBoard(PlanSearchCriteria criteria, PlanBoardGrouping grouping);
 
     List<Plan> findConflictingPlans(String tenantId, String customerId, String ownerId,
                                     OffsetDateTime start, OffsetDateTime end, String excludePlanId);

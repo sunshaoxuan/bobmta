@@ -15,6 +15,7 @@
   - `status` *(optional, repeatable)*：筛选计划状态，示例：`status=SCHEDULED&status=IN_PROGRESS`。
   - `from` / `to` *(optional, ISO-8601 datetime)*：限制计划预计时间窗的上下界。
   - `granularity` *(optional, enum)*：时间桶粒度，支持 `DAY`/`WEEK`/`MONTH`/`YEAR`，默认 `WEEK`。
+  - 所有筛选条件将汇总到 `PlanSearchCriteria` 中，由服务层统一传递至持久层执行聚合。
 
 ## 响应
 
@@ -112,8 +113,9 @@
 - 当同时传入多个 `customerId` 时，结果只保留在列表中的客户，同时更新时间桶统计。
 - `status` 过滤与 `GET /api/v1/plans` 保持一致，默认返回全部状态。
 - 已提供控制层与服务层单元测试覆盖不同租户/客户的组合，以支撑多租户环境下的联调。
+- 每次调用会写入 `PlanBoard` 的审计快照，包含查询租户范围与响应摘要，便于追踪驾驶舱访问行为。
 
 ## 交付状态
 
-- ✅ 后端已在 `PlanService#getPlanBoard` 与 `PlanController#board` 提供实现，新增 SQL 聚合查询与未知客户分组逻辑，并补充单测与示例响应。
+- ✅ 后端已在 `PlanService#getPlanBoard` 与 `PlanController#board` 提供实现，基于 `PlanSearchCriteria` 聚合客户/时间桶并记录审计快照，补充 SQL 聚合与未知客户分组逻辑及单测、示例响应。
 - ✅ 前端 `PlanListBoard` 已提供 `Segmented` 视图切换，并通过 `PlanByCustomerView`、`PlanCalendarView` 显示客户分组与多粒度日历。派生逻辑在 `planList` 状态中复用后端返回的数据，缺失时会本地聚合以保持体验一致。

@@ -255,6 +255,11 @@ class PlanControllerTest {
                 .extracting(PlanBoardResponse.PlanCardResponse::getCustomerId)
                 .containsAnyOf("cust-board-1", "cust-board-2");
         assertThat(board.getMetrics().getDueSoonPlans()).isGreaterThanOrEqualTo(0);
+
+        List<AuditLog> logs = auditService.query(new AuditQuery(
+                "PlanBoard", "tenant-controller-board", "VIEW_PLAN_BOARD", null));
+        assertThat(logs).hasSize(1);
+        assertThat(logs.get(0).getNewData()).contains("cust-board-1");
     }
 
     @Test

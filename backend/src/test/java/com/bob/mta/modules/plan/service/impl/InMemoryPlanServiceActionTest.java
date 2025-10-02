@@ -26,7 +26,6 @@ import com.bob.mta.modules.plan.repository.PlanAnalyticsQuery;
 import com.bob.mta.modules.plan.repository.PlanAnalyticsRepository;
 import com.bob.mta.modules.plan.repository.PlanAttachmentRepository;
 import com.bob.mta.modules.plan.repository.PlanBoardGrouping;
-import com.bob.mta.modules.plan.repository.PlanBoardWindow;
 import com.bob.mta.modules.plan.repository.PlanReminderPolicyRepository;
 import com.bob.mta.modules.plan.repository.PlanRepository;
 import com.bob.mta.modules.plan.repository.PlanSearchCriteria;
@@ -708,7 +707,7 @@ class InMemoryPlanServiceActionTest {
         }
 
         @Override
-        public com.bob.mta.modules.plan.service.PlanBoardView getPlanBoard(String tenantId, PlanBoardWindow window,
+        public com.bob.mta.modules.plan.service.PlanBoardView getPlanBoard(PlanSearchCriteria criteria,
                                                                            PlanBoardGrouping grouping) {
             return null;
         }

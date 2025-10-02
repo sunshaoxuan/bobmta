@@ -31,7 +31,6 @@ import com.bob.mta.modules.plan.repository.PlanAnalyticsQuery;
 import com.bob.mta.modules.plan.repository.PlanAnalyticsRepository;
 import com.bob.mta.modules.plan.repository.PlanAttachmentRepository;
 import com.bob.mta.modules.plan.repository.PlanBoardGrouping;
-import com.bob.mta.modules.plan.repository.PlanBoardWindow;
 import com.bob.mta.modules.plan.repository.PlanReminderPolicyRepository;
 import com.bob.mta.modules.plan.repository.PlanRepository;
 import com.bob.mta.modules.plan.repository.PlanSearchCriteria;
@@ -692,11 +691,34 @@ public class InMemoryPlanService implements PlanService {
     }
 
     @Override
-    public PlanBoardView getPlanBoard(String tenantId, PlanBoardWindow window, PlanBoardGrouping grouping) {
-        PlanBoardWindow effectiveWindow = window == null ? PlanBoardWindow.builder().build() : window;
+    public PlanBoardView getPlanBoard(PlanSearchCriteria criteria, PlanBoardGrouping grouping) {
         PlanBoardGrouping effectiveGrouping = grouping == null ? PlanBoardGrouping.WEEK : grouping;
-        String effectiveTenant = StringUtils.hasText(tenantId) ? tenantId : null;
-        return planAnalyticsRepository.getPlanBoard(effectiveTenant, effectiveWindow, effectiveGrouping);
+        PlanSearchCriteria effectiveCriteria = criteria == null
+                ? PlanSearchCriteria.builder().build()
+                : sanitizeBoardCriteria(criteria);
+        return planAnalyticsRepository.getPlanBoard(effectiveCriteria, effectiveGrouping);
+    }
+
+    private PlanSearchCriteria sanitizeBoardCriteria(PlanSearchCriteria criteria) {
+        if (criteria == null) {
+            return PlanSearchCriteria.builder().build();
+        }
+        PlanSearchCriteria.Builder builder = PlanSearchCriteria.builder()
+                .tenantId(StringUtils.hasText(criteria.getTenantId()) ? criteria.getTenantId() : null)
+                .owner(StringUtils.hasText(criteria.getOwner()) ? criteria.getOwner() : null)
+                .keyword(criteria.getKeyword())
+                .status(criteria.getStatus())
+                .statuses(criteria.getStatuses().isEmpty() ? null : criteria.getStatuses())
+                .customerIds(criteria.getCustomerIds().isEmpty() ? null : criteria.getCustomerIds())
+                .from(criteria.getFrom())
+                .to(criteria.getTo())
+                .limit(criteria.getLimit())
+                .offset(criteria.getOffset())
+                .excludePlanId(criteria.getExcludePlanId());
+        if (StringUtils.hasText(criteria.getCustomerId())) {
+            builder.customerId(criteria.getCustomerId());
+        }
+        return builder.build();
     }
 
     @Override
