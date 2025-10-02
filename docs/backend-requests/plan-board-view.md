@@ -16,6 +16,7 @@
   - `from` / `to` *(optional, ISO-8601 datetime)*：限制计划预计时间窗的上下界。
   - `granularity` *(optional, enum)*：时间桶粒度，支持 `DAY`/`WEEK`/`MONTH`/`YEAR`，默认 `WEEK`。
   - 所有筛选条件将汇总到 `PlanSearchCriteria` 中，由服务层统一传递至持久层执行聚合。
+  - 空字符串与重复的 `customerId` / `status` 会在控制层被自动去重、裁剪，避免生成冗余的筛选条件与审计快照。
 
 ## 响应
 
