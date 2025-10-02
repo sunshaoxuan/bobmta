@@ -52,19 +52,55 @@ import { formatApiErrorMessage } from '../utils/apiErrors';
 
 const { Text, Paragraph } = Typography;
 
-type ModeSectionConfig = {
-  nodes: { title: UiMessageKey; showModePanel: boolean };
-  actions: { title: UiMessageKey; showModePanel: boolean };
+type PlanPreviewModeDefinition = {
+  tagColor: string;
+  sections: {
+    nodes: {
+      title: UiMessageKey;
+      showModePanel: boolean;
+      allowEdit: boolean;
+    };
+    actions: {
+      title: UiMessageKey;
+      showModePanel: boolean;
+      showActionList: boolean;
+    };
+  };
+  allowReminderEdit: boolean;
 };
 
-const MODE_SECTION_CONFIG: Record<PlanViewMode, ModeSectionConfig> = {
+const PLAN_PREVIEW_MODE_DEFINITIONS: Record<PlanViewMode, PlanPreviewModeDefinition> = {
   design: {
-    nodes: { title: 'planDetailNodesTitleDesign', showModePanel: true },
-    actions: { title: 'planDetailActionsTitleDesign', showModePanel: true },
+    tagColor: 'purple',
+    sections: {
+      nodes: {
+        title: 'planDetailNodesTitleDesign',
+        showModePanel: true,
+        allowEdit: true,
+      },
+      actions: {
+        title: 'planDetailActionsTitleDesign',
+        showModePanel: true,
+        showActionList: false,
+      },
+    },
+    allowReminderEdit: true,
   },
   execution: {
-    nodes: { title: 'planDetailNodesTitleExecution', showModePanel: true },
-    actions: { title: 'planDetailActionsTitleExecution', showModePanel: true },
+    tagColor: 'geekblue',
+    sections: {
+      nodes: {
+        title: 'planDetailNodesTitleExecution',
+        showModePanel: true,
+        allowEdit: false,
+      },
+      actions: {
+        title: 'planDetailActionsTitleExecution',
+        showModePanel: true,
+        showActionList: true,
+      },
+    },
+    allowReminderEdit: false,
   },
 };
 
@@ -107,9 +143,11 @@ export function PlanPreview({
   const previewStatus = detail?.status ?? plan?.status ?? null;
   const fallbackMode: PlanViewMode = previewStatus ? PLAN_STATUS_MODE[previewStatus] : 'design';
   const mode: PlanViewMode = detailContext ? detailContext.mode : fallbackMode;
+  const modeDefinition = PLAN_PREVIEW_MODE_DEFINITIONS[mode];
+  const nodesSection = modeDefinition.sections.nodes;
+  const actionsSection = modeDefinition.sections.actions;
   const currentNodeId = detailContext ? detailContext.currentNodeId : null;
   const [editingNodeId, setEditingNodeId] = useState<string | null>(null);
-  const modeSections = MODE_SECTION_CONFIG[mode];
   const lastUpdatedLabel =
     isActiveDetail && detailState.lastUpdated
       ? translate('planDetailLastUpdated', {
@@ -140,8 +178,8 @@ export function PlanPreview({
   const timelineCategoryFilter = detailState.filters.timeline.activeCategory;
 
   const actionableNodes: PlanNodeWithPath[] = useMemo(
-    () => (mode === 'execution' ? getActionablePlanNodes(nodes) : []),
-    [mode, nodes]
+    () => (actionsSection.showActionList ? getActionablePlanNodes(nodes) : []),
+    [actionsSection.showActionList, nodes]
   );
   const nodeLookup = useMemo(() => {
     const map = new Map<string, PlanNodeWithPath>();
@@ -155,10 +193,10 @@ export function PlanPreview({
   const totalNodeCount = nodeLookup.size;
 
   useEffect(() => {
-    if (mode !== 'design') {
+    if (!nodesSection.allowEdit) {
       setEditingNodeId(null);
     }
-  }, [mode]);
+  }, [nodesSection.allowEdit]);
 
   const mutation = detailState.mutation;
   const nodeMutationContext = mutation.context?.type === 'node' ? mutation.context : null;
@@ -471,7 +509,7 @@ export function PlanPreview({
               <Tag color={PLAN_STATUS_COLOR[summaryStatus]}>
                 {translate(PLAN_STATUS_LABEL[summaryStatus])}
               </Tag>
-              <Tag color={mode === 'design' ? 'purple' : 'geekblue'}>
+              <Tag color={modeDefinition.tagColor}>
                 {translate(PLAN_MODE_LABEL[mode])}
               </Tag>
             </Space>
@@ -562,7 +600,7 @@ export function PlanPreview({
           ) : null}
           <div className="plan-preview-sections">
             <PlanDetailSection
-              title={translate(modeSections.nodes.title)}
+              title={translate(nodesSection.title)}
               status={detailStatus}
               error={detailError}
               translate={translate}
@@ -571,15 +609,17 @@ export function PlanPreview({
               errorDetail={detailErrorDetail}
               emptyMessage={translate('planDetailNodesEmpty')}
               className="plan-preview-nodes-section"
-              helper={renderModeAwareHelper({
-                mode,
-                helper: null,
-                translate,
-                currentNodeName,
-                completedCount: completedNodeIds.size,
-                totalCount: totalNodeCount,
-                showModePanel: modeSections.nodes.showModePanel,
-              })}
+              helper={
+                renderModeAwareHelper({
+                  mode,
+                  helper: null,
+                  translate,
+                  currentNodeName,
+                  completedCount: completedNodeIds.size,
+                  totalCount: totalNodeCount,
+                  showModePanel: nodesSection.showModePanel,
+                })
+              }
             >
               <PlanNodeTree
                 nodes={nodes}
@@ -588,16 +628,16 @@ export function PlanPreview({
                 mode={mode}
                 currentNodeId={currentNodeId}
                 completedNodeIds={completedNodeIds}
-                onEditNode={mode === 'design' ? handleNodeEdit : undefined}
+                onEditNode={nodesSection.allowEdit ? handleNodeEdit : undefined}
                 editingNodeId={editingNodeId}
               />
             </PlanDetailSection>
             <PlanDetailSection
-              title={translate(modeSections.actions.title)}
+              title={translate(actionsSection.title)}
               status={detailStatus}
               error={detailError}
               translate={translate}
-              empty={mode === 'execution' ? actionableNodes.length === 0 : false}
+              empty={actionsSection.showActionList ? actionableNodes.length === 0 : false}
               onRetry={onRefreshDetail}
               errorDetail={detailErrorDetail}
               emptyMessage={translate('planDetailActionsEmpty')}
@@ -609,11 +649,11 @@ export function PlanPreview({
                   currentNodeName,
                   completedCount: completedNodeIds.size,
                   totalCount: totalNodeCount,
-                  showModePanel: modeSections.actions.showModePanel,
+                  showModePanel: actionsSection.showModePanel,
                 })
               }
             >
-              {mode === 'execution' ? (
+              {actionsSection.showActionList ? (
                 <PlanNodeActions
                   mode={mode}
                   candidates={actionableNodes}
@@ -671,6 +711,7 @@ export function PlanPreview({
                 reminders={reminders}
                 translate={translate}
                 mode={mode}
+                allowEdit={modeDefinition.allowReminderEdit}
                 onEdit={handleReminderEdit}
                 onToggle={handleReminderToggle}
                 selectedReminderId={selectedReminderId}

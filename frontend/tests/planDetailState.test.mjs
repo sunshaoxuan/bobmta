@@ -291,6 +291,40 @@ test('derivePlanDetailContext keeps execution mode but clears current node when 
   assert.equal(context.currentNodeId, null);
 });
 
+test('derivePlanDetailContext handles missing node list gracefully', () => {
+  const context = derivePlanDetailContext(
+    createDetail({
+      status: 'IN_PROGRESS',
+      nodes: null,
+    })
+  );
+
+  assert.equal(context.mode, 'execution');
+  assert.equal(context.currentNodeId, null);
+});
+
+test('selectPlanDetail selectors rely on context over legacy state fields', () => {
+  const baseState = createState(
+    createDetail({
+      status: 'IN_PROGRESS',
+      nodes: [
+        { id: 'NODE-1', name: 'Completed Node', order: 1, status: 'DONE', actionType: 'MANUAL' },
+        { id: 'NODE-2', name: 'Running Node', order: 2, status: 'IN_PROGRESS', actionType: 'MANUAL' },
+      ],
+    })
+  );
+
+  const tamperedState = {
+    ...baseState,
+    mode: 'design',
+    currentNodeId: 'NODE-LEGACY',
+  };
+
+  assert.equal(selectPlanDetailMode(tamperedState), 'execution');
+  assert.equal(selectPlanDetailCurrentNodeId(tamperedState), 'NODE-2');
+  assert.equal(selectPlanDetailContext(tamperedState).currentNodeId, 'NODE-2');
+});
+
 test('derivePlanDetailContext defaults to design mode when detail is missing', () => {
   const context = derivePlanDetailContext(null);
 
