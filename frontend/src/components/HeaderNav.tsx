@@ -10,6 +10,7 @@ import {
   Typography,
   type MenuProps,
 } from '../../vendor/antd/index.js';
+import type { SessionPermissionsState } from '../state/session';
 
 const { Header } = Layout;
 const { Title, Paragraph, Text } = Typography;
@@ -33,12 +34,16 @@ type HeaderNavProps = {
   onLocaleChange: (value: string) => void;
   menuItems: HeaderNavMenuItem[];
   menuSelectedKeys?: MenuProps['selectedKeys'];
-  onMenuClick: MenuProps['onClick'];
+  onMenuClick?: MenuProps['onClick'];
   navigationErrorLabel: string | null;
+  navigationLoading: boolean;
   isAuthenticated: boolean;
+  permissions: SessionPermissionsState;
+  isForbidden: boolean;
+  forbiddenLabel: string;
+  guestNoticeLabel: string;
   userInitial: string;
   userDisplayName: string;
-  userRoles: string[];
   userMenuItems: MenuProps['items'];
   onUserMenuClick: MenuProps['onClick'];
   onLoginClick: () => void;
@@ -59,25 +64,19 @@ export function HeaderNav({
   menuSelectedKeys,
   onMenuClick,
   navigationErrorLabel,
+  navigationLoading,
   isAuthenticated,
+  permissions,
+  isForbidden,
+  forbiddenLabel,
+  guestNoticeLabel,
   userInitial,
   userDisplayName,
-  userRoles,
   userMenuItems,
   onUserMenuClick,
   onLoginClick,
 }: HeaderNavProps) {
-  const normalizedUserRoles = useMemo(
-    () =>
-      Array.from(
-        new Set(
-          (userRoles ?? [])
-            .map((role) => role.trim().toUpperCase())
-            .filter((role) => role.length > 0)
-        )
-      ),
-    [userRoles]
-  );
+  const normalizedUserRoles = permissions.normalizedRoles;
 
   const visibleMenuItems = useMemo(() => {
     if (!menuItems || menuItems.length === 0) {
@@ -91,7 +90,7 @@ export function HeaderNav({
       if (!item.roles || item.roles.length === 0) {
         return true;
       }
-      return item.roles.some((role) => allowedRoles.has(role.toUpperCase()));
+      return item.roles.some((role) => allowedRoles.has(role.trim().toUpperCase()));
     });
   }, [menuItems, normalizedUserRoles]);
 
@@ -133,6 +132,30 @@ export function HeaderNav({
     [onBrandClick]
   );
 
+  const handleMenuClick = useCallback<NonNullable<MenuProps['onClick']>>( 
+    (info) => {
+      if (navigationLoading) {
+        return;
+      }
+      if (onMenuClick) {
+        onMenuClick(info);
+      }
+    },
+    [navigationLoading, onMenuClick]
+  );
+
+  const menuClassName = useMemo(() => {
+    const classes = ['app-header-menu'];
+    if (navigationLoading) {
+      classes.push('app-header-menu-disabled');
+    }
+    return classes.join(' ');
+  }, [navigationLoading]);
+
+  const showGuestNotice = !isAuthenticated && guestNoticeLabel.trim().length > 0;
+  const showForbiddenNotice = isForbidden && forbiddenLabel.trim().length > 0;
+  const showNavigationError = Boolean(navigationErrorLabel) && isAuthenticated;
+
   return (
     <Header className="app-header">
       <div className="app-header-left">
@@ -150,13 +173,23 @@ export function HeaderNav({
         {showMenu && (
           <Menu
             mode="horizontal"
-            className="app-header-menu"
+            className={menuClassName}
             items={antMenuItems}
             selectedKeys={selectedMenuKeys}
-            onClick={onMenuClick}
+            onClick={handleMenuClick}
           />
         )}
-        {isAuthenticated && navigationErrorLabel && (
+        {showForbiddenNotice && (
+          <Tag color="volcano" className="nav-status-tag nav-status-forbidden">
+            {forbiddenLabel}
+          </Tag>
+        )}
+        {!showMenu && !showForbiddenNotice && showGuestNotice && (
+          <Tag color="geekblue" className="nav-status-tag nav-status-guest">
+            {guestNoticeLabel}
+          </Tag>
+        )}
+        {showNavigationError && (
           <Tag color="volcano" className="nav-error-badge">
             {navigationErrorLabel}
           </Tag>
