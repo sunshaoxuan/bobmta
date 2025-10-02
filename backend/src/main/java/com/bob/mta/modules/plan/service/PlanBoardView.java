@@ -8,6 +8,8 @@ import java.util.List;
 
 public class PlanBoardView {
 
+    public static final String UNKNOWN_CUSTOMER_ID = "UNKNOWN";
+
     private final List<CustomerGroup> customerGroups;
     private final List<TimeBucket> timeBuckets;
     private final Metrics metrics;

@@ -6,27 +6,16 @@ import com.bob.mta.modules.plan.domain.PlanRiskEvaluator.PlanRiskSnapshot;
 import com.bob.mta.modules.plan.domain.PlanStatus;
 import com.bob.mta.modules.plan.repository.PlanBoardGrouping;
 
-import java.time.DayOfWeek;
-import java.time.Duration;
 import java.time.OffsetDateTime;
-import java.time.temporal.ChronoUnit;
-import java.time.temporal.TemporalAdjusters;
-import java.time.temporal.WeekFields;
 import java.util.ArrayList;
-import java.util.Comparator;
 import java.util.DoubleSummaryStatistics;
 import java.util.HashMap;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.stream.Collectors;
 
 public final class PlanBoardAggregator {
-
-    private static final Comparator<PlanBoardView.PlanCard> BOARD_PLAN_COMPARATOR = Comparator
-            .comparing(PlanBoardView.PlanCard::getPlannedStartTime, Comparator.nullsLast(Comparator.naturalOrder()))
-            .thenComparing(PlanBoardView.PlanCard::getId, Comparator.nullsLast(Comparator.naturalOrder()));
 
     private PlanBoardAggregator() {
     }
@@ -55,7 +44,7 @@ public final class PlanBoardAggregator {
         }
         Map<String, List<Plan>> grouped = plans.stream()
                 .collect(Collectors.groupingBy(plan -> plan.getCustomerId() == null
-                        ? "UNKNOWN"
+                        ? PlanBoardView.UNKNOWN_CUSTOMER_ID
                         : plan.getCustomerId()));
         return grouped.entrySet().stream()
                 .sorted((left, right) -> Integer.compare(right.getValue().size(), left.getValue().size()))
@@ -87,7 +76,7 @@ public final class PlanBoardAggregator {
                 .orElse(null);
         List<PlanBoardView.PlanCard> cards = plans.stream()
                 .map(plan -> toPlanCard(plan, reference, dueSoonMinutes))
-                .sorted(BOARD_PLAN_COMPARATOR)
+                .sorted(PlanBoardViewHelper.PLAN_CARD_COMPARATOR)
                 .toList();
         return new PlanBoardView.CustomerGroup(customerId, null, total, active, completed,
                 overdue, dueSoon, avgProgress, earliest, latest, cards);
@@ -106,7 +95,7 @@ public final class PlanBoardAggregator {
             if (plannedStart == null) {
                 continue;
             }
-            OffsetDateTime bucketStart = normalizeBucketStart(plannedStart, grouping);
+            OffsetDateTime bucketStart = PlanBoardViewHelper.normalizeBucketStart(plannedStart, grouping);
             bucketMap.computeIfAbsent(bucketStart, key -> new ArrayList<>()).add(plan);
         }
         return bucketMap.entrySet().stream()
@@ -119,8 +108,8 @@ public final class PlanBoardAggregator {
                                                      PlanBoardGrouping grouping,
                                                      OffsetDateTime reference,
                                                      int dueSoonMinutes) {
-        OffsetDateTime bucketEnd = normalizeBucketEnd(bucketStart, grouping);
-        String bucketLabel = formatBucketLabel(bucketStart, grouping);
+        OffsetDateTime bucketEnd = PlanBoardViewHelper.normalizeBucketEnd(bucketStart, grouping);
+        String bucketLabel = PlanBoardViewHelper.formatBucketLabel(bucketStart, grouping);
         long total = plans.size();
         long active = plans.stream().filter(PlanBoardAggregator::isActivePlan).count();
         long completed = plans.stream().filter(plan -> plan.getStatus() == PlanStatus.COMPLETED).count();
@@ -131,7 +120,7 @@ public final class PlanBoardAggregator {
         long dueSoon = risks.stream().filter(PlanRiskSnapshot::dueSoon).count();
         List<PlanBoardView.PlanCard> cards = plans.stream()
                 .map(plan -> toPlanCard(plan, reference, dueSoonMinutes))
-                .sorted(BOARD_PLAN_COMPARATOR)
+                .sorted(PlanBoardViewHelper.PLAN_CARD_COMPARATOR)
                 .toList();
         return new PlanBoardView.TimeBucket(bucketLabel, bucketStart, bucketEnd, total,
                 active, completed, overdue, dueSoon, cards);
@@ -153,7 +142,7 @@ public final class PlanBoardAggregator {
         long dueSoon = risks.stream().filter(PlanRiskSnapshot::dueSoon).count();
         double avgProgress = roundAverage(plans.stream().mapToInt(Plan::getProgress).average().orElse(0));
         DoubleSummaryStatistics durations = plans.stream()
-                .map(plan -> durationHours(plan.getPlannedStartTime(), plan.getPlannedEndTime()))
+                .map(plan -> PlanBoardViewHelper.durationHours(plan.getPlannedStartTime(), plan.getPlannedEndTime()))
                 .filter(Objects::nonNull)
                 .mapToDouble(Double::doubleValue)
                 .summaryStatistics();
@@ -182,56 +171,12 @@ public final class PlanBoardAggregator {
         );
     }
 
-    private static OffsetDateTime normalizeBucketStart(OffsetDateTime time, PlanBoardGrouping grouping) {
-        return switch (grouping) {
-            case DAY -> time.truncatedTo(ChronoUnit.DAYS);
-            case WEEK -> time.with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY)).truncatedTo(ChronoUnit.DAYS);
-            case MONTH -> time.withDayOfMonth(1).truncatedTo(ChronoUnit.DAYS);
-            case YEAR -> time.withDayOfYear(1).truncatedTo(ChronoUnit.DAYS);
-        };
-    }
-
-    private static OffsetDateTime normalizeBucketEnd(OffsetDateTime start, PlanBoardGrouping grouping) {
-        return switch (grouping) {
-            case DAY -> start.plusDays(1);
-            case WEEK -> start.plusWeeks(1);
-            case MONTH -> start.plusMonths(1);
-            case YEAR -> start.plusYears(1);
-        };
-    }
-
-    private static String formatBucketLabel(OffsetDateTime start, PlanBoardGrouping grouping) {
-        return switch (grouping) {
-            case DAY -> start.toLocalDate().toString();
-            case WEEK -> {
-                int week = start.get(WeekFields.ISO.weekOfWeekBasedYear());
-                yield start.getYear() + "-W" + String.format(Locale.ROOT, "%02d", week);
-            }
-            case MONTH -> String.format(Locale.ROOT, "%d-%02d", start.getYear(), start.getMonthValue());
-            case YEAR -> Integer.toString(start.getYear());
-        };
-    }
-
     private static boolean isActivePlan(Plan plan) {
-        return plan.getStatus() == PlanStatus.SCHEDULED || plan.getStatus() == PlanStatus.IN_PROGRESS;
-    }
-
-    private static Double durationHours(OffsetDateTime start, OffsetDateTime end) {
-        if (start == null || end == null) {
-            return null;
-        }
-        double minutes = Duration.between(start, end).toMinutes();
-        if (minutes <= 0) {
-            return 0.0;
-        }
-        return minutes / 60.0;
+        return PlanBoardViewHelper.isActiveStatus(plan.getStatus());
     }
 
     private static double roundAverage(double value) {
-        if (Double.isNaN(value) || Double.isInfinite(value)) {
-            return 0;
-        }
-        return Math.round(value * 10.0) / 10.0;
+        return PlanBoardViewHelper.roundAverage(value);
     }
 }
 

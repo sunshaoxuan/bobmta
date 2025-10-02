@@ -181,6 +181,43 @@ class InMemoryPlanServiceTest {
     }
 
     @Test
+    @DisplayName("getPlanBoard groups plans without customer under UNKNOWN")
+    void shouldGroupUnknownCustomerPlans() {
+        OffsetDateTime baseline = OffsetDateTime.parse("2024-06-01T10:00:00+08:00");
+        CreatePlanCommand unknownCustomer = new CreatePlanCommand(
+                "tenant-board-unknown",
+                "未知客户巡检",
+                "missing customer",
+                null,
+                "unknown-owner",
+                baseline.plusHours(1),
+                baseline.plusHours(2),
+                "Asia/Shanghai",
+                List.of("unknown-owner"),
+                List.of(new PlanNodeCommand(null, "节点一", "CHECKLIST", "unknown-owner", 1, 30,
+                        PlanNodeActionType.NONE, 100, null, "", List.of()))
+        );
+
+        var plan = service.createPlan(unknownCustomer);
+        service.publishPlan(plan.getId(), "unknown-owner");
+
+        PlanBoardWindow window = PlanBoardWindow.builder()
+                .from(baseline.minusDays(1))
+                .to(baseline.plusDays(1))
+                .build();
+
+        PlanBoardView board = service.getPlanBoard("tenant-board-unknown", window, PlanBoardGrouping.DAY);
+
+        assertThat(board.getCustomerGroups())
+                .extracting(PlanBoardView.CustomerGroup::getCustomerId)
+                .containsExactly(PlanBoardView.UNKNOWN_CUSTOMER_ID);
+        assertThat(board.getCustomerGroups().get(0).getPlans())
+                .hasSize(1)
+                .allSatisfy(card -> assertThat(card.getCustomerId()).isNull());
+        assertThat(board.getMetrics().getTotalPlans()).isEqualTo(1);
+    }
+
+    @Test
     void shouldRejectPlanCreationWhenTimeConflicts() {
         OffsetDateTime start = OffsetDateTime.now().plusDays(1);
         CreatePlanCommand existing = new CreatePlanCommand(

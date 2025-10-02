@@ -9,6 +9,9 @@ import com.bob.mta.modules.plan.domain.PlanNodeStatus;
 import com.bob.mta.modules.plan.domain.PlanReminderPolicy;
 import com.bob.mta.modules.plan.domain.PlanStatus;
 import com.bob.mta.modules.plan.repository.PlanAnalyticsQuery;
+import com.bob.mta.modules.plan.repository.PlanBoardGrouping;
+import com.bob.mta.modules.plan.repository.PlanBoardWindow;
+import com.bob.mta.modules.plan.service.PlanBoardView;
 import org.assertj.core.groups.Tuple;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
@@ -147,6 +150,56 @@ class PlanPersistenceAnalyticsRepositoryTest {
                 .isEqualTo(riskPlanTuples(inMemory.getRiskPlans()));
     }
 
+    @Test
+    void shouldMatchPlanBoardWithInMemoryImplementation() {
+        OffsetDateTime baseline = OffsetDateTime.of(2024, 6, 10, 8, 0, 0, 0, ZoneOffset.UTC);
+
+        Plan scheduled = createPlan(planRepository.nextPlanId(), "tenant-board", PlanStatus.SCHEDULED,
+                "board-owner-a", "customer-a", baseline.plusHours(1), baseline.plusHours(4),
+                baseline.minusDays(2), baseline.minusDays(1), List.of(PlanNodeStatus.DONE, PlanNodeStatus.PENDING));
+        Plan inProgress = createPlan(planRepository.nextPlanId(), "tenant-board", PlanStatus.IN_PROGRESS,
+                "board-owner-b", "customer-b", baseline.plusDays(1), baseline.plusDays(1).plusHours(3),
+                baseline.minusDays(3), baseline.minusDays(2), List.of(PlanNodeStatus.DONE, PlanNodeStatus.DONE));
+        Plan completed = createPlan(planRepository.nextPlanId(), "tenant-board", PlanStatus.COMPLETED,
+                "board-owner-a", "customer-a", baseline.minusDays(1), baseline.minusDays(1).plusHours(2),
+                baseline.minusDays(4), baseline.minusDays(1), List.of(PlanNodeStatus.DONE));
+        Plan unknownCustomer = createPlan(planRepository.nextPlanId(), "tenant-board", PlanStatus.SCHEDULED,
+                "board-owner-c", null, baseline.plusDays(2), baseline.plusDays(2).plusHours(1),
+                baseline.minusDays(5), baseline.minusDays(2), List.of(PlanNodeStatus.PENDING));
+        Plan otherTenant = createPlan(planRepository.nextPlanId(), "tenant-other", PlanStatus.SCHEDULED,
+                "board-owner-x", "customer-x", baseline.plusDays(3), baseline.plusDays(3).plusHours(2),
+                baseline.minusDays(2), baseline.minusDays(1), List.of(PlanNodeStatus.DONE));
+
+        persist(scheduled, inProgress, completed, unknownCustomer, otherTenant);
+
+        PlanBoardWindow window = PlanBoardWindow.builder()
+                .from(baseline.minusDays(3))
+                .to(baseline.plusDays(5))
+                .build();
+
+        PlanBoardView persistence = analyticsRepository.getPlanBoard("tenant-board", window, PlanBoardGrouping.DAY);
+        PlanBoardView inMemory = inMemoryAnalyticsRepository.getPlanBoard("tenant-board", window, PlanBoardGrouping.DAY);
+
+        assertThat(persistence.getMetrics().getTotalPlans()).isEqualTo(inMemory.getMetrics().getTotalPlans());
+        assertThat(persistence.getMetrics().getActivePlans()).isEqualTo(inMemory.getMetrics().getActivePlans());
+        assertThat(persistence.getMetrics().getCompletedPlans()).isEqualTo(inMemory.getMetrics().getCompletedPlans());
+        assertThat(persistence.getMetrics().getOverduePlans()).isEqualTo(inMemory.getMetrics().getOverduePlans());
+        assertThat(persistence.getMetrics().getDueSoonPlans()).isEqualTo(inMemory.getMetrics().getDueSoonPlans());
+        assertThat(persistence.getMetrics().getAverageProgress())
+                .isEqualTo(inMemory.getMetrics().getAverageProgress());
+        assertThat(persistence.getMetrics().getAverageDurationHours())
+                .isEqualTo(inMemory.getMetrics().getAverageDurationHours());
+        assertThat(persistence.getMetrics().getCompletionRate())
+                .isEqualTo(inMemory.getMetrics().getCompletionRate());
+
+        assertThat(customerGroupTuples(persistence.getCustomerGroups()))
+                .isEqualTo(customerGroupTuples(inMemory.getCustomerGroups()));
+        assertThat(bucketTuples(persistence.getTimeBuckets()))
+                .isEqualTo(bucketTuples(inMemory.getTimeBuckets()));
+        assertThat(planCardTuples(persistence.getCustomerGroups()))
+                .isEqualTo(planCardTuples(inMemory.getCustomerGroups()));
+    }
+
     private void persist(Plan... plans) {
         for (Plan plan : plans) {
             planRepository.save(plan);
@@ -208,6 +261,30 @@ class PlanPersistenceAnalyticsRepositoryTest {
         return plans.stream()
                 .map(plan -> tuple(plan.getId(), plan.getRiskLevel(),
                         plan.getMinutesUntilDue(), plan.getMinutesOverdue()))
+                .toList();
+    }
+
+    private List<Tuple> customerGroupTuples(List<PlanBoardView.CustomerGroup> groups) {
+        return groups.stream()
+                .map(group -> tuple(group.getCustomerId(), group.getTotalPlans(), group.getActivePlans(),
+                        group.getCompletedPlans(), group.getOverduePlans(), group.getDueSoonPlans(),
+                        group.getAverageProgress(), group.getEarliestStart(), group.getLatestEnd()))
+                .toList();
+    }
+
+    private List<Tuple> bucketTuples(List<PlanBoardView.TimeBucket> buckets) {
+        return buckets.stream()
+                .map(bucket -> tuple(bucket.getBucketId(), bucket.getTotalPlans(), bucket.getActivePlans(),
+                        bucket.getCompletedPlans(), bucket.getOverduePlans(), bucket.getDueSoonPlans()))
+                .toList();
+    }
+
+    private List<Tuple> planCardTuples(List<PlanBoardView.CustomerGroup> groups) {
+        return groups.stream()
+                .flatMap(group -> group.getPlans().stream()
+                        .map(card -> tuple(group.getCustomerId(), card.getId(), card.getStatus(),
+                                card.getPlannedStartTime(), card.getPlannedEndTime(), card.getProgress(),
+                                card.isOverdue(), card.isDueSoon(), card.getMinutesUntilDue(), card.getMinutesOverdue())))
                 .toList();
     }
 }

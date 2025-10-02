@@ -30,6 +30,7 @@ import com.bob.mta.modules.plan.repository.InMemoryPlanActionHistoryRepository;
 import com.bob.mta.modules.plan.repository.InMemoryPlanAnalyticsRepository;
 import com.bob.mta.modules.plan.repository.InMemoryPlanRepository;
 import com.bob.mta.modules.plan.repository.PlanBoardGrouping;
+import com.bob.mta.modules.plan.service.PlanBoardView;
 import com.bob.mta.modules.plan.service.impl.InMemoryPlanService;
 import com.bob.mta.modules.plan.service.impl.RecordingNotificationGateway;
 import com.bob.mta.modules.plan.service.impl.TestTemplateService;
@@ -254,6 +255,43 @@ class PlanControllerTest {
                 .extracting(PlanBoardResponse.PlanCardResponse::getCustomerId)
                 .containsAnyOf("cust-board-1", "cust-board-2");
         assertThat(board.getMetrics().getDueSoonPlans()).isGreaterThanOrEqualTo(0);
+    }
+
+    @Test
+    void boardShouldExposeUnknownCustomerGroup() {
+        OffsetDateTime start = OffsetDateTime.now().plusDays(2);
+        CreatePlanCommand command = new CreatePlanCommand(
+                "tenant-controller-unknown",
+                "未知客户计划",
+                "board view unknown",
+                null,
+                "controller-unknown-owner",
+                start,
+                start.plusHours(2),
+                "Asia/Shanghai",
+                List.of("controller-unknown-owner"),
+                List.of(new PlanNodeCommand(null, "未知节点", "CHECKLIST", "controller-unknown-owner", 1, 60,
+                        PlanNodeActionType.NONE, 100, null, "", List.of()))
+        );
+        var plan = planService.createPlan(command);
+        planService.publishPlan(plan.getId(), "controller-unknown-owner");
+
+        ApiResponse<PlanBoardResponse> response = controller.board(
+                "tenant-controller-unknown",
+                null,
+                null,
+                null,
+                null,
+                null,
+                PlanBoardGrouping.DAY);
+
+        PlanBoardResponse board = response.getData();
+        assertThat(board.getCustomerGroups())
+                .extracting(PlanBoardResponse.CustomerGroupResponse::getCustomerId)
+                .containsExactly(PlanBoardView.UNKNOWN_CUSTOMER_ID);
+        assertThat(board.getCustomerGroups().get(0).getPlans())
+                .hasSize(1)
+                .allSatisfy(card -> assertThat(card.getCustomerId()).isNull());
     }
 
     @Test
