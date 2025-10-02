@@ -201,6 +201,65 @@ class PlanPersistenceAnalyticsRepositoryTest {
                 .isEqualTo(planCardTuples(inMemory.getCustomerGroups()));
     }
 
+    @Test
+    void shouldFilterPlanBoardByTenantAndCustomerList() {
+        OffsetDateTime baseline = OffsetDateTime.of(2024, 7, 1, 0, 0, 0, 0, ZoneOffset.UTC);
+
+        Plan includeCustomerA = createPlan(planRepository.nextPlanId(), "tenant-board-filter", PlanStatus.SCHEDULED,
+                "owner-a", "cust-keep-a", baseline.plusHours(2), baseline.plusHours(5),
+                baseline.minusDays(5), baseline.minusDays(2), List.of(PlanNodeStatus.DONE));
+        Plan includeCustomerB = createPlan(planRepository.nextPlanId(), "tenant-board-filter", PlanStatus.IN_PROGRESS,
+                "owner-b", "cust-keep-b", baseline.plusDays(1), baseline.plusDays(1).plusHours(3),
+                baseline.minusDays(4), baseline.minusDays(1), List.of(PlanNodeStatus.DONE, PlanNodeStatus.PENDING));
+        Plan excludedCustomer = createPlan(planRepository.nextPlanId(), "tenant-board-filter", PlanStatus.SCHEDULED,
+                "owner-c", "cust-drop", baseline.plusDays(2), baseline.plusDays(2).plusHours(2),
+                baseline.minusDays(3), baseline.minusDays(1), List.of(PlanNodeStatus.PENDING));
+        Plan otherTenant = createPlan(planRepository.nextPlanId(), "tenant-board-filter-other", PlanStatus.SCHEDULED,
+                "owner-d", "cust-keep-a", baseline.plusHours(6), baseline.plusHours(8),
+                baseline.minusDays(6), baseline.minusDays(4), List.of(PlanNodeStatus.DONE));
+
+        persist(includeCustomerA, includeCustomerB, excludedCustomer, otherTenant);
+
+        PlanSearchCriteria criteria = PlanSearchCriteria.builder()
+                .tenantId("tenant-board-filter")
+                .customerIds(List.of("cust-keep-a", "cust-keep-b"))
+                .from(baseline.minusDays(1))
+                .to(baseline.plusDays(7))
+                .build();
+
+        PlanBoardView persistence = analyticsRepository.getPlanBoard(criteria, PlanBoardGrouping.WEEK);
+        PlanBoardView inMemory = inMemoryAnalyticsRepository.getPlanBoard(criteria, PlanBoardGrouping.WEEK);
+
+        assertThat(customerGroupTuples(persistence.getCustomerGroups()))
+                .isEqualTo(customerGroupTuples(inMemory.getCustomerGroups()));
+        assertThat(bucketTuples(persistence.getTimeBuckets()))
+                .isEqualTo(bucketTuples(inMemory.getTimeBuckets()));
+        assertThat(persistence.getCustomerGroups())
+                .extracting(PlanBoardView.CustomerGroup::getCustomerId)
+                .containsExactlyInAnyOrder("cust-keep-a", "cust-keep-b");
+    }
+
+    @Test
+    void shouldReturnEmptyPlanBoardWhenNoMatchesInPersistence() {
+        PlanSearchCriteria criteria = PlanSearchCriteria.builder()
+                .tenantId("tenant-board-empty")
+                .from(OffsetDateTime.parse("2024-08-01T00:00:00Z"))
+                .to(OffsetDateTime.parse("2024-08-31T00:00:00Z"))
+                .build();
+
+        PlanBoardView persistence = analyticsRepository.getPlanBoard(criteria, PlanBoardGrouping.MONTH);
+        PlanBoardView inMemory = inMemoryAnalyticsRepository.getPlanBoard(criteria, PlanBoardGrouping.MONTH);
+
+        assertThat(persistence.getMetrics().getTotalPlans()).isZero();
+        assertThat(persistence.getCustomerGroups()).isEmpty();
+        assertThat(persistence.getTimeBuckets()).isEmpty();
+        assertThat(persistence.getMetrics().getCompletionRate()).isZero();
+        assertThat(customerGroupTuples(persistence.getCustomerGroups()))
+                .isEqualTo(customerGroupTuples(inMemory.getCustomerGroups()));
+        assertThat(bucketTuples(persistence.getTimeBuckets()))
+                .isEqualTo(bucketTuples(inMemory.getTimeBuckets()));
+    }
+
     private void persist(Plan... plans) {
         for (Plan plan : plans) {
             planRepository.save(plan);
