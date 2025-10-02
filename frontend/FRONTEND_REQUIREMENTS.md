@@ -23,6 +23,6 @@
 | F-003 | 提醒策略配置 | `GET /api/v1/plans/{id}/reminders`、`PUT /api/v1/plans/{id}/reminders`、`GET /api/v1/plans/reminder-options` | 提醒渠道、触发时机、模板 ID 等字段 | ✅ 完成 | 🟡 规划中 | 设计默认策略样例及更新成功响应 | 后端提供提醒配置字典，详见《docs/backend-requests/plan-reminder-options.md》 |
 | F-004 | 计划统计驾驶舱 | `GET /api/v1/plans/analytics` | 按状态、负责人、逾期风险等聚合数据 | 🧪 联调中 | 🟡 规划中 | 参考阶段三文档构造统计 Mock | 新增负责人负载与风险计划字段，详见《docs/backend-requests/plan-analytics-dashboard.md》；接口支持 `ownerId` 查询参数便于聚焦单个负责人 |
 | F-005 | 节点执行与提醒控制 | `POST /api/v1/plans/{id}/nodes/{nodeId}/{action}`、`PUT /api/v1/plans/{id}/reminders/{reminderId}` | 需返回最新 `PlanDetailPayload`（节点、时间线、提醒） | ✅ 完成 | 🛠️ 开发中 | Mock 将在下个迭代替换为真实接口联调 | 详见《docs/backend-requests/plan-node-operations.md》，后端已交付节点开始/完成/交接与提醒规则更新接口，并新增 `actionType`/`completionThreshold` 字段及阈值自动跳过逻辑 |
-| F-006 | 计划多视图驾驶舱 | `GET /api/v1/plans/board` 提供客户信息、计划时间窗 | 需要返回客户标识/名称及计划窗口（开始/结束）字段 | ✅ 完成 | ✅ 完成（迭代 #2 视图扩展） | 扩展 `listMockPlans` 与 `planDetail` 样例补充客户字段，生成客户聚合与日历事件并以 Node Test 校验聚合准确性、时间桶排序与时长计算 | 新增 `GET /api/v1/plans/board` 接口及《docs/backend-requests/plan-board-view.md》，支持客户分组、时间桶与派生指标，前端可替换 Mock 请求 |
+| F-006 | 计划多视图驾驶舱 | `GET /api/v1/plans/board` 提供客户信息、计划时间窗 | 需要返回客户标识/名称及计划窗口（开始/结束）字段 | ✅ 完成 | ✅ 完成（迭代 #2 视图扩展） | 扩展 `listMockPlans` 与 `planDetail` 样例补充客户字段，生成客户聚合与日历事件并以 Node Test 校验聚合准确性、时间桶排序与时长计算 | 新增 `GET /api/v1/plans/board` 接口及《docs/backend-requests/plan-board-view.md》，支持客户分组、时间桶、进度与风险派生指标，前端可替换 Mock 请求 |
 
 > 当条目状态发生变化时，请同步更新根目录 README 的「前端阶段四迭代进度」摘要。

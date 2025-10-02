@@ -37,7 +37,8 @@ import com.bob.mta.modules.plan.service.PlanService;
 import com.bob.mta.modules.plan.service.command.CreatePlanCommand;
 import com.bob.mta.modules.plan.service.command.PlanNodeCommand;
 import com.bob.mta.modules.plan.service.command.UpdatePlanCommand;
-import com.bob.mta.modules.plan.repository.PlanBoardQuery;
+import com.bob.mta.modules.plan.repository.PlanBoardGrouping;
+import com.bob.mta.modules.plan.repository.PlanBoardWindow;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
@@ -105,19 +106,20 @@ public class PlanController {
                                                 @RequestParam(required = false) OffsetDateTime from,
                                                 @RequestParam(required = false) OffsetDateTime to,
                                                 @RequestParam(defaultValue = "WEEK")
-                                                PlanBoardQuery.TimeGranularity granularity) {
-        PlanBoardQuery.Builder builder = PlanBoardQuery.builder()
-                .tenantId(StringUtils.hasText(tenantId) ? tenantId : null)
-                .ownerId(StringUtils.hasText(owner) ? owner : null)
+                                                PlanBoardGrouping granularity) {
+        PlanBoardWindow.Builder builder = PlanBoardWindow.builder()
                 .from(from)
                 .to(to)
-                .granularity(granularity)
+                .ownerId(StringUtils.hasText(owner) ? owner : null)
                 .statuses(statuses);
         if (customerIds != null && !customerIds.isEmpty()) {
             builder.customerIds(customerIds);
         }
-        PlanBoardQuery query = builder.build();
-        return ApiResponse.success(PlanBoardResponse.from(planService.getPlanBoard(query)));
+        PlanBoardWindow window = builder.build();
+        String tenantScope = StringUtils.hasText(tenantId) ? tenantId : null;
+        PlanBoardGrouping grouping = granularity == null ? PlanBoardGrouping.WEEK : granularity;
+        return ApiResponse.success(PlanBoardResponse.from(
+                planService.getPlanBoard(tenantScope, window, grouping)));
     }
 
     @PreAuthorize("hasAnyRole('ADMIN','OPERATOR')")

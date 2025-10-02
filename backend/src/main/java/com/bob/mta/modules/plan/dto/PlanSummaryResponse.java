@@ -2,6 +2,7 @@ package com.bob.mta.modules.plan.dto;
 
 import com.bob.mta.modules.plan.domain.Plan;
 import com.bob.mta.modules.plan.domain.PlanStatus;
+import com.bob.mta.modules.plan.domain.PlanRiskEvaluator;
 
 import java.time.OffsetDateTime;
 import java.util.List;
@@ -25,12 +26,17 @@ public class PlanSummaryResponse {
     private final int progress;
     private final List<String> participants;
     private final int reminderRuleCount;
+    private final boolean overdue;
+    private final boolean dueSoon;
+    private final Long minutesUntilDue;
+    private final Long minutesOverdue;
 
     public PlanSummaryResponse(String id, String tenantId, String title, String customerId, String owner, PlanStatus status,
                                OffsetDateTime plannedStartTime, OffsetDateTime plannedEndTime,
                                OffsetDateTime actualStartTime, OffsetDateTime actualEndTime,
                                String cancelReason, String canceledBy, OffsetDateTime canceledAt,
-                               String timezone, int progress, List<String> participants, int reminderRuleCount) {
+                               String timezone, int progress, List<String> participants, int reminderRuleCount,
+                               boolean overdue, boolean dueSoon, Long minutesUntilDue, Long minutesOverdue) {
         this.id = id;
         this.tenantId = tenantId;
         this.title = title;
@@ -48,9 +54,14 @@ public class PlanSummaryResponse {
         this.progress = progress;
         this.participants = participants;
         this.reminderRuleCount = reminderRuleCount;
+        this.overdue = overdue;
+        this.dueSoon = dueSoon;
+        this.minutesUntilDue = minutesUntilDue;
+        this.minutesOverdue = minutesOverdue;
     }
 
     public static PlanSummaryResponse from(Plan plan) {
+        var risk = PlanRiskEvaluator.evaluate(plan, OffsetDateTime.now());
         return new PlanSummaryResponse(
                 plan.getId(),
                 plan.getTenantId(),
@@ -68,7 +79,11 @@ public class PlanSummaryResponse {
                 plan.getTimezone(),
                 plan.getProgress(),
                 plan.getParticipants(),
-                plan.getReminderPolicy().getRules().size()
+                plan.getReminderPolicy().getRules().size(),
+                risk.overdue(),
+                risk.dueSoon(),
+                risk.minutesUntilDue(),
+                risk.minutesOverdue()
         );
     }
 
@@ -146,5 +161,21 @@ public class PlanSummaryResponse {
 
     public int getReminderRuleCount() {
         return reminderRuleCount;
+    }
+
+    public boolean isOverdue() {
+        return overdue;
+    }
+
+    public boolean isDueSoon() {
+        return dueSoon;
+    }
+
+    public Long getMinutesUntilDue() {
+        return minutesUntilDue;
+    }
+
+    public Long getMinutesOverdue() {
+        return minutesOverdue;
     }
 }

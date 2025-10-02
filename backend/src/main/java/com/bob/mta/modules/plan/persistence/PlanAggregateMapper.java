@@ -83,4 +83,10 @@ public interface PlanAggregateMapper {
     List<PlanOwnerLoadEntity> findOwnerLoads(PlanAnalyticsQueryParameters parameters);
 
     List<PlanRiskPlanEntity> findRiskPlans(PlanAnalyticsQueryParameters parameters);
+
+    List<PlanBoardCustomerAggregateEntity> aggregateCustomers(PlanBoardQueryParameters parameters);
+
+    List<PlanBoardTimeBucketEntity> aggregateTimeBuckets(PlanBoardQueryParameters parameters);
+
+    List<PlanBoardPlanEntity> findPlansForBoard(PlanBoardQueryParameters parameters);
 }

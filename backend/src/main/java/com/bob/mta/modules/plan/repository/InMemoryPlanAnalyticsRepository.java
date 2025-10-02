@@ -3,12 +3,16 @@ package com.bob.mta.modules.plan.repository;
 import com.bob.mta.modules.plan.domain.Plan;
 import com.bob.mta.modules.plan.domain.PlanAnalytics;
 import com.bob.mta.modules.plan.domain.PlanStatus;
+import com.bob.mta.modules.plan.service.PlanBoardAggregator;
+import com.bob.mta.modules.plan.service.PlanBoardView;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.stereotype.Repository;
 
 import java.time.OffsetDateTime;
 import java.util.Comparator;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 @Repository
@@ -111,6 +115,21 @@ public class InMemoryPlanAnalyticsRepository implements PlanAnalyticsRepository 
 
         return new PlanAnalytics(filtered.size(), design, scheduled, inProgress, completed, canceled, overdue, upcoming,
                 ownerLoads, riskPlans);
+    }
+
+    @Override
+    public PlanBoardView getPlanBoard(String tenantId, PlanBoardWindow window, PlanBoardGrouping grouping) {
+        PlanBoardWindow effectiveWindow = window == null ? PlanBoardWindow.builder().build() : window;
+        PlanBoardGrouping effectiveGrouping = grouping == null ? PlanBoardGrouping.WEEK : grouping;
+        PlanSearchCriteria criteria = effectiveWindow.toCriteria(tenantId);
+        List<Plan> candidates = planRepository.findByCriteria(criteria);
+        if (effectiveWindow.hasCustomerFilter() && effectiveWindow.getCustomerIds().size() != 1) {
+            Set<String> allowed = new LinkedHashSet<>(effectiveWindow.getCustomerIds());
+            candidates = candidates.stream()
+                    .filter(plan -> plan.getCustomerId() != null && allowed.contains(plan.getCustomerId()))
+                    .toList();
+        }
+        return PlanBoardAggregator.aggregate(candidates, effectiveGrouping);
     }
 
     private boolean isOverdue(Plan plan, OffsetDateTime reference) {

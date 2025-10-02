@@ -30,9 +30,10 @@ public class PlanBoardResponse {
                 .map(TimeBucketResponse::from)
                 .toList();
         MetricsResponse metricsResponse = view.getMetrics() == null
-                ? new MetricsResponse(0, 0, 0, 0, 0, 0)
+                ? new MetricsResponse(0, 0, 0, 0, 0, 0, 0)
                 : MetricsResponse.from(view.getMetrics());
-        return new PlanBoardResponse(groups, buckets, metricsResponse, view.getGranularity().name());
+        String granularity = view.getGranularity() == null ? null : view.getGranularity().name();
+        return new PlanBoardResponse(groups, buckets, metricsResponse, granularity);
     }
 
     public List<CustomerGroupResponse> getCustomerGroups() {
@@ -57,6 +58,8 @@ public class PlanBoardResponse {
         private final long totalPlans;
         private final long activePlans;
         private final long completedPlans;
+        private final long overduePlans;
+        private final long dueSoonPlans;
         private final double averageProgress;
         private final OffsetDateTime earliestStart;
         private final OffsetDateTime latestEnd;
@@ -67,6 +70,8 @@ public class PlanBoardResponse {
                                      long totalPlans,
                                      long activePlans,
                                      long completedPlans,
+                                     long overduePlans,
+                                     long dueSoonPlans,
                                      double averageProgress,
                                      OffsetDateTime earliestStart,
                                      OffsetDateTime latestEnd,
@@ -76,6 +81,8 @@ public class PlanBoardResponse {
             this.totalPlans = totalPlans;
             this.activePlans = activePlans;
             this.completedPlans = completedPlans;
+            this.overduePlans = overduePlans;
+            this.dueSoonPlans = dueSoonPlans;
             this.averageProgress = averageProgress;
             this.earliestStart = earliestStart;
             this.latestEnd = latestEnd;
@@ -92,6 +99,8 @@ public class PlanBoardResponse {
                     group.getTotalPlans(),
                     group.getActivePlans(),
                     group.getCompletedPlans(),
+                    group.getOverduePlans(),
+                    group.getDueSoonPlans(),
                     group.getAverageProgress(),
                     group.getEarliestStart(),
                     group.getLatestEnd(),
@@ -119,6 +128,14 @@ public class PlanBoardResponse {
             return completedPlans;
         }
 
+        public long getOverduePlans() {
+            return overduePlans;
+        }
+
+        public long getDueSoonPlans() {
+            return dueSoonPlans;
+        }
+
         public double getAverageProgress() {
             return averageProgress;
         }
@@ -144,6 +161,7 @@ public class PlanBoardResponse {
         private final long activePlans;
         private final long completedPlans;
         private final long overduePlans;
+        private final long dueSoonPlans;
         private final List<PlanCardResponse> plans;
 
         public TimeBucketResponse(String bucketId,
@@ -153,6 +171,7 @@ public class PlanBoardResponse {
                                   long activePlans,
                                   long completedPlans,
                                   long overduePlans,
+                                  long dueSoonPlans,
                                   List<PlanCardResponse> plans) {
             this.bucketId = bucketId;
             this.start = start;
@@ -161,6 +180,7 @@ public class PlanBoardResponse {
             this.activePlans = activePlans;
             this.completedPlans = completedPlans;
             this.overduePlans = overduePlans;
+            this.dueSoonPlans = dueSoonPlans;
             this.plans = plans;
         }
 
@@ -176,6 +196,7 @@ public class PlanBoardResponse {
                     bucket.getActivePlans(),
                     bucket.getCompletedPlans(),
                     bucket.getOverduePlans(),
+                    bucket.getDueSoonPlans(),
                     plans
             );
         }
@@ -208,6 +229,10 @@ public class PlanBoardResponse {
             return overduePlans;
         }
 
+        public long getDueSoonPlans() {
+            return dueSoonPlans;
+        }
+
         public List<PlanCardResponse> getPlans() {
             return plans;
         }
@@ -223,6 +248,10 @@ public class PlanBoardResponse {
         private final OffsetDateTime plannedEndTime;
         private final String timezone;
         private final int progress;
+        private final boolean overdue;
+        private final boolean dueSoon;
+        private final Long minutesUntilDue;
+        private final Long minutesOverdue;
 
         public PlanCardResponse(String id,
                                 String title,
@@ -232,7 +261,11 @@ public class PlanBoardResponse {
                                 OffsetDateTime plannedStartTime,
                                 OffsetDateTime plannedEndTime,
                                 String timezone,
-                                int progress) {
+                                int progress,
+                                boolean overdue,
+                                boolean dueSoon,
+                                Long minutesUntilDue,
+                                Long minutesOverdue) {
             this.id = id;
             this.title = title;
             this.status = status;
@@ -242,6 +275,10 @@ public class PlanBoardResponse {
             this.plannedEndTime = plannedEndTime;
             this.timezone = timezone;
             this.progress = progress;
+            this.overdue = overdue;
+            this.dueSoon = dueSoon;
+            this.minutesUntilDue = minutesUntilDue;
+            this.minutesOverdue = minutesOverdue;
         }
 
         public static PlanCardResponse from(PlanBoardView.PlanCard card) {
@@ -254,7 +291,11 @@ public class PlanBoardResponse {
                     card.getPlannedStartTime(),
                     card.getPlannedEndTime(),
                     card.getTimezone(),
-                    card.getProgress()
+                    card.getProgress(),
+                    card.isOverdue(),
+                    card.isDueSoon(),
+                    card.getMinutesUntilDue(),
+                    card.getMinutesOverdue()
             );
         }
 
@@ -293,6 +334,22 @@ public class PlanBoardResponse {
         public int getProgress() {
             return progress;
         }
+
+        public boolean isOverdue() {
+            return overdue;
+        }
+
+        public boolean isDueSoon() {
+            return dueSoon;
+        }
+
+        public Long getMinutesUntilDue() {
+            return minutesUntilDue;
+        }
+
+        public Long getMinutesOverdue() {
+            return minutesOverdue;
+        }
     }
 
     public static class MetricsResponse {
@@ -300,21 +357,27 @@ public class PlanBoardResponse {
         private final long activePlans;
         private final long completedPlans;
         private final long overduePlans;
+        private final long dueSoonPlans;
         private final double averageProgress;
         private final double averageDurationHours;
+        private final double completionRate;
 
         public MetricsResponse(long totalPlans,
                                long activePlans,
                                long completedPlans,
                                long overduePlans,
+                               long dueSoonPlans,
                                double averageProgress,
-                               double averageDurationHours) {
+                               double averageDurationHours,
+                               double completionRate) {
             this.totalPlans = totalPlans;
             this.activePlans = activePlans;
             this.completedPlans = completedPlans;
             this.overduePlans = overduePlans;
+            this.dueSoonPlans = dueSoonPlans;
             this.averageProgress = averageProgress;
             this.averageDurationHours = averageDurationHours;
+            this.completionRate = completionRate;
         }
 
         public static MetricsResponse from(PlanBoardView.Metrics metrics) {
@@ -323,8 +386,10 @@ public class PlanBoardResponse {
                     metrics.getActivePlans(),
                     metrics.getCompletedPlans(),
                     metrics.getOverduePlans(),
+                    metrics.getDueSoonPlans(),
                     metrics.getAverageProgress(),
-                    metrics.getAverageDurationHours()
+                    metrics.getAverageDurationHours(),
+                    metrics.getCompletionRate()
             );
         }
 
@@ -344,12 +409,20 @@ public class PlanBoardResponse {
             return overduePlans;
         }
 
+        public long getDueSoonPlans() {
+            return dueSoonPlans;
+        }
+
         public double getAverageProgress() {
             return averageProgress;
         }
 
         public double getAverageDurationHours() {
             return averageDurationHours;
+        }
+
+        public double getCompletionRate() {
+            return completionRate;
         }
     }
 }
