@@ -199,6 +199,7 @@ export function PlanListBoard({
     <PlanCalendarView
       translate={translate}
       events={planState.calendarEvents}
+      buckets={planState.calendarBuckets}
       plans={planState.records}
       wrapWithCard={false}
     />
