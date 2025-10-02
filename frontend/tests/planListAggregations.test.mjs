@@ -80,6 +80,32 @@ test('aggregatePlansByCustomer groups by normalized customer and aggregates stat
   assert.equal(unassigned.progressAverage, null);
 });
 
+test('aggregatePlansByCustomer sorts alphabetically when using name comparator', () => {
+  const plans = [
+    createPlan('p-16', {
+      customer: { id: 'c-16', name: 'Zephyr Holdings' },
+      customerId: 'c-16',
+      customerName: 'Zephyr Holdings',
+    }),
+    createPlan('p-17', {
+      customer: { id: 'c-17', name: 'Acme Logistics' },
+      customerId: 'c-17',
+      customerName: 'Acme Logistics',
+    }),
+    createPlan('p-18', {
+      customer: { id: 'c-18', name: 'ByteWorks' },
+      customerId: 'c-18',
+      customerName: 'ByteWorks',
+    }),
+  ];
+
+  const groups = aggregatePlansByCustomer(plans, { sortBy: 'name' });
+  assert.deepEqual(
+    groups.map((group) => group.customerName),
+    ['Acme Logistics', 'ByteWorks', 'Zephyr Holdings']
+  );
+});
+
 test('createPlanCalendarEvents sorts by anchor time and computes duration', () => {
   const plans = [
     createPlan('p-5', {
@@ -132,6 +158,53 @@ test('groupCalendarEvents buckets events by granularity and preserves ordering',
   const weekBuckets = groupCalendarEvents(events, { granularity: 'week', weekStartsOn: 1 });
   assert.ok(weekBuckets.length >= 2);
   assert.ok(weekBuckets.every((bucket) => bucket.events.length >= 1));
+});
+
+test('groupCalendarEvents aligns week buckets to configured start day', () => {
+  const plans = [
+    createPlan('p-19', {
+      plannedStartTime: '2025-05-07T12:00:00.000Z',
+      plannedEndTime: '2025-05-07T13:00:00.000Z',
+    }),
+  ];
+
+  const events = createPlanCalendarEvents(plans);
+  const [bucket] = groupCalendarEvents(events, { granularity: 'week', weekStartsOn: 1 });
+  assert.ok(bucket);
+  assert.equal(bucket.start, '2025-05-05T00:00:00.000Z');
+  assert.equal(bucket.end, '2025-05-12T00:00:00.000Z');
+});
+
+test('groupCalendarEvents aggregates yearly buckets when requested', () => {
+  const plans = [
+    createPlan('p-20', {
+      plannedStartTime: '2024-12-15T08:00:00.000Z',
+      plannedEndTime: '2024-12-15T09:00:00.000Z',
+    }),
+    createPlan('p-21', {
+      plannedStartTime: '2025-01-10T08:00:00.000Z',
+      plannedEndTime: '2025-01-10T09:00:00.000Z',
+    }),
+  ];
+
+  const events = createPlanCalendarEvents(plans);
+  const buckets = groupCalendarEvents(events, { granularity: 'year' });
+  assert.equal(buckets.length, 2);
+  assert.deepEqual(
+    buckets.map((bucket) => ({ label: bucket.label, start: bucket.start, end: bucket.end })),
+    [
+      {
+        label: '2024',
+        start: '2024-01-01T00:00:00.000Z',
+        end: '2025-01-01T00:00:00.000Z',
+      },
+      {
+        label: '2025',
+        start: '2025-01-01T00:00:00.000Z',
+        end: '2026-01-01T00:00:00.000Z',
+      },
+    ]
+  );
 });
 
 test('transformPlansToCalendarBuckets reuses event aggregation', () => {
