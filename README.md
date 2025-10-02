@@ -220,7 +220,7 @@
   - ✅ 已完成：升级计划多视图为 Tabs + Segmented 联动切换，沿用筛选条件渲染表格、客户树形列表与日历视图，客户视图以 List/Tree 呈现负责人与状态分布，日历视图接入事件映射与多粒度聚合，并在即将开始列表中过滤出基于时间锚点的未来事件；Node Test 覆盖客户聚合、日历分组与时间锚点推断逻辑。
   - ✅ 已完成：封装 `PlanByCustomerView` 与 `PlanCalendarView` 组件复用计划聚合结果，客户视图展示状态树与负责人标签，日历视图支持日/周/月/年颗粒度分桶并联动列表渲染；配套在 `planList` 状态模块输出客户聚合与日历事件派生方法，并以 Node Test 校验排序、周起始日与年度区间边界。
   - 📌 下一步：等待后端提供节点执行与提醒更新接口后对接真实调用，并补齐操作失败提示与权限校验的前端展现。
-  - ✅ 已确认：后端已上线 `GET /api/v1/plans/filter-options` 与 `GET /api/v1/plans/activity-types`，前端以 `mockPlanFilterOptions.json` 覆盖 `statusLabel`、`ownerLabel`、`customerLabel`、`plannedWindow(hint/start/end)` 等字段，以 `mockPlanActivityTypes.json` 补齐 `messages[key/message]` 与 `attributes[name/descriptionKey/description]`，在 Node Test 中验证筛选枚举排序与时间线属性渲染后，待与真实接口切换时同步落地缓存与降级策略。
+  - ✅ 已确认：后端已在 2025-09 发布 `GET /api/v1/plans/filter-options`（详见《[计划列表筛选字典接口说明](docs/backend-requests/plan-filter-options.md#响应结构)》）与 `GET /api/v1/plans/activity-types`（详见《[计划时间线事件字典说明](docs/backend-requests/plan-timeline-activities.md#响应结构)》）；前端目前以 `mockPlanFilterOptions.json`/`mockPlanActivityTypes.json` 对齐文档字段，持续通过 Node Test 校验筛选枚举排序、时间窗提示与时间线属性渲染，待切换真实接口时同步落地缓存刷新与降级策略。
 
 ### ⏭️ 下一步
 - 迭代 #2：设计前端状态管理与缓存方案，区分用户会话、计划查询缓存与多语言资源加载，完善 Mock 数据与单元测试基线。
