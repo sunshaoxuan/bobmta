@@ -123,6 +123,32 @@ test('derivePlanDetailContext switches mode when plan moves from design to execu
   assert.equal(executionContext.currentNodeId, 'NODE-2');
 });
 
+test('derivePlanDetailContext reverts to design mode when plan returns to draft', () => {
+  const executionContext = derivePlanDetailContext(
+    createDetail({
+      status: 'IN_PROGRESS',
+      nodes: [
+        { id: 'NODE-1', name: 'Completed Node', order: 1, status: 'DONE', actionType: 'MANUAL' },
+        { id: 'NODE-2', name: 'Running Node', order: 2, status: 'IN_PROGRESS', actionType: 'MANUAL' },
+      ],
+    })
+  );
+
+  const revertedContext = derivePlanDetailContext(
+    createDetail({
+      status: 'DESIGN',
+      nodes: [
+        { id: 'NODE-3', name: 'Draft Node', order: 1, status: 'PENDING', actionType: 'MANUAL' },
+      ],
+    })
+  );
+
+  assert.equal(executionContext.mode, 'execution');
+  assert.equal(executionContext.currentNodeId, 'NODE-2');
+  assert.equal(revertedContext.mode, 'design');
+  assert.equal(revertedContext.currentNodeId, 'NODE-3');
+});
+
 test('derivePlanDetailContext keeps execution mode but clears current node when cancelled plan is fully completed', () => {
   const context = derivePlanDetailContext(
     createDetail({

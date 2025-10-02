@@ -1,8 +1,9 @@
 import React from '../../vendor/react/index.js';
 import { Space, Tag, Typography } from '../../vendor/antd/index.js';
 import type { LocalizationState } from '../i18n/useLocalization';
+import { PLAN_MODE_LABEL } from '../constants/planMode';
 
-const { Paragraph } = Typography;
+const { Paragraph, Text } = Typography;
 
 type ExecutionModePanelProps = {
   translate: LocalizationState['translate'];
@@ -20,14 +21,16 @@ export function ExecutionModePanel({
   const hasNodes = totalCount > 0;
 
   return (
-    <Space
-      direction="vertical"
-      size={4}
-      className="plan-mode-panel plan-mode-panel-execution"
-    >
+    <Space direction="vertical" size={4} className="plan-mode-panel plan-mode-panel-execution">
       <Paragraph type="secondary" className="plan-node-action-helper">
         {translate('planDetailModeExecutionHint')}
       </Paragraph>
+      <Text type="secondary" className="plan-mode-panel-label">
+        <Tag color="geekblue">
+          {translate(PLAN_MODE_LABEL.execution)}
+        </Tag>
+        {translate('planDetailModeDesignHint')}
+      </Text>
       {hasNodes ? (
         <Space size={8} wrap>
           {currentNodeName ? (

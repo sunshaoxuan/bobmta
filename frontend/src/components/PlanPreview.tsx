@@ -103,25 +103,9 @@ export function PlanPreview({
   const detailStatus = isActiveDetail ? detailState.status : 'idle';
   const detailError = isActiveDetail ? detailState.error : null;
   const detailOrigin = isActiveDetail ? detailState.origin : null;
-  const previewContext = useMemo<PlanDetailState['context']>(() => {
-    if (detail) {
-      const detailMode = PLAN_STATUS_MODE[detail.status];
-      const context = detailState.context;
-      if (
-        context.planStatus !== detail.status ||
-        context.mode !== detailMode
-      ) {
-        return {
-          planStatus: detail.status,
-          mode: detailMode,
-          currentNodeId: context.currentNodeId,
-        };
-      }
-      return context;
-    }
-    return deriveFallbackContext(plan);
-  }, [detail, detailState.context, plan]);
-  const { mode, currentNodeId } = previewContext;
+  const previewStatus = detail?.status ?? plan?.status ?? null;
+  const mode: PlanViewMode = previewStatus ? PLAN_STATUS_MODE[previewStatus] : 'design';
+  const currentNodeId = isActiveDetail ? detailState.currentNodeId : null;
   const [editingNodeId, setEditingNodeId] = useState<string | null>(null);
   const modeSections = MODE_SECTION_CONFIG[mode];
   const lastUpdatedLabel =
@@ -132,6 +116,7 @@ export function PlanPreview({
       : null;
 
   const summary = detail ?? plan;
+  const summaryStatus = summary?.status ?? plan?.status ?? 'DESIGN';
   const description = detail?.description ?? translate('planDetailDescriptionFallback');
   const tags = detail?.tags ?? [];
   const participantNames = detail
@@ -479,10 +464,10 @@ export function PlanPreview({
       ) : (
         <Space direction="vertical" size="large" style={{ width: '100%' }}>
           <div className="plan-preview-header">
-            <Text className="plan-preview-title">{plan.title}</Text>
+            <Text className="plan-preview-title">{summary?.title ?? plan.title}</Text>
             <Space size="small">
-              <Tag color={PLAN_STATUS_COLOR[plan.status]}>
-                {translate(PLAN_STATUS_LABEL[plan.status])}
+              <Tag color={PLAN_STATUS_COLOR[summaryStatus]}>
+                {translate(PLAN_STATUS_LABEL[summaryStatus])}
               </Tag>
               <Tag color={mode === 'design' ? 'purple' : 'geekblue'}>
                 {translate(PLAN_MODE_LABEL[mode])}
@@ -514,13 +499,13 @@ export function PlanPreview({
           </div>
           <div className="plan-preview-grid">
             <PreviewField label={translate('planPreviewOwnerLabel')}>
-              <Tag color="blue">{plan.owner}</Tag>
+              <Tag color="blue">{summary?.owner ?? plan.owner}</Tag>
             </PreviewField>
             <PreviewField label={translate('planDetailCustomerLabel')}>
               <Text>{detail?.customer?.name ?? translate('planPreviewEmptyValue')}</Text>
             </PreviewField>
             <PreviewField label={translate('planPreviewWindowLabel')}>
-              <Text>{formatPlanWindow(plan, locale, translate)}</Text>
+              <Text>{formatPlanWindow(summary ?? plan, locale, translate)}</Text>
             </PreviewField>
             <PreviewField label={translate('planPreviewParticipantsLabel')}>
               <Space size="small" wrap>
@@ -737,14 +722,6 @@ function PreviewField({ label, children }: PreviewFieldProps) {
       <div className="plan-preview-field-value">{children}</div>
     </div>
   );
-}
-
-function deriveFallbackContext(plan: PlanSummary | null): PlanDetailState['context'] {
-  if (!plan) {
-    return { planStatus: null, mode: 'design', currentNodeId: null };
-  }
-  const mode = PLAN_STATUS_MODE[plan.status];
-  return { planStatus: plan.status, mode, currentNodeId: null };
 }
 
 function normalizeProgress(value: number | undefined): number {
