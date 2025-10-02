@@ -102,6 +102,7 @@
 - `metrics.dueSoonPlans`：在 24 小时内即将到期的活跃计划数量，结合 `overduePlans` 便于判定风险分布。
 - `metrics.completionRate`：已完成计划的百分比（0-100），保留 1 位小数。
 - `customerGroups`：按 `customerId` 聚合的分组信息，包含活跃/完成数量、时间窗口范围以及计划卡片。
+- 当计划缺失客户编号时，`customerId` 会被折叠为 `UNKNOWN`，仍可通过分组下的卡片访问原始计划。
 - `timeBuckets`：按粒度拆分的时间桶，`bucketId` 作为前端 Tab/日历的 key，`plans` 用于快速渲染对应视图。
 - `plans[].overdue` / `plans[].dueSoon`：派生风险指标，分别表示计划已逾期或在默认阈值内即将到期。
 - `plans[].minutesUntilDue` / `plans[].minutesOverdue`：结合风险标识的分钟粒度倒计时，便于前端展示剩余时间或逾期时长。
@@ -114,5 +115,5 @@
 
 ## 交付状态
 
-- ✅ 后端已在 `PlanService#getPlanBoard` 与 `PlanController#board` 提供实现，并补充单测与示例响应。
+- ✅ 后端已在 `PlanService#getPlanBoard` 与 `PlanController#board` 提供实现，新增 SQL 聚合查询与未知客户分组逻辑，并补充单测与示例响应。
 - 🔄 前端可依据本文档调整 `PlanListBoard` 的请求逻辑与数据映射。

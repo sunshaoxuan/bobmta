@@ -125,6 +125,46 @@
         <result column="minutes_overdue" property="minutesOverdue"/>
     </resultMap>
 
+    <resultMap id="PlanBoardCustomerAggregateResult" type="com.bob.mta.modules.plan.persistence.PlanBoardCustomerAggregateEntity">
+        <result column="customer_id" property="customerId"/>
+        <result column="customer_name" property="customerName"/>
+        <result column="total_plans" property="totalPlans"/>
+        <result column="active_plans" property="activePlans"/>
+        <result column="completed_plans" property="completedPlans"/>
+        <result column="overdue_plans" property="overduePlans"/>
+        <result column="due_soon_plans" property="dueSoonPlans"/>
+        <result column="average_progress" property="averageProgress"/>
+        <result column="earliest_start" property="earliestStart"/>
+        <result column="latest_end" property="latestEnd"/>
+    </resultMap>
+
+    <resultMap id="PlanBoardTimeBucketResult" type="com.bob.mta.modules.plan.persistence.PlanBoardTimeBucketEntity">
+        <result column="bucket_id" property="bucketId"/>
+        <result column="bucket_start" property="start"/>
+        <result column="bucket_end" property="end"/>
+        <result column="total_plans" property="totalPlans"/>
+        <result column="active_plans" property="activePlans"/>
+        <result column="completed_plans" property="completedPlans"/>
+        <result column="overdue_plans" property="overduePlans"/>
+        <result column="due_soon_plans" property="dueSoonPlans"/>
+    </resultMap>
+
+    <resultMap id="PlanBoardPlanResult" type="com.bob.mta.modules.plan.persistence.PlanBoardPlanEntity">
+        <id column="plan_id" property="planId"/>
+        <result column="title" property="title"/>
+        <result column="status" property="status" javaType="com.bob.mta.modules.plan.domain.PlanStatus"/>
+        <result column="owner_id" property="ownerId"/>
+        <result column="customer_id" property="customerId"/>
+        <result column="planned_start_time" property="plannedStartTime"/>
+        <result column="planned_end_time" property="plannedEndTime"/>
+        <result column="timezone" property="timezone"/>
+        <result column="progress" property="progress"/>
+        <result column="overdue" property="overdue"/>
+        <result column="due_soon" property="dueSoon"/>
+        <result column="minutes_until_due" property="minutesUntilDue"/>
+        <result column="minutes_overdue" property="minutesOverdue"/>
+    </resultMap>
+
     <select id="findPlans" parameterType="com.bob.mta.modules.plan.persistence.PlanQueryParameters"
             resultMap="PlanEntityResult">
         SELECT plan_id,
@@ -451,6 +491,232 @@
         <if test="riskLimit != null">
             LIMIT #{riskLimit}
         </if>
+    </select>
+
+    <select id="aggregateCustomers" parameterType="com.bob.mta.modules.plan.persistence.PlanBoardQueryParameters"
+            resultMap="PlanBoardCustomerAggregateResult">
+        WITH filtered AS (
+            SELECT p.plan_id,
+                   p.customer_id,
+                   p.status,
+                   p.planned_start_time,
+                   p.planned_end_time
+            FROM mt_plan p
+            <where>
+                <if test="tenantId != null">
+                    p.tenant_id = #{tenantId}
+                </if>
+                <if test="customerIds != null and !customerIds.isEmpty()">
+                    AND p.customer_id IN
+                    <foreach collection="customerIds" item="cid" open="(" separator="," close=")">
+                        #{cid}
+                    </foreach>
+                </if>
+                <if test="ownerId != null">
+                    AND p.owner_id = #{ownerId}
+                </if>
+                <if test="statuses != null and !statuses.isEmpty()">
+                    AND p.status IN
+                    <foreach collection="statuses" item="status" open="(" separator="," close=")">
+                        #{status}
+                    </foreach>
+                </if>
+                <if test="from != null">
+                    AND p.planned_end_time &gt;= #{from}
+                </if>
+                <if test="to != null">
+                    AND p.planned_start_time &lt;= #{to}
+                </if>
+            </where>
+        )
+        SELECT COALESCE(filtered.customer_id, 'UNKNOWN') AS customer_id,
+               NULL::varchar                             AS customer_name,
+               COUNT(1)                                  AS total_plans,
+               SUM(CASE WHEN filtered.status IN ('SCHEDULED', 'IN_PROGRESS') THEN 1 ELSE 0 END) AS active_plans,
+               SUM(CASE WHEN filtered.status = 'COMPLETED' THEN 1 ELSE 0 END)                  AS completed_plans,
+               SUM(CASE
+                       WHEN filtered.status IN ('SCHEDULED', 'IN_PROGRESS')
+                           AND filtered.planned_end_time IS NOT NULL
+                           AND filtered.planned_end_time &lt; #{referenceTime}
+                           THEN 1
+                       ELSE 0 END)                                                             AS overdue_plans,
+               SUM(CASE
+                       WHEN filtered.status IN ('SCHEDULED', 'IN_PROGRESS')
+                           AND filtered.planned_end_time IS NOT NULL
+                           AND filtered.planned_end_time &gt;= #{referenceTime}
+                           AND filtered.planned_end_time &lt; #{referenceTime} + make_interval(mins => #{dueSoonMinutes})
+                           THEN 1
+                       ELSE 0 END)                                                             AS due_soon_plans,
+               AVG(COALESCE(progress.progress, 0))                                            AS average_progress,
+               MIN(filtered.planned_start_time)                                                AS earliest_start,
+               MAX(filtered.planned_end_time)                                                  AS latest_end
+        FROM filtered
+                 LEFT JOIN (
+            SELECT plan_id,
+                   CASE
+                       WHEN COUNT(*) = 0 THEN 0
+                       ELSE ROUND(SUM(CASE WHEN status = 'DONE' THEN 1 ELSE 0 END) * 100.0 / COUNT(*))
+                       END AS progress
+            FROM mt_plan_node_execution
+            GROUP BY plan_id
+        ) progress ON progress.plan_id = filtered.plan_id
+        GROUP BY COALESCE(filtered.customer_id, 'UNKNOWN')
+    </select>
+
+    <select id="aggregateTimeBuckets" parameterType="com.bob.mta.modules.plan.persistence.PlanBoardQueryParameters"
+            resultMap="PlanBoardTimeBucketResult">
+        WITH filtered AS (
+            SELECT p.plan_id,
+                   p.status,
+                   p.planned_start_time,
+                   p.planned_end_time
+            FROM mt_plan p
+            <where>
+                <if test="tenantId != null">
+                    p.tenant_id = #{tenantId}
+                </if>
+                <if test="customerIds != null and !customerIds.isEmpty()">
+                    AND p.customer_id IN
+                    <foreach collection="customerIds" item="cid" open="(" separator="," close=")">
+                        #{cid}
+                    </foreach>
+                </if>
+                <if test="ownerId != null">
+                    AND p.owner_id = #{ownerId}
+                </if>
+                <if test="statuses != null and !statuses.isEmpty()">
+                    AND p.status IN
+                    <foreach collection="statuses" item="status" open="(" separator="," close=")">
+                        #{status}
+                    </foreach>
+                </if>
+                <if test="from != null">
+                    AND p.planned_end_time &gt;= #{from}
+                </if>
+                <if test="to != null">
+                    AND p.planned_start_time &lt;= #{to}
+                </if>
+                AND p.planned_start_time IS NOT NULL
+            </where>
+        ),
+             enriched AS (
+                 SELECT filtered.*,
+                        CASE
+                            WHEN #{grouping} = 'DAY' THEN date_trunc('day', filtered.planned_start_time)
+                            WHEN #{grouping} = 'WEEK' THEN date_trunc('week', filtered.planned_start_time)
+                            WHEN #{grouping} = 'MONTH' THEN date_trunc('month', filtered.planned_start_time)
+                            WHEN #{grouping} = 'YEAR' THEN date_trunc('year', filtered.planned_start_time)
+                        END AS bucket_start
+                 FROM filtered
+             )
+        SELECT CASE
+                   WHEN #{grouping} = 'DAY' THEN to_char(enriched.bucket_start, 'YYYY-MM-DD')
+                   WHEN #{grouping} = 'WEEK' THEN to_char(enriched.bucket_start, 'IYYY-"W"IW')
+                   WHEN #{grouping} = 'MONTH' THEN to_char(enriched.bucket_start, 'YYYY-MM')
+                   WHEN #{grouping} = 'YEAR' THEN to_char(enriched.bucket_start, 'YYYY')
+               END                                                   AS bucket_id,
+               enriched.bucket_start                                 AS bucket_start,
+               CASE
+                   WHEN #{grouping} = 'DAY' THEN enriched.bucket_start + INTERVAL '1 day'
+                   WHEN #{grouping} = 'WEEK' THEN enriched.bucket_start + INTERVAL '1 week'
+                   WHEN #{grouping} = 'MONTH' THEN enriched.bucket_start + INTERVAL '1 month'
+                   WHEN #{grouping} = 'YEAR' THEN enriched.bucket_start + INTERVAL '1 year'
+               END                                                   AS bucket_end,
+               COUNT(1)                                              AS total_plans,
+               SUM(CASE WHEN enriched.status IN ('SCHEDULED', 'IN_PROGRESS') THEN 1 ELSE 0 END) AS active_plans,
+               SUM(CASE WHEN enriched.status = 'COMPLETED' THEN 1 ELSE 0 END)                    AS completed_plans,
+               SUM(CASE
+                       WHEN enriched.status IN ('SCHEDULED', 'IN_PROGRESS')
+                           AND enriched.planned_end_time IS NOT NULL
+                           AND enriched.planned_end_time &lt; #{referenceTime}
+                           THEN 1
+                       ELSE 0 END)                                                                AS overdue_plans,
+               SUM(CASE
+                       WHEN enriched.status IN ('SCHEDULED', 'IN_PROGRESS')
+                           AND enriched.planned_end_time IS NOT NULL
+                           AND enriched.planned_end_time &gt;= #{referenceTime}
+                           AND enriched.planned_end_time &lt; #{referenceTime} + make_interval(mins => #{dueSoonMinutes})
+                           THEN 1
+                       ELSE 0 END)                                                                AS due_soon_plans
+        FROM enriched
+        GROUP BY enriched.bucket_start
+        ORDER BY enriched.bucket_start
+    </select>
+
+    <select id="findPlansForBoard" parameterType="com.bob.mta.modules.plan.persistence.PlanBoardQueryParameters"
+            resultMap="PlanBoardPlanResult">
+        SELECT p.plan_id,
+               p.title,
+               p.status,
+               p.owner_id,
+               p.customer_id,
+               p.planned_start_time,
+               p.planned_end_time,
+               p.timezone,
+               COALESCE(progress.progress, 0)                                                     AS progress,
+               CASE
+                   WHEN p.status IN ('SCHEDULED', 'IN_PROGRESS')
+                       AND p.planned_end_time IS NOT NULL
+                       AND p.planned_end_time &lt; #{referenceTime}
+                       THEN TRUE
+                   ELSE FALSE END                                                                  AS overdue,
+               CASE
+                   WHEN p.status IN ('SCHEDULED', 'IN_PROGRESS')
+                       AND p.planned_end_time IS NOT NULL
+                       AND p.planned_end_time &gt;= #{referenceTime}
+                       AND p.planned_end_time &lt; #{referenceTime} + make_interval(mins => #{dueSoonMinutes})
+                       THEN TRUE
+                   ELSE FALSE END                                                                  AS due_soon,
+               CASE
+                   WHEN p.status IN ('SCHEDULED', 'IN_PROGRESS')
+                       AND p.planned_end_time IS NOT NULL
+                       AND p.planned_end_time &gt;= #{referenceTime}
+                       AND p.planned_end_time &lt; #{referenceTime} + make_interval(mins => #{dueSoonMinutes})
+                       THEN CAST(EXTRACT(EPOCH FROM (p.planned_end_time - #{referenceTime})) / 60 AS BIGINT)
+                   ELSE NULL END                                                                   AS minutes_until_due,
+               CASE
+                   WHEN p.status IN ('SCHEDULED', 'IN_PROGRESS')
+                       AND p.planned_end_time IS NOT NULL
+                       AND p.planned_end_time &lt; #{referenceTime}
+                       THEN CAST(EXTRACT(EPOCH FROM (#{referenceTime} - p.planned_end_time)) / 60 AS BIGINT)
+                   ELSE NULL END                                                                   AS minutes_overdue
+        FROM mt_plan p
+                 LEFT JOIN (
+            SELECT plan_id,
+                   CASE
+                       WHEN COUNT(*) = 0 THEN 0
+                       ELSE ROUND(SUM(CASE WHEN status = 'DONE' THEN 1 ELSE 0 END) * 100.0 / COUNT(*))
+                       END AS progress
+            FROM mt_plan_node_execution
+            GROUP BY plan_id
+        ) progress ON progress.plan_id = p.plan_id
+        <where>
+            <if test="tenantId != null">
+                p.tenant_id = #{tenantId}
+            </if>
+            <if test="customerIds != null and !customerIds.isEmpty()">
+                AND p.customer_id IN
+                <foreach collection="customerIds" item="cid" open="(" separator="," close=")">
+                    #{cid}
+                </foreach>
+            </if>
+            <if test="ownerId != null">
+                AND p.owner_id = #{ownerId}
+            </if>
+            <if test="statuses != null and !statuses.isEmpty()">
+                AND p.status IN
+                <foreach collection="statuses" item="status" open="(" separator="," close=")">
+                    #{status}
+                </foreach>
+            </if>
+            <if test="from != null">
+                AND p.planned_end_time &gt;= #{from}
+            </if>
+            <if test="to != null">
+                AND p.planned_start_time &lt;= #{to}
+            </if>
+        </where>
+        ORDER BY p.planned_start_time NULLS LAST, p.plan_id
     </select>
 
     <select id="findPlanById" parameterType="string" resultMap="PlanEntityResult">

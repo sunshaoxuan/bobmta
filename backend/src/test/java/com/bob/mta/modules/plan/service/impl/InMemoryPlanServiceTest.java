@@ -181,6 +181,43 @@ class InMemoryPlanServiceTest {
     }
 
     @Test
+    @DisplayName("getPlanBoard groups plans without customer under UNKNOWN")
+    void shouldGroupUnknownCustomerPlans() {
+        OffsetDateTime baseline = OffsetDateTime.parse("2024-06-01T10:00:00+08:00");
+        CreatePlanCommand unknownCustomer = new CreatePlanCommand(
+                "tenant-board-unknown",
+                "未知客户巡检",
+                "missing customer",
+                null,
+                "unknown-owner",
+                baseline.plusHours(1),
+                baseline.plusHours(2),
+                "Asia/Shanghai",
+                List.of("unknown-owner"),
+                List.of(new PlanNodeCommand(null, "节点一", "CHECKLIST", "unknown-owner", 1, 30,
+                        PlanNodeActionType.NONE, 100, null, "", List.of()))
+        );
+
+        var plan = service.createPlan(unknownCustomer);
+        service.publishPlan(plan.getId(), "unknown-owner");
+
+        PlanBoardWindow window = PlanBoardWindow.builder()
+                .from(baseline.minusDays(1))
+                .to(baseline.plusDays(1))
+                .build();
+
+        PlanBoardView board = service.getPlanBoard("tenant-board-unknown", window, PlanBoardGrouping.DAY);
+
+        assertThat(board.getCustomerGroups())
+                .extracting(PlanBoardView.CustomerGroup::getCustomerId)
+                .containsExactly(PlanBoardView.UNKNOWN_CUSTOMER_ID);
+        assertThat(board.getCustomerGroups().get(0).getPlans())
+                .hasSize(1)
+                .allSatisfy(card -> assertThat(card.getCustomerId()).isNull());
+        assertThat(board.getMetrics().getTotalPlans()).isEqualTo(1);
+    }
+
+    @Test
     void shouldRejectPlanCreationWhenTimeConflicts() {
         OffsetDateTime start = OffsetDateTime.now().plusDays(1);
         CreatePlanCommand existing = new CreatePlanCommand(
@@ -738,13 +775,21 @@ class InMemoryPlanServiceTest {
         assertThat(histories).isNotEmpty();
         PlanActionHistory history = histories.get(histories.size() - 1);
         assertThat(history.getStatus()).isEqualTo(PlanActionStatus.SUCCESS);
-        assertThat(history.getMetadata()).containsEntry("templateId", String.valueOf(templateId));
+        assertThat(history.getMetadata())
+                .containsEntry("templateId", String.valueOf(templateId))
+                .containsEntry("attempts", "1");
+        assertThat(history.getContext())
+                .containsEntry("planId", created.getId())
+                .containsEntry("nodeId", created.getNodes().get(0).getId())
+                .containsEntry("trigger", "start");
 
         PlanActivity actionActivity = latestActivity(updated, PlanActivityType.NODE_ACTION_EXECUTED);
         assertThat(actionActivity).isNotNull();
         assertThat(actionActivity.getAttributes())
                 .containsEntry("actionStatus", PlanActionStatus.SUCCESS.name())
-                .containsEntry("meta.templateId", String.valueOf(templateId));
+                .containsEntry("meta.templateId", String.valueOf(templateId))
+                .containsEntry("meta.attempts", "1")
+                .containsEntry("context.planId", created.getId());
     }
 
     @Test
@@ -767,16 +812,20 @@ class InMemoryPlanServiceTest {
 
         Plan updated = service.startNode(created.getId(), created.getNodes().get(0).getId(), "operator-y");
 
+        assertThat(notificationGateway.getEmails()).hasSize(3);
         List<PlanActionHistory> histories = actionHistoryRepository.findByPlanId(created.getId());
         assertThat(histories).isNotEmpty();
         PlanActionHistory history = histories.get(histories.size() - 1);
         assertThat(history.getStatus()).isEqualTo(PlanActionStatus.FAILED);
         assertThat(history.getError()).contains("smtp-down");
+        assertThat(history.getMetadata()).containsEntry("attempts", "3");
+        assertThat(history.getContext()).containsEntry("trigger", "start");
 
         PlanActivity actionActivity = latestActivity(updated, PlanActivityType.NODE_ACTION_EXECUTED);
         assertThat(actionActivity.getAttributes())
                 .containsEntry("actionStatus", PlanActionStatus.FAILED.name())
-                .containsEntry("actionError", "smtp-down");
+                .containsEntry("actionError", "smtp-down")
+                .containsEntry("meta.attempts", "3");
     }
 
     @Test
@@ -804,12 +853,88 @@ class InMemoryPlanServiceTest {
         List<PlanActionHistory> imHistories = actionHistoryRepository.findByPlanId(created.getId());
         PlanActionHistory history = imHistories.get(imHistories.size() - 1);
         assertThat(history.getStatus()).isEqualTo(PlanActionStatus.SUCCESS);
-        assertThat(history.getMetadata()).containsEntry("templateId", String.valueOf(templateId));
+        assertThat(history.getMetadata())
+                .containsEntry("templateId", String.valueOf(templateId))
+                .containsEntry("attempts", "1");
+        assertThat(history.getContext()).containsEntry("trigger", "complete");
 
         PlanActivity actionActivity = latestActivity(completed, PlanActivityType.NODE_ACTION_EXECUTED);
         assertThat(actionActivity.getAttributes())
                 .containsEntry("actionStatus", PlanActionStatus.SUCCESS.name())
-                .containsEntry("actionTrigger", "complete");
+                .containsEntry("actionTrigger", "complete")
+                .containsEntry("meta.attempts", "1");
+    }
+
+    @Test
+    void shouldRetryEmailActionOnTransientFailure() {
+        long templateId = 909L;
+        templateService.register(templateId, new RenderedTemplate(
+                "Retry", "Transient", List.of("ops@example.com"), List.of(), null,
+                null, null, null, Map.of()));
+        notificationGateway.failEmailTimes(1, "smtp-transient");
+
+        CreatePlanCommand command = new CreatePlanCommand(
+                "tenant-action-retry", "重试计划", "说明", "cust-action", "owner-action",
+                OffsetDateTime.now().plusDays(1), OffsetDateTime.now().plusDays(1).plusHours(2),
+                "Asia/Shanghai", List.of("owner-action"),
+                List.of(new PlanNodeCommand(null, "执行检查", "CHECKLIST", "owner-action", 1, 30,
+                        PlanNodeActionType.EMAIL, 100, String.valueOf(templateId), "", List.of()))
+        );
+        Plan created = service.createPlan(command);
+        service.publishPlan(created.getId(), "owner-action");
+
+        Plan updated = service.startNode(created.getId(), created.getNodes().get(0).getId(), "operator-r");
+
+        assertThat(notificationGateway.getEmails()).hasSize(2);
+        PlanActionHistory history = actionHistoryRepository.findByPlanId(created.getId())
+                .get(actionHistoryRepository.findByPlanId(created.getId()).size() - 1);
+        assertThat(history.getStatus()).isEqualTo(PlanActionStatus.SUCCESS);
+        assertThat(history.getMetadata())
+                .containsEntry("attempts", "2")
+                .containsEntry("templateId", String.valueOf(templateId));
+        assertThat(history.getError()).isNull();
+
+        PlanActivity actionActivity = latestActivity(updated, PlanActivityType.NODE_ACTION_EXECUTED);
+        assertThat(actionActivity.getAttributes())
+                .containsEntry("actionStatus", PlanActionStatus.SUCCESS.name())
+                .containsEntry("meta.attempts", "2");
+    }
+
+    @Test
+    void shouldRecordRemoteActionMetadata() {
+        long templateId = 9901L;
+        templateService.register(templateId, new RenderedTemplate(
+                null, null, List.of(), List.of(), "https://remote.example/session",
+                "package.zip", null, null, Map.of("sessionId", "abc-123")));
+
+        CreatePlanCommand command = new CreatePlanCommand(
+                "tenant-remote", "远程支持", "说明", "cust-remote", "owner-remote",
+                OffsetDateTime.now().plusDays(1), OffsetDateTime.now().plusDays(1).plusHours(3),
+                "Asia/Shanghai", List.of("owner-remote"),
+                List.of(new PlanNodeCommand(null, "远程排查", "CHECKLIST", "owner-remote", 1, 45,
+                        PlanNodeActionType.REMOTE, 100, String.valueOf(templateId), "", List.of()))
+        );
+        Plan created = service.createPlan(command);
+        service.publishPlan(created.getId(), "owner-remote");
+
+        Plan updated = service.startNode(created.getId(), created.getNodes().get(0).getId(), "operator-remote");
+
+        PlanActionHistory history = actionHistoryRepository.findByPlanId(created.getId())
+                .get(actionHistoryRepository.findByPlanId(created.getId()).size() - 1);
+        assertThat(history.getStatus()).isEqualTo(PlanActionStatus.SUCCESS);
+        assertThat(history.getMetadata())
+                .containsEntry("endpoint", "https://remote.example/session")
+                .containsEntry("artifactName", "package.zip")
+                .containsEntry("templateId", String.valueOf(templateId))
+                .containsEntry("sessionId", "abc-123")
+                .containsEntry("attempts", "1");
+        assertThat(history.getContext()).containsEntry("trigger", "start");
+
+        PlanActivity actionActivity = latestActivity(updated, PlanActivityType.NODE_ACTION_EXECUTED);
+        assertThat(actionActivity.getAttributes())
+                .containsEntry("meta.endpoint", "https://remote.example/session")
+                .containsEntry("meta.attempts", "1")
+                .containsEntry("actionStatus", PlanActionStatus.SUCCESS.name());
     }
 
     private PlanActivity latestActivity(Plan plan, PlanActivityType type) {

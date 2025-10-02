@@ -103,9 +103,11 @@ export function PlanPreview({
   const detailStatus = isActiveDetail ? detailState.status : 'idle';
   const detailError = isActiveDetail ? detailState.error : null;
   const detailOrigin = isActiveDetail ? detailState.origin : null;
+  const detailContext = isActiveDetail ? detailState.context : null;
   const previewStatus = detail?.status ?? plan?.status ?? null;
-  const mode: PlanViewMode = previewStatus ? PLAN_STATUS_MODE[previewStatus] : 'design';
-  const currentNodeId = isActiveDetail ? detailState.currentNodeId : null;
+  const fallbackMode: PlanViewMode = previewStatus ? PLAN_STATUS_MODE[previewStatus] : 'design';
+  const mode: PlanViewMode = detailContext ? detailContext.mode : fallbackMode;
+  const currentNodeId = detailContext ? detailContext.currentNodeId : null;
   const [editingNodeId, setEditingNodeId] = useState<string | null>(null);
   const modeSections = MODE_SECTION_CONFIG[mode];
   const lastUpdatedLabel =
@@ -322,7 +324,7 @@ export function PlanPreview({
     });
   }, [detail, mutation, reminders]);
 
-  const actionHelper = renderNodeMutationHelper({
+  const nodeActionHelper = renderNodeMutationHelper({
     mutation,
     translate,
     nodeLookup,
@@ -576,6 +578,7 @@ export function PlanPreview({
                 currentNodeName,
                 completedCount: completedNodeIds.size,
                 totalCount: totalNodeCount,
+                showDesignPanel: false,
               })}
             >
               <PlanNodeTree
@@ -594,25 +597,20 @@ export function PlanPreview({
               status={detailStatus}
               error={detailError}
               translate={translate}
-              empty={
-                mode === 'execution'
-                  ? actionableNodes.length === 0
-                  : detailStatus === 'success' && actionableNodes.length === 0
-              }
+              empty={mode === 'execution' ? actionableNodes.length === 0 : false}
               onRetry={onRefreshDetail}
               errorDetail={detailErrorDetail}
               emptyMessage={translate('planDetailActionsEmpty')}
               helper={
-                mode === 'execution'
-                  ? renderModeAwareHelper({
-                      mode,
-                      helper: actionHelper,
-                      translate,
-                      currentNodeName,
-                      completedCount: completedNodeIds.size,
-                      totalCount: totalNodeCount,
-                    })
-                  : actionHelper
+                renderModeAwareHelper({
+                  mode,
+                  helper: nodeActionHelper,
+                  translate,
+                  currentNodeName,
+                  completedCount: completedNodeIds.size,
+                  totalCount: totalNodeCount,
+                  showDesignPanel: mode === 'design',
+                })
               }
             >
               {mode === 'execution' ? (
@@ -624,9 +622,7 @@ export function PlanPreview({
                   pendingAction={pendingNodeAction}
                   pendingStatus={pendingNodeStatus}
                 />
-              ) : (
-                <DesignModePanel translate={translate} />
-              )}
+              ) : null}
               {actionDialog ? (
                 <NodeActionForm
                   dialog={actionDialog}
@@ -758,6 +754,7 @@ type ModeAwareHelperOptions = {
   currentNodeName: string | null;
   completedCount: number;
   totalCount: number;
+  showDesignPanel?: boolean;
 };
 
 function renderModeAwareHelper({
@@ -767,26 +764,43 @@ function renderModeAwareHelper({
   currentNodeName,
   completedCount,
   totalCount,
+  showDesignPanel = false,
 }: ModeAwareHelperOptions): ReactNode {
-  const modePanel =
-    mode === 'design' ? (
-      <DesignModePanel translate={translate} />
-    ) : (
-      <ExecutionModePanel
-        translate={translate}
-        currentNodeName={currentNodeName}
-        completedCount={completedCount}
-        totalCount={totalCount}
-      />
+  if (mode === 'design') {
+    if (!showDesignPanel) {
+      return helper;
+    }
+
+    const designPanel = <DesignModePanel translate={translate} />;
+
+    if (!helper) {
+      return designPanel;
+    }
+
+    return (
+      <Space direction="vertical" size="small" style={{ width: '100%' }}>
+        {designPanel}
+        {helper}
+      </Space>
     );
+  }
+
+  const executionPanel = (
+    <ExecutionModePanel
+      translate={translate}
+      currentNodeName={currentNodeName}
+      completedCount={completedCount}
+      totalCount={totalCount}
+    />
+  );
 
   if (!helper) {
-    return modePanel;
+    return executionPanel;
   }
 
   return (
     <Space direction="vertical" size="small" style={{ width: '100%' }}>
-      {modePanel}
+      {executionPanel}
       {helper}
     </Space>
   );
