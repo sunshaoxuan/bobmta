@@ -118,7 +118,7 @@ export function HeaderNav({
     [menuSelectedKeys, visibleMenuItems]
   );
 
-  const showMenu = visibleMenuItems.length > 0;
+  const showMenu = isAuthenticated && visibleMenuItems.length > 0;
   const primaryRole = isAuthenticated && normalizedUserRoles.length > 0 ? normalizedUserRoles[0] : null;
   const secondaryRoleCount = primaryRole ? Math.max(normalizedUserRoles.length - 1, 0) : 0;
   const roleBadgeLabel = primaryRole
