@@ -83,6 +83,14 @@ export type PlanDetailController = {
   setTimelineCategoryFilter: (category: string | null) => void;
 };
 
+export function selectPlanDetailMode(state: PlanDetailState): PlanViewMode {
+  return state.mode;
+}
+
+export function selectPlanDetailCurrentNodeId(state: PlanDetailState): string | null {
+  return state.currentNodeId;
+}
+
 export type PlanNodeActionInput =
   | {
       planId: string;

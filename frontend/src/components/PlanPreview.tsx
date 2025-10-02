@@ -103,7 +103,24 @@ export function PlanPreview({
   const detailStatus = isActiveDetail ? detailState.status : 'idle';
   const detailError = isActiveDetail ? detailState.error : null;
   const detailOrigin = isActiveDetail ? detailState.origin : null;
-  const previewContext = isActiveDetail ? detailState.context : deriveFallbackContext(plan);
+  const previewContext = useMemo<PlanDetailState['context']>(() => {
+    if (detail) {
+      const detailMode = PLAN_STATUS_MODE[detail.status];
+      const context = detailState.context;
+      if (
+        context.planStatus !== detail.status ||
+        context.mode !== detailMode
+      ) {
+        return {
+          planStatus: detail.status,
+          mode: detailMode,
+          currentNodeId: context.currentNodeId,
+        };
+      }
+      return context;
+    }
+    return deriveFallbackContext(plan);
+  }, [detail, detailState.context, plan]);
   const { mode, currentNodeId } = previewContext;
   const [editingNodeId, setEditingNodeId] = useState<string | null>(null);
   const modeSections = MODE_SECTION_CONFIG[mode];
