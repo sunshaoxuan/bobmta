@@ -24,6 +24,8 @@ export type SessionNavigationState = {
   loading: boolean;
   error: ApiError | null;
   source: 'mock' | 'remote';
+  unauthorized: boolean;
+  forbidden: boolean;
 };
 
 export type SessionUserMenuAction = {
@@ -218,6 +220,8 @@ const initialState: SessionState = {
     loading: false,
     error: null,
     source: 'mock',
+    unauthorized: false,
+    forbidden: false,
   },
   ...deriveSessionArtifacts(null),
 };
@@ -290,6 +294,8 @@ export function useSessionController(client: ApiClient): SessionController {
           loading: false,
           error: null,
           source: 'mock',
+          unauthorized: false,
+          forbidden: false,
         },
       }));
       return;
@@ -305,6 +311,8 @@ export function useSessionController(client: ApiClient): SessionController {
         ...current.navigation,
         loading: true,
         error: null,
+        unauthorized: false,
+        forbidden: false,
       },
     }));
 
@@ -329,6 +337,8 @@ export function useSessionController(client: ApiClient): SessionController {
             loading: false,
             error: null,
             source: filtered.length > 0 ? 'remote' : 'mock',
+            unauthorized: false,
+            forbidden: false,
           },
         }));
       } catch (error) {
@@ -338,6 +348,28 @@ export function useSessionController(client: ApiClient): SessionController {
         const apiError: ApiError = isApiError(error)
           ? (error as ApiError)
           : ({ type: 'network', message: (error as Error)?.message ?? null } as ApiError);
+        const status = apiError.type === 'status' ? apiError.status : null;
+        const unauthorized = status === 401;
+        const forbidden = status === 403;
+        if (unauthorized) {
+          setState((current) => ({
+            ...current,
+            session: null,
+            status: 'idle',
+            error: apiError,
+            navigation: {
+              items: fallbackItems,
+              config: fallbackConfig,
+              loading: false,
+              error: apiError,
+              source: 'mock',
+              unauthorized: true,
+              forbidden: false,
+            },
+            ...deriveSessionArtifacts(null),
+          }));
+          return;
+        }
         setState((current) => ({
           ...current,
           navigation: {
@@ -346,6 +378,8 @@ export function useSessionController(client: ApiClient): SessionController {
             loading: false,
             error: apiError,
             source: 'mock',
+            unauthorized: false,
+            forbidden,
           },
         }));
       } finally {

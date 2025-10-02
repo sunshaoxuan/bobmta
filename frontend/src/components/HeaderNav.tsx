@@ -40,7 +40,9 @@ type HeaderNavProps = {
   isAuthenticated: boolean;
   permissions: SessionPermissionsState;
   isForbidden: boolean;
+  isUnauthorized: boolean;
   forbiddenLabel: string;
+  unauthorizedLabel: string;
   guestNoticeLabel: string;
   userInitial: string;
   userDisplayName: string;
@@ -68,7 +70,9 @@ export function HeaderNav({
   isAuthenticated,
   permissions,
   isForbidden,
+  isUnauthorized,
   forbiddenLabel,
+  unauthorizedLabel,
   guestNoticeLabel,
   userInitial,
   userDisplayName,
@@ -154,6 +158,7 @@ export function HeaderNav({
 
   const showGuestNotice = !isAuthenticated && guestNoticeLabel.trim().length > 0;
   const showForbiddenNotice = isForbidden && forbiddenLabel.trim().length > 0;
+  const showUnauthorizedNotice = isUnauthorized && unauthorizedLabel.trim().length > 0;
   const showNavigationError = Boolean(navigationErrorLabel) && isAuthenticated;
 
   return (
@@ -182,6 +187,11 @@ export function HeaderNav({
         {showForbiddenNotice && (
           <Tag color="volcano" className="nav-status-tag nav-status-forbidden">
             {forbiddenLabel}
+          </Tag>
+        )}
+        {!showForbiddenNotice && showUnauthorizedNotice && (
+          <Tag color="gold" className="nav-status-tag nav-status-unauthorized">
+            {unauthorizedLabel}
           </Tag>
         )}
         {!showMenu && !showForbiddenNotice && showGuestNotice && (

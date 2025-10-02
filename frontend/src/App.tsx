@@ -50,10 +50,6 @@ import {
   useSessionController,
   type SessionController,
 } from './state/session';
-import {
-  useNavigationController,
-  type NavigationController,
-} from './state/navigation';
 import { formatDateTime, formatPlanWindow } from './utils/planFormatting';
 import { formatApiErrorMessage } from './utils/apiErrors';
 import {
@@ -80,13 +76,12 @@ type AppViewProps = {
   client: ApiClient;
   localization: LocalizationState;
   session: SessionController;
-  navigation: NavigationController;
   planList: PlanListController;
   planDetail: PlanDetailController;
   router: HistoryRouter;
 };
 
-function AppView({ client, localization, session, navigation, planList, planDetail, router }: AppViewProps) {
+function AppView({ client, localization, session, planList, planDetail, router }: AppViewProps) {
   const { locale, translate, availableLocales, loading, setLocale } = localization;
   const {
     state: sessionState,
@@ -468,14 +463,15 @@ function AppView({ client, localization, session, navigation, planList, planDeta
     [availableLocales]
   );
 
-  const navigationState = navigation.state;
-  const navigationLoading = sessionState.navigation.loading || navigationState.loading;
+  const navigationState = sessionState.navigation;
+  const navigationLoading = navigationState.loading;
   const navigationError = useMemo(() => {
     if (!sessionState.session) {
       return null;
     }
-    return sessionState.navigation.error ?? navigationState.error;
-  }, [navigationState.error, sessionState.navigation.error, sessionState.session]);
+    return navigationState.error;
+  }, [navigationState.error, sessionState.session]);
+  const navigationUnauthorized = navigationState.unauthorized;
 
   const navigationErrorLabel = useMemo(() => {
     if (!navigationError) {
@@ -485,11 +481,8 @@ function AppView({ client, localization, session, navigation, planList, planDeta
       return translate('backendErrorNetwork');
     }
     if (navigationError.type === 'status') {
-      if (navigationError.status === 403) {
-        return translate('navAccessDeniedTitle');
-      }
-      if (navigationError.status === 401) {
-        return translate('planLoginRequired');
+      if (navigationError.status === 403 || navigationError.status === 401) {
+        return null;
       }
       return translate('backendErrorStatus', { status: navigationError.status });
     }
@@ -668,7 +661,9 @@ function AppView({ client, localization, session, navigation, planList, planDeta
         isAuthenticated={isAuthenticated}
         permissions={sessionState.permissions}
         isForbidden={isForbiddenRoute}
+        isUnauthorized={navigationUnauthorized}
         forbiddenLabel={translate('navAccessDeniedTitle')}
+        unauthorizedLabel={translate('planLoginRequired')}
         guestNoticeLabel={translate('navUserGuest')}
         userInitial={userInitial}
         userDisplayName={userDisplayName}
@@ -871,9 +866,6 @@ function App() {
     [localization.locale]
   );
   const session = useSessionController(client);
-  const navigation = useNavigationController(client, session.state.session, {
-    onUnauthorized: session.logout,
-  });
   const planList = usePlanListController(client, session.state.session);
   const planDetail = usePlanDetailController(client, session.state.session);
   const router = useHistoryRouter();
@@ -892,7 +884,6 @@ function App() {
         client={client}
         localization={localization}
         session={session}
-        navigation={navigation}
         planList={planList}
         planDetail={planDetail}
         router={router}

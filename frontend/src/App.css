@@ -1,6 +1,6 @@
 :root {
-  --app-header-height: 128px;
-  --app-header-spacing: 32px;
+  --app-header-height: 112px;
+  --app-header-spacing: 36px;
   --app-header-offset: calc(var(--app-header-height) + var(--app-header-spacing));
 }
 
@@ -294,6 +294,11 @@
   background: rgba(245, 34, 45, 0.12) !important;
   border: 1px solid rgba(245, 34, 45, 0.2) !important;
   color: #a8071a !important;
+}
+.nav-status-unauthorized {
+  background: rgba(250, 173, 20, 0.16) !important;
+  border: 1px solid rgba(250, 173, 20, 0.28) !important;
+  color: #ad6800 !important;
 }
 
 .nav-error-badge {
