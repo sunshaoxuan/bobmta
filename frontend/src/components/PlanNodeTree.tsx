@@ -41,9 +41,10 @@ export function PlanNodeTree({
       {nodes.map((node) => {
         const statusLabel = translate(PLAN_NODE_STATUS_LABEL[node.status]);
         const statusColor = PLAN_NODE_STATUS_COLOR[node.status];
-        const isCurrent = mode === 'execution' && currentNodeId === node.id;
+        const isExecution = mode === 'execution';
+        const isCurrent = isExecution && currentNodeId === node.id;
         const isCompleted = completedNodeIds.has(node.id);
-        const isLocked = mode === 'execution' && isCompleted;
+        const isLocked = isExecution && isCompleted;
         const isEditing = mode === 'design' && editingNodeId === node.id;
         const cardClassName = [
           'plan-preview-node-card',
@@ -53,7 +54,9 @@ export function PlanNodeTree({
         ]
           .filter(Boolean)
           .join(' ');
-        const cardStyle = isLocked ? { opacity: 0.6, pointerEvents: 'none' } : undefined;
+        const cardStyle = isLocked
+          ? { opacity: 0.35, pointerEvents: 'none' as const }
+          : undefined;
         const plannedDuration =
           typeof node.expectedDurationMinutes === 'number' ? node.expectedDurationMinutes : null;
         const actualStart = node.actualStartTime
@@ -69,7 +72,10 @@ export function PlanNodeTree({
               className={cardClassName}
               style={cardStyle}
               data-mode={mode}
+              data-status={node.status}
               data-locked={isLocked ? 'true' : undefined}
+              data-current={isCurrent ? 'true' : undefined}
+              data-completed={isCompleted ? 'true' : undefined}
               aria-current={isCurrent ? 'step' : undefined}
               aria-disabled={isLocked ? 'true' : undefined}
             >
