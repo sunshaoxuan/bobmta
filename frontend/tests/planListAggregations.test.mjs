@@ -189,6 +189,10 @@ test('groupCalendarEvents buckets events by granularity and preserves ordering',
     ['2025-05', '2025-06']
   );
   assert.equal(monthBuckets[0].events.length, 2);
+  assert.deepEqual(
+    monthBuckets[0].events.map((event) => event.plan.id),
+    ['p-7', 'p-8']
+  );
 
   const weekBuckets = groupCalendarEvents(events, { granularity: 'week', weekStartsOn: 1 });
   assert.ok(weekBuckets.length >= 2);

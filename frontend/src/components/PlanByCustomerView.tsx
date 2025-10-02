@@ -139,7 +139,7 @@ function buildCustomerTreeData(
           <Text type="secondary">({plans.length})</Text>
         </Space>
       ),
-      children: plans.map((plan) => ({
+      children: sortPlansForDisplay(plans).map((plan) => ({
         key: plan.id,
         title: (
           <Space direction="vertical" size={0} className="plan-customer-tree-leaf">
@@ -164,4 +164,34 @@ function formatPlanWindowLabel(
   const start = plan.plannedStartTime ? new Date(plan.plannedStartTime).toLocaleString() : empty;
   const end = plan.plannedEndTime ? new Date(plan.plannedEndTime).toLocaleString() : empty;
   return `${start} → ${end}`;
+}
+
+function sortPlansForDisplay(
+  plans: readonly PlanSummaryWithCustomer[]
+): PlanSummaryWithCustomer[] {
+  if (!plans || plans.length === 0) {
+    return [];
+  }
+  if (plans.length === 1) {
+    return plans.slice();
+  }
+  return plans
+    .slice()
+    .sort((a, b) => {
+      const timeA = getPlanTimeValue(a);
+      const timeB = getPlanTimeValue(b);
+      if (timeA === timeB) {
+        return a.title.localeCompare(b.title);
+      }
+      return timeA - timeB;
+    });
+}
+
+function getPlanTimeValue(plan: PlanSummaryWithCustomer): number {
+  const anchor = plan.plannedStartTime ?? plan.plannedEndTime ?? null;
+  if (!anchor) {
+    return Number.POSITIVE_INFINITY;
+  }
+  const value = new Date(anchor).getTime();
+  return Number.isFinite(value) ? value : Number.POSITIVE_INFINITY;
 }
