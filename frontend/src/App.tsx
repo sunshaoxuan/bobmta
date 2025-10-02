@@ -88,7 +88,13 @@ type AppViewProps = {
 
 function AppView({ client, localization, session, navigation, planList, planDetail, router }: AppViewProps) {
   const { locale, translate, availableLocales, loading, setLocale } = localization;
-  const { state: sessionState, login, logout } = session;
+  const {
+    state: sessionState,
+    login,
+    logout,
+    navigationMenu: sessionNavigationMenu,
+    navigationItems: sessionNavigationItems,
+  } = session;
   const isAuthenticated = Boolean(sessionState.session);
   const { state: planState, refresh, changePage, changePageSize, restore: restorePlanList } = planList;
   const {
@@ -463,6 +469,7 @@ function AppView({ client, localization, session, navigation, planList, planDeta
   );
 
   const navigationState = navigation.state;
+  const navigationLoading = sessionState.navigation.loading || navigationState.loading;
   const navigationError = useMemo(() => {
     if (!sessionState.session) {
       return null;
@@ -497,11 +504,11 @@ function AppView({ client, localization, session, navigation, planList, planDeta
 
   const navigationPathMap = useMemo(() => {
     const map = new Map<string, string>();
-    navigationState.items.forEach((item) => {
+    sessionNavigationItems.forEach((item) => {
       map.set(item.key, normalizePathname(item.path));
     });
     return map;
-  }, [navigationState.items, normalizePathname]);
+  }, [sessionNavigationItems, normalizePathname]);
 
   const planViewOptions = useMemo(
     () =>
@@ -515,12 +522,12 @@ function AppView({ client, localization, session, navigation, planList, planDeta
 
   const headerMenuItems = useMemo(
     () =>
-      sessionState.navigation.config.map((item) => ({
+      sessionNavigationMenu.map((item) => ({
         key: item.key,
         label: translate(item.labelKey),
         roles: item.roles,
       })),
-    [sessionState.navigation.config, translate]
+    [sessionNavigationMenu, translate]
   );
 
   const sessionUserMenuItems = useMemo<MenuProps['items']>(() => {
@@ -537,13 +544,13 @@ function AppView({ client, localization, session, navigation, planList, planDeta
   }, [sessionState.userMenu.items, translate]);
 
   const activeMenuKey = useMemo(() => {
-    if (navigationState.items.length === 0) {
+    if (sessionNavigationItems.length === 0) {
       return null;
     }
     const currentPath = normalizePathname(location.pathname);
     let matchedKey: string | null = null;
     let matchedLength = -1;
-    for (const item of navigationState.items) {
+    for (const item of sessionNavigationItems) {
       const candidate = normalizePathname(item.path);
       if (currentPath === candidate || currentPath.startsWith(`${candidate}/`)) {
         if (candidate.length > matchedLength) {
@@ -552,20 +559,20 @@ function AppView({ client, localization, session, navigation, planList, planDeta
         }
       }
     }
-    return matchedKey ?? navigationState.items[0]?.key ?? null;
-  }, [location.pathname, navigationState.items, normalizePathname]);
+    return matchedKey ?? sessionNavigationItems[0]?.key ?? null;
+  }, [location.pathname, sessionNavigationItems, normalizePathname]);
 
   useEffect(() => {
     if (!sessionState.session) {
       setRouteForbidden(false);
       return;
     }
-    if (navigationState.loading || navigationState.items.length === 0) {
+    if (navigationLoading || sessionNavigationItems.length === 0) {
       setRouteForbidden(false);
       return;
     }
     const currentPath = normalizePathname(location.pathname);
-    const authorized = navigationState.items.some((item) => {
+    const authorized = sessionNavigationItems.some((item) => {
       const candidate = normalizePathname(item.path);
       if (currentPath === candidate) {
         return true;
@@ -575,8 +582,8 @@ function AppView({ client, localization, session, navigation, planList, planDeta
     setRouteForbidden(!authorized);
   }, [
     location.pathname,
-    navigationState.items,
-    navigationState.loading,
+    navigationLoading,
+    sessionNavigationItems,
     normalizePathname,
     sessionState.session,
   ]);
@@ -631,9 +638,10 @@ function AppView({ client, localization, session, navigation, planList, planDeta
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }, []);
 
-  const showForbiddenResult = Boolean(
+  const isForbiddenRoute = Boolean(
     sessionState.session && (navigationState.forbidden || routeForbidden)
   );
+  const showForbiddenResult = isForbiddenRoute;
 
   const handleForbiddenNavigateHome = useCallback(() => {
     navigate({ pathname: '/' }, { preserveHash: true });
@@ -656,10 +664,14 @@ function AppView({ client, localization, session, navigation, planList, planDeta
         menuSelectedKeys={menuSelectedKeys}
         onMenuClick={handleMenuClick}
         navigationErrorLabel={navigationErrorLabel}
+        navigationLoading={navigationLoading}
         isAuthenticated={isAuthenticated}
+        permissions={sessionState.permissions}
+        isForbidden={isForbiddenRoute}
+        forbiddenLabel={translate('navAccessDeniedTitle')}
+        guestNoticeLabel={translate('navUserGuest')}
         userInitial={userInitial}
         userDisplayName={userDisplayName}
-        userRoles={sessionState.permissions.normalizedRoles}
         userMenuItems={sessionUserMenuItems}
         onUserMenuClick={handleUserMenuClick}
         onLoginClick={handleLoginShortcut}

@@ -72,6 +72,8 @@ export type SessionController = {
   logout: () => void;
   userMenu: SessionUserMenuState;
   permissions: SessionPermissionsState;
+  navigationMenu: SessionNavigationMenuConfigItem[];
+  navigationItems: SessionNavigationItem[];
 };
 
 const normalizePath = (path: string): string => {
@@ -373,6 +375,8 @@ export function useSessionController(client: ApiClient): SessionController {
       logout: handleLogout,
       userMenu: state.userMenu,
       permissions: state.permissions,
+      navigationMenu: state.navigation.config,
+      navigationItems: state.navigation.items,
     }),
     [state, handleLogin, handleLogout]
   );
