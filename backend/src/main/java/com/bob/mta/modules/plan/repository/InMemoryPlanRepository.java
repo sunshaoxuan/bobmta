@@ -13,9 +13,11 @@ import java.time.OffsetDateTime;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.atomic.AtomicLong;
@@ -237,11 +239,22 @@ public class InMemoryPlanRepository implements PlanAggregateRepository,
                 .comparing(Plan::getPlannedStartTime, Comparator.nullsLast(Comparator.naturalOrder()))
                 .thenComparing(Plan::getId, Comparator.nullsLast(Comparator.naturalOrder()));
 
+        Set<String> allowedCustomers = criteria == null
+                ? Set.of()
+                : new LinkedHashSet<>(criteria.getCustomerIds());
         return storage.values().stream()
                 .filter(plan -> criteria == null || criteria.getTenantId() == null
                         || Objects.equals(plan.getTenantId(), criteria.getTenantId()))
-                .filter(plan -> criteria == null || criteria.getCustomerId() == null
-                        || Objects.equals(plan.getCustomerId(), criteria.getCustomerId()))
+                .filter(plan -> {
+                    if (criteria == null) {
+                        return true;
+                    }
+                    if (!allowedCustomers.isEmpty()) {
+                        return plan.getCustomerId() != null && allowedCustomers.contains(plan.getCustomerId());
+                    }
+                    return criteria.getCustomerId() == null
+                            || Objects.equals(plan.getCustomerId(), criteria.getCustomerId());
+                })
                 .filter(plan -> criteria == null || criteria.getOwner() == null
                         || Objects.equals(plan.getOwner(), criteria.getOwner()))
                 .filter(plan -> criteria == null || matchesKeyword(plan, criteria.getKeyword()))

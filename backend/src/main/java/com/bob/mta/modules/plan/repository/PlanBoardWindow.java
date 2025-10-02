@@ -59,8 +59,11 @@ public final class PlanBoardWindow {
                 .from(from)
                 .to(to)
                 .statuses(statuses.isEmpty() ? null : statuses);
-        if (customerIds.size() == 1) {
-            builder.customerId(customerIds.get(0));
+        if (!customerIds.isEmpty()) {
+            builder.customerIds(customerIds);
+            if (customerIds.size() == 1) {
+                builder.customerId(customerIds.get(0));
+            }
         }
         return builder.build();
     }

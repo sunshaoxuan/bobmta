@@ -191,7 +191,13 @@
             <if test="tenantId != null">
                 tenant_id = #{tenantId}
             </if>
-            <if test="customerId != null">
+            <if test="customerIds != null and !customerIds.isEmpty()">
+                AND customer_id IN
+                <foreach collection="customerIds" item="cid" open="(" separator="," close=")">
+                    #{cid}
+                </foreach>
+            </if>
+            <if test="(customerIds == null or customerIds.isEmpty()) and customerId != null">
                 AND customer_id = #{customerId}
             </if>
             <if test="owner != null">
@@ -238,7 +244,13 @@
             <if test="tenantId != null">
                 tenant_id = #{tenantId}
             </if>
-            <if test="customerId != null">
+            <if test="customerIds != null and !customerIds.isEmpty()">
+                AND customer_id IN
+                <foreach collection="customerIds" item="cid" open="(" separator="," close=")">
+                    #{cid}
+                </foreach>
+            </if>
+            <if test="(customerIds == null or customerIds.isEmpty()) and customerId != null">
                 AND customer_id = #{customerId}
             </if>
             <if test="owner != null">

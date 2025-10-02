@@ -242,6 +242,42 @@ class PlanPersistencePlanRepositoryTest {
     }
 
     @Test
+    void shouldFilterByMultipleCustomers() {
+        OffsetDateTime now = OffsetDateTime.of(2024, 7, 1, 9, 0, 0, 0, ZoneOffset.UTC);
+        InMemoryPlanRepository memoryRepository = new InMemoryPlanRepository();
+        List<String> customers = List.of("customer-a", "customer-b", "customer-c");
+        for (int index = 0; index < customers.size(); index++) {
+            String planId = repository.nextPlanId();
+            String customer = customers.get(index);
+            Plan plan = new Plan(planId, "tenant-filter", "Plan-" + index, "desc",
+                    customer, "owner-" + index, List.of(), PlanStatus.SCHEDULED,
+                    now.plusDays(index), now.plusDays(index).plusHours(1), null, null,
+                    null, null, null, "UTC", List.of(), List.of(), now.minusDays(1), now,
+                    List.of(), PlanReminderPolicy.empty());
+            persistAggregate(plan);
+            memoryRepository.save(plan);
+        }
+
+        PlanSearchCriteria criteria = PlanSearchCriteria.builder()
+                .tenantId("tenant-filter")
+                .customerIds(List.of("customer-a", "customer-c"))
+                .build();
+
+        List<String> persistenceCustomers = repository.findByCriteria(criteria).stream()
+                .map(Plan::getCustomerId)
+                .toList();
+        assertThat(persistenceCustomers).containsExactlyInAnyOrder("customer-a", "customer-c");
+
+        List<String> memoryCustomers = memoryRepository.findByCriteria(criteria).stream()
+                .map(Plan::getCustomerId)
+                .toList();
+        assertThat(memoryCustomers).containsExactlyInAnyOrder("customer-a", "customer-c");
+
+        assertThat(repository.countByCriteria(criteria)).isEqualTo(2);
+        assertThat(memoryRepository.countByCriteria(criteria)).isEqualTo(2);
+    }
+
+    @Test
     void shouldGenerateSequentialIdentifiers() {
         String id1 = repository.nextPlanId();
         String id2 = repository.nextPlanId();
@@ -257,5 +293,9 @@ class PlanPersistencePlanRepositoryTest {
         String reminder2 = repository.nextReminderId();
         assertThat(reminder1).startsWith("REM-");
         assertThat(reminder2).isNotEqualTo(reminder1);
+    }
+
+    private void persistAggregate(Plan plan) {
+        repository.save(plan);
     }
 }

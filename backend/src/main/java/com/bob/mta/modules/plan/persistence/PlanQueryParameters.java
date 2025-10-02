@@ -9,6 +9,7 @@ import java.util.List;
 public record PlanQueryParameters(
         String tenantId,
         String customerId,
+        List<String> customerIds,
         String owner,
         String keyword,
         PlanStatus status,
@@ -21,7 +22,7 @@ public record PlanQueryParameters(
 ) {
 
     public static PlanQueryParameters empty() {
-        return new PlanQueryParameters(null, null, null, null, null, List.of(), null, null, null, null, null);
+        return new PlanQueryParameters(null, null, List.of(), null, null, List.of(), null, null, null, null, null);
     }
 
     public static PlanQueryParameters fromCriteria(PlanSearchCriteria criteria) {
@@ -31,6 +32,7 @@ public record PlanQueryParameters(
         return new PlanQueryParameters(
                 criteria.getTenantId(),
                 criteria.getCustomerId(),
+                criteria.getCustomerIds(),
                 criteria.getOwner(),
                 criteria.getKeyword(),
                 criteria.getStatus(),
