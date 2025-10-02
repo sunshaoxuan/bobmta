@@ -19,6 +19,7 @@ import com.bob.mta.modules.plan.domain.PlanReminderTrigger;
 import com.bob.mta.modules.plan.domain.PlanNodeActionType;
 import com.bob.mta.modules.plan.domain.PlanNodeExecution;
 import com.bob.mta.modules.plan.domain.PlanAnalytics;
+import com.bob.mta.modules.plan.domain.PlanStatus;
 import com.bob.mta.modules.plan.repository.InMemoryPlanActionHistoryRepository;
 import com.bob.mta.modules.plan.repository.InMemoryPlanAnalyticsRepository;
 import com.bob.mta.modules.plan.repository.PlanBoardGrouping;
@@ -214,6 +215,136 @@ class InMemoryPlanServiceTest {
         assertThat(board.getCustomerGroups().get(0).getPlans())
                 .hasSize(1)
                 .allSatisfy(card -> assertThat(card.getCustomerId()).isNull());
+        assertThat(board.getMetrics().getTotalPlans()).isEqualTo(1);
+    }
+
+    @Test
+    @DisplayName("getPlanBoard sorts customer groups by total count then customer id")
+    void shouldSortCustomerGroupsByPlanCountAndId() {
+        OffsetDateTime base = OffsetDateTime.parse("2024-07-01T09:00:00+08:00");
+        CreatePlanCommand dominantA = new CreatePlanCommand(
+                "tenant-board-sort",
+                "排序测试-多计划",
+                "排序测试客户拥有多个计划",
+                "cust-99",
+                "sort-owner",
+                base.plusHours(1),
+                base.plusHours(3),
+                "Asia/Shanghai",
+                List.of("sort-owner"),
+                List.of(new PlanNodeCommand(null, "节点1", "CHECKLIST", "sort-owner", 1, 60,
+                        PlanNodeActionType.NONE, 100, null, "", List.of()))
+        );
+        CreatePlanCommand dominantB = new CreatePlanCommand(
+                "tenant-board-sort",
+                "排序测试-多计划-2",
+                "排序测试第二个计划",
+                "cust-99",
+                "sort-owner",
+                base.plusDays(1),
+                base.plusDays(1).plusHours(2),
+                "Asia/Shanghai",
+                List.of("sort-owner"),
+                List.of(new PlanNodeCommand(null, "节点2", "CHECKLIST", "sort-owner", 1, 60,
+                        PlanNodeActionType.NONE, 100, null, "", List.of()))
+        );
+        CreatePlanCommand tieCustomerOne = new CreatePlanCommand(
+                "tenant-board-sort",
+                "排序测试-单计划-A",
+                "排序客户A",
+                "cust-01",
+                "sort-owner",
+                base.plusDays(2),
+                base.plusDays(2).plusHours(2),
+                "Asia/Shanghai",
+                List.of("sort-owner"),
+                List.of(new PlanNodeCommand(null, "节点3", "CHECKLIST", "sort-owner", 1, 45,
+                        PlanNodeActionType.NONE, 100, null, "", List.of()))
+        );
+        CreatePlanCommand tieCustomerTwo = new CreatePlanCommand(
+                "tenant-board-sort",
+                "排序测试-单计划-B",
+                "排序客户B",
+                "cust-02",
+                "sort-owner",
+                base.plusDays(3),
+                base.plusDays(3).plusHours(1),
+                "Asia/Shanghai",
+                List.of("sort-owner"),
+                List.of(new PlanNodeCommand(null, "节点4", "CHECKLIST", "sort-owner", 1, 30,
+                        PlanNodeActionType.NONE, 100, null, "", List.of()))
+        );
+
+        var planA = service.createPlan(dominantA);
+        var planB = service.createPlan(dominantB);
+        var planC = service.createPlan(tieCustomerOne);
+        var planD = service.createPlan(tieCustomerTwo);
+        service.publishPlan(planA.getId(), "sort-owner");
+        service.publishPlan(planB.getId(), "sort-owner");
+        service.publishPlan(planC.getId(), "sort-owner");
+        service.publishPlan(planD.getId(), "sort-owner");
+
+        PlanBoardWindow window = PlanBoardWindow.builder()
+                .from(base.minusDays(1))
+                .to(base.plusDays(5))
+                .build();
+
+        PlanBoardView board = service.getPlanBoard("tenant-board-sort", window, PlanBoardGrouping.DAY);
+
+        assertThat(board.getCustomerGroups())
+                .extracting(PlanBoardView.CustomerGroup::getCustomerId)
+                .containsExactly("cust-99", "cust-01", "cust-02");
+        assertThat(board.getCustomerGroups().get(0).getTotalPlans()).isEqualTo(2);
+    }
+
+    @Test
+    @DisplayName("getPlanBoard applies status filters before aggregation")
+    void shouldRespectStatusFiltersForPlanBoard() {
+        OffsetDateTime base = OffsetDateTime.parse("2024-08-01T10:00:00+08:00");
+        CreatePlanCommand scheduledPlan = new CreatePlanCommand(
+                "tenant-board-status",
+                "状态过滤-进行中",
+                "仅保留调度计划",
+                "cust-status-a",
+                "status-owner",
+                base.plusHours(2),
+                base.plusHours(4),
+                "Asia/Shanghai",
+                List.of("status-owner"),
+                List.of(new PlanNodeCommand(null, "过滤节点A", "CHECKLIST", "status-owner", 1, 60,
+                        PlanNodeActionType.NONE, 100, null, "", List.of()))
+        );
+        CreatePlanCommand canceledPlan = new CreatePlanCommand(
+                "tenant-board-status",
+                "状态过滤-取消",
+                "被取消的计划不应出现",
+                "cust-status-b",
+                "status-owner",
+                base.plusDays(1),
+                base.plusDays(1).plusHours(1),
+                "Asia/Shanghai",
+                List.of("status-owner"),
+                List.of(new PlanNodeCommand(null, "过滤节点B", "CHECKLIST", "status-owner", 1, 30,
+                        PlanNodeActionType.NONE, 100, null, "", List.of()))
+        );
+
+        var scheduled = service.createPlan(scheduledPlan);
+        var canceled = service.createPlan(canceledPlan);
+        service.publishPlan(scheduled.getId(), "status-owner");
+        service.publishPlan(canceled.getId(), "status-owner");
+        service.cancelPlan(canceled.getId(), "status-owner", "测试取消");
+
+        PlanBoardWindow window = PlanBoardWindow.builder()
+                .from(base.minusDays(1))
+                .to(base.plusDays(3))
+                .statuses(List.of(PlanStatus.SCHEDULED))
+                .build();
+
+        PlanBoardView board = service.getPlanBoard("tenant-board-status", window, PlanBoardGrouping.WEEK);
+
+        assertThat(board.getCustomerGroups())
+                .extracting(PlanBoardView.CustomerGroup::getCustomerId)
+                .containsExactly("cust-status-a");
         assertThat(board.getMetrics().getTotalPlans()).isEqualTo(1);
     }
 

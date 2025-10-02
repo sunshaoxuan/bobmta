@@ -47,7 +47,13 @@ public final class PlanBoardAggregator {
                         ? PlanBoardView.UNKNOWN_CUSTOMER_ID
                         : plan.getCustomerId()));
         return grouped.entrySet().stream()
-                .sorted((left, right) -> Integer.compare(right.getValue().size(), left.getValue().size()))
+                .sorted((left, right) -> {
+                    int compare = Integer.compare(right.getValue().size(), left.getValue().size());
+                    if (compare != 0) {
+                        return compare;
+                    }
+                    return left.getKey().compareTo(right.getKey());
+                })
                 .map(entry -> toCustomerGroup(entry.getKey(), entry.getValue(), reference, dueSoonMinutes))
                 .toList();
     }
