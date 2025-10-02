@@ -26,7 +26,11 @@ import type {
 import type { Locale, UiMessageKey } from '../i18n/localization';
 import type { LocalizationState } from '../i18n/useLocalization';
 import { PLAN_STATUS_COLOR, PLAN_STATUS_LABEL } from '../constants/planStatus';
-import { PLAN_MODE_LABEL, PLAN_STATUS_MODE, type PlanViewMode } from '../constants/planMode';
+import {
+  PLAN_MODE_LABEL,
+  PLAN_STATUS_MODE,
+  type PlanViewMode,
+} from '../constants/planMode';
 import { PLAN_REMINDER_CHANNEL_COLOR, PLAN_REMINDER_CHANNEL_LABEL } from '../constants/planReminder';
 import { formatDateTime, formatPlanWindow } from '../utils/planFormatting';
 import type { PlanDetailState } from '../state/planDetail';
@@ -151,9 +155,10 @@ export function PlanPreview({
   const detailError = isActiveDetail ? detailState.error : null;
   const detailOrigin = isActiveDetail ? detailState.origin : null;
   const detailContext = isActiveDetail ? detailState.context : null;
-  const previewStatus: PlanStatus | null = detailContext?.planStatus ?? detail?.status ?? plan?.status ?? null;
-  const fallbackMode: PlanViewMode = previewStatus ? PLAN_STATUS_MODE[previewStatus] : 'design';
-  const mode: PlanViewMode = detailContext ? detailContext.mode : fallbackMode;
+  const previewStatus: PlanStatus | null =
+    detailContext?.planStatus ?? detail?.status ?? plan?.status ?? null;
+  const statusMode: PlanViewMode = previewStatus ? PLAN_STATUS_MODE[previewStatus] : 'design';
+  const mode: PlanViewMode = detailContext ? detailContext.mode : statusMode;
   const modeDefinition = PLAN_PREVIEW_MODE_DEFINITIONS[mode];
   const nodesSection = modeDefinition.sections.nodes;
   const actionsSection = modeDefinition.sections.actions;
@@ -289,7 +294,7 @@ export function PlanPreview({
   };
 
   const handleReminderToggle = (reminder: PlanReminderSummary) => {
-    if (!detail) {
+    if (!detail || !remindersSection.allowEdit) {
       return;
     }
     setSelectedReminderId(reminder.id);
@@ -301,7 +306,7 @@ export function PlanPreview({
   };
 
   const handleReminderEdit = (reminder: PlanReminderSummary) => {
-    if (!detail) {
+    if (!detail || !remindersSection.allowEdit) {
       return;
     }
     setSelectedReminderId(reminder.id);
