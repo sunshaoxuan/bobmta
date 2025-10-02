@@ -42,17 +42,18 @@ export function PlanNodeTree({
         const statusLabel = translate(PLAN_NODE_STATUS_LABEL[node.status]);
         const statusColor = PLAN_NODE_STATUS_COLOR[node.status];
         const isCurrent = mode === 'execution' && currentNodeId === node.id;
-        const isCompleted = mode === 'execution' && completedNodeIds.has(node.id);
+        const isCompleted = completedNodeIds.has(node.id);
+        const isLocked = mode === 'execution' && isCompleted;
         const isEditing = mode === 'design' && editingNodeId === node.id;
         const cardClassName = [
           'plan-preview-node-card',
           isCurrent ? 'plan-preview-node-card-current' : '',
-          isCompleted ? 'plan-preview-node-card-completed' : '',
+          isLocked ? 'plan-preview-node-card-completed' : '',
           isEditing ? 'plan-preview-node-card-editing' : '',
         ]
           .filter(Boolean)
           .join(' ');
-        const cardStyle = isCompleted ? { opacity: 0.6, pointerEvents: 'none' } : undefined;
+        const cardStyle = isLocked ? { opacity: 0.6, pointerEvents: 'none' } : undefined;
         const plannedDuration =
           typeof node.expectedDurationMinutes === 'number' ? node.expectedDurationMinutes : null;
         const actualStart = node.actualStartTime
@@ -68,8 +69,9 @@ export function PlanNodeTree({
               className={cardClassName}
               style={cardStyle}
               data-mode={mode}
+              data-locked={isLocked ? 'true' : undefined}
               aria-current={isCurrent ? 'step' : undefined}
-              aria-disabled={isCompleted ? 'true' : undefined}
+              aria-disabled={isLocked ? 'true' : undefined}
             >
               <div className="plan-preview-node-header">
                 <Text strong>{node.name}</Text>
@@ -77,7 +79,7 @@ export function PlanNodeTree({
                   {isCurrent ? (
                     <Tag color="volcano">{translate('planDetailNodeCurrentTag')}</Tag>
                   ) : null}
-                  {isCompleted ? (
+                  {isLocked ? (
                     <Tag color="default">{translate('planDetailNodeCompletedHint')}</Tag>
                   ) : null}
                   <Tag color={statusColor}>{statusLabel}</Tag>
