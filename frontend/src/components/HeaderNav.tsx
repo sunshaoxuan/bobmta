@@ -82,9 +82,9 @@ export function HeaderNav({
 }: HeaderNavProps) {
   const normalizedUserRoles = permissions.normalizedRoles;
 
-  const visibleMenuItems = useMemo(() => {
+  const visibleMenuItems = useMemo<HeaderNavMenuItem[]>(() => {
     if (!menuItems || menuItems.length === 0) {
-      return [] as HeaderNavMenuItem[];
+      return [];
     }
     if (normalizedUserRoles.length === 0) {
       return menuItems.filter((item) => !item.roles || item.roles.length === 0);
@@ -98,14 +98,14 @@ export function HeaderNav({
     });
   }, [menuItems, normalizedUserRoles]);
 
-  const antMenuItems = useMemo(
+  const antMenuItems = useMemo<MenuProps['items']>(
     () =>
       visibleMenuItems.map((item) => ({
         key: item.key,
         label: item.label,
       })),
     [visibleMenuItems]
-  ) as NonNullable<MenuProps['items']>;
+  );
 
   const selectedMenuKeys = useMemo<MenuProps['selectedKeys']>(
     () => {
@@ -118,7 +118,7 @@ export function HeaderNav({
     [menuSelectedKeys, visibleMenuItems]
   );
 
-  const showMenu = antMenuItems.length > 0;
+  const showMenu = visibleMenuItems.length > 0;
   const primaryRole = isAuthenticated && normalizedUserRoles.length > 0 ? normalizedUserRoles[0] : null;
   const secondaryRoleCount = primaryRole ? Math.max(normalizedUserRoles.length - 1, 0) : 0;
   const roleBadgeLabel = primaryRole
@@ -162,7 +162,7 @@ export function HeaderNav({
   const showNavigationError = Boolean(navigationErrorLabel) && isAuthenticated;
 
   return (
-    <Header className="app-header">
+    <Header className="app-header" role="banner">
       <div className="app-header-left">
         <a className="app-brand" href={brandHref} aria-label={title} onClick={handleBrandClick}>
           <div className="app-brand-mark" aria-hidden="true">
@@ -217,8 +217,17 @@ export function HeaderNav({
           />
         </Space>
         {isAuthenticated ? (
-          <Dropdown menu={{ items: userMenuItems, onClick: onUserMenuClick }} placement="bottomRight">
-            <button type="button" className="user-dropdown-trigger">
+          <Dropdown
+            menu={{ items: userMenuItems, onClick: onUserMenuClick }}
+            placement="bottomRight"
+            trigger={['click']}
+          >
+            <button
+              type="button"
+              className="user-dropdown-trigger"
+              aria-haspopup="menu"
+              aria-expanded="false"
+            >
               <span className="user-avatar" aria-hidden="true">
                 {userInitial}
               </span>
@@ -229,7 +238,12 @@ export function HeaderNav({
             </button>
           </Dropdown>
         ) : (
-          <Button type="primary" className="header-login-button" onClick={onLoginClick}>
+          <Button
+            type="primary"
+            className="header-login-button"
+            onClick={onLoginClick}
+            aria-label={loginLabel}
+          >
             {loginLabel}
           </Button>
         )}
