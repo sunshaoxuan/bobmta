@@ -87,6 +87,10 @@ export function selectPlanDetailMode(state: PlanDetailState): PlanViewMode {
   return state.context.mode;
 }
 
+export function selectPlanDetailPlanStatus(state: PlanDetailState): PlanStatus | null {
+  return state.context.planStatus;
+}
+
 export function selectPlanDetailCurrentNodeId(state: PlanDetailState): string | null {
   return state.context.currentNodeId;
 }

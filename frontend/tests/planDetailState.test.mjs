@@ -6,6 +6,7 @@ import {
   selectPlanDetailContext,
   selectPlanDetailCurrentNodeId,
   selectPlanDetailMode,
+  selectPlanDetailPlanStatus,
 } from '../dist/state/planDetail.js';
 import { INITIAL_PLAN_DETAIL_FILTERS } from '../dist/state/planDetailFilters.js';
 
@@ -125,6 +126,22 @@ test('derivePlanDetailContext returns execution mode for scheduled plans awaitin
   assert.equal(context.planStatus, 'SCHEDULED');
   assert.equal(context.mode, 'execution');
   assert.equal(context.currentNodeId, 'NODE-2');
+});
+
+test('derivePlanDetailContext keeps execution mode even when in-progress plan has no pending nodes', () => {
+  const detail = createDetail({
+    status: 'IN_PROGRESS',
+    nodes: [
+      { id: 'NODE-1', name: 'Done Node', order: 1, status: 'DONE', actionType: 'MANUAL' },
+      { id: 'NODE-2', name: 'Skipped Node', order: 2, status: 'SKIPPED', actionType: 'MANUAL' },
+    ],
+  });
+
+  const context = derivePlanDetailContext(detail);
+
+  assert.equal(context.planStatus, 'IN_PROGRESS');
+  assert.equal(context.mode, 'execution');
+  assert.equal(context.currentNodeId, null);
 });
 
 test('derivePlanDetailContext stays in execution mode when plan is cancelled', () => {
@@ -307,6 +324,27 @@ test('selectPlanDetailContext exposes status metadata and active node marker', (
   assert.equal(context.planStatus, 'SCHEDULED');
   assert.equal(context.mode, 'execution');
   assert.equal(context.currentNodeId, 'NODE-2');
+});
+
+test('selectPlanDetailPlanStatus mirrors context regardless of legacy mode fields', () => {
+  const baseState = createState(
+    createDetail({
+      status: 'IN_PROGRESS',
+      nodes: [
+        { id: 'NODE-1', name: 'Completed Node', order: 1, status: 'DONE', actionType: 'MANUAL' },
+        { id: 'NODE-2', name: 'Running Node', order: 2, status: 'IN_PROGRESS', actionType: 'MANUAL' },
+      ],
+    })
+  );
+
+  const mutatedState = {
+    ...baseState,
+    mode: 'design',
+    currentNodeId: null,
+  };
+
+  assert.equal(selectPlanDetailPlanStatus(baseState), 'IN_PROGRESS');
+  assert.equal(selectPlanDetailPlanStatus(mutatedState), 'IN_PROGRESS');
 });
 
 test('selectPlanDetailCurrentNodeId resets when detail context is cleared', () => {
