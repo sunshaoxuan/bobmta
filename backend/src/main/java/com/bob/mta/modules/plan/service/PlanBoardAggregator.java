@@ -26,14 +26,14 @@ public final class PlanBoardAggregator {
     }
 
     public static PlanBoardView aggregate(List<Plan> plans, PlanBoardGrouping grouping,
-                                       OffsetDateTime reference, int dueSoonMinutes) {
+                                          OffsetDateTime reference, int dueSoonMinutes) {
         List<Plan> safePlans = plans == null ? List.of() : List.copyOf(plans);
         PlanBoardGrouping effectiveGrouping = grouping == null ? PlanBoardGrouping.WEEK : grouping;
 
         PlanBoardView.Metrics metrics = computeMetrics(safePlans, reference, dueSoonMinutes);
         List<PlanBoardView.CustomerGroup> customerGroups = aggregateCustomers(safePlans, reference, dueSoonMinutes);
         List<PlanBoardView.TimeBucket> buckets = aggregateBuckets(safePlans, effectiveGrouping, reference, dueSoonMinutes);
-        return new PlanBoardView(customerGroups, buckets, metrics, effectiveGrouping);
+        return new PlanBoardView(customerGroups, buckets, metrics, effectiveGrouping, reference);
     }
 
     private static List<PlanBoardView.CustomerGroup> aggregateCustomers(List<Plan> plans,
