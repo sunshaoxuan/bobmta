@@ -6,7 +6,11 @@ import {
   groupCalendarEvents,
   transformPlansToCalendarBuckets,
 } from '../dist/state/planList.js';
-import { mapPlanCalendarEventsByDate } from '../dist/utils/planList.js';
+import {
+  getPlanCalendarEventAnchor,
+  getPlanCalendarEventTime,
+  mapPlanCalendarEventsByDate,
+} from '../dist/utils/planList.js';
 
 function createPlan(id, overrides = {}) {
   return {
@@ -179,4 +183,40 @@ test('mapPlanCalendarEventsByDate groups events by local day and sorts within th
   assert.equal(mapWithTz['2025-04-30'][0].plan.id, 'p-13');
   assert.equal(mapWithTz['2025-05-01'].length, 1);
   assert.equal(mapWithTz['2025-05-01'][0].plan.id, 'p-12');
+});
+
+test('getPlanCalendarEventAnchor/time prefer start then end timestamps', () => {
+  const plan = createPlan('p-14', {
+    plannedStartTime: '2025-05-10T09:00:00.000Z',
+    plannedEndTime: '2025-05-10T11:00:00.000Z',
+  });
+  const [event] = createPlanCalendarEvents([plan]);
+  assert.ok(event);
+  assert.equal(getPlanCalendarEventAnchor(event), '2025-05-10T09:00:00.000Z');
+  assert.equal(getPlanCalendarEventTime(event), new Date('2025-05-10T09:00:00.000Z').getTime());
+
+  const fallbackPlan = createPlan('p-15', {
+    plannedStartTime: null,
+    plannedEndTime: '2025-05-11T14:00:00.000Z',
+  });
+  const [fallbackEvent] = createPlanCalendarEvents([fallbackPlan]);
+  assert.ok(fallbackEvent);
+  assert.equal(getPlanCalendarEventAnchor(fallbackEvent), '2025-05-11T14:00:00.000Z');
+  assert.equal(
+    getPlanCalendarEventTime(fallbackEvent),
+    new Date('2025-05-11T14:00:00.000Z').getTime()
+  );
+
+  const missingPlan = createPlan('p-16', {
+    plannedStartTime: null,
+    plannedEndTime: null,
+  });
+  const missingEvent = {
+    plan: missingPlan,
+    startTime: null,
+    endTime: null,
+    durationMinutes: null,
+  };
+  assert.equal(getPlanCalendarEventAnchor(missingEvent), null);
+  assert.equal(getPlanCalendarEventTime(missingEvent), Number.POSITIVE_INFINITY);
 });
