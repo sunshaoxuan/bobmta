@@ -31,6 +31,7 @@ type CalendarMode = 'month' | 'year';
 export type PlanCalendarViewProps = {
   plans?: PlanSummary[];
   events?: PlanCalendarEvent[];
+  buckets?: PlanCalendarBucket[];
   translate: LocalizationState['translate'];
   wrapWithCard?: boolean;
 };
@@ -38,6 +39,7 @@ export type PlanCalendarViewProps = {
 export function PlanCalendarView({
   plans,
   events,
+  buckets: prefetchedBuckets,
   translate,
   wrapWithCard = true,
 }: PlanCalendarViewProps) {
@@ -70,10 +72,16 @@ export function PlanCalendarView({
     [calendarEvents]
   );
 
-  const buckets = useMemo(
-    () => groupCalendarEvents(calendarEvents, { granularity }),
-    [calendarEvents, granularity]
-  );
+  const buckets = useMemo(() => {
+    if (
+      prefetchedBuckets &&
+      prefetchedBuckets.length > 0 &&
+      prefetchedBuckets.every((bucket) => bucket.granularity === granularity)
+    ) {
+      return prefetchedBuckets;
+    }
+    return groupCalendarEvents(calendarEvents, { granularity });
+  }, [calendarEvents, granularity, prefetchedBuckets]);
 
   const granularityLabel = useMemo(() => {
     const option = granularityOptions.find((item) => item.value === granularity);
