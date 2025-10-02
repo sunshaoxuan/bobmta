@@ -38,6 +38,15 @@ export interface CardProps extends React.HTMLAttributes<HTMLDivElement> {
 }
 export const Card: React.FC<CardProps>;
 
+export interface ResultProps extends React.HTMLAttributes<HTMLDivElement> {
+  status?: string | number;
+  title?: React.ReactNode;
+  subTitle?: React.ReactNode;
+  extra?: React.ReactNode;
+  icon?: React.ReactNode;
+}
+export const Result: React.FC<ResultProps>;
+
 export interface SpaceProps extends React.HTMLAttributes<HTMLDivElement> {
   direction?: 'horizontal' | 'vertical';
   size?: 'small' | 'middle' | 'large' | number;
@@ -270,6 +279,7 @@ export default {
   Layout,
   Typography,
   Card,
+  Result,
   Space,
   Alert,
   Button,

@@ -96,6 +96,26 @@ export const Card = ({
   </div>
 );
 
+export const Result = ({
+  status = 'info',
+  title,
+  subTitle,
+  extra,
+  icon,
+  className = '',
+  style,
+}) => {
+  const statusClass = typeof status === 'string' ? `antd-result-status-${status}` : '';
+  return (
+    <div className={classNames('antd-result', statusClass, className)} style={style}>
+      {icon && <div className="antd-result-icon">{icon}</div>}
+      {title && <div className="antd-result-title">{title}</div>}
+      {subTitle && <div className="antd-result-subtitle">{subTitle}</div>}
+      {extra && <div className="antd-result-extra">{extra}</div>}
+    </div>
+  );
+};
+
 const sizeMap = {
   small: 8,
   middle: 16,

@@ -67,7 +67,7 @@ export function HeaderNav({
     () =>
       Array.from(
         new Set(
-          userRoles
+          (userRoles ?? [])
             .map((role) => role.trim().toUpperCase())
             .filter((role) => role.length > 0)
         )
@@ -112,8 +112,8 @@ export function HeaderNav({
   );
 
   const showMenu = isAuthenticated && antMenuItems.length > 0;
-  const primaryRole = isAuthenticated && userRoles.length > 0 ? userRoles[0] : null;
-  const secondaryRoleCount = primaryRole ? Math.max(userRoles.length - 1, 0) : 0;
+  const primaryRole = isAuthenticated && normalizedUserRoles.length > 0 ? normalizedUserRoles[0] : null;
+  const secondaryRoleCount = primaryRole ? Math.max(normalizedUserRoles.length - 1, 0) : 0;
   const roleBadgeLabel = primaryRole
     ? `${primaryRole}${secondaryRoleCount > 0 ? ` +${secondaryRoleCount}` : ''}`
     : null;
@@ -121,7 +121,7 @@ export function HeaderNav({
   return (
     <Header className="app-header">
       <div className="app-header-left">
-        <div className="app-brand">
+        <a className="app-brand" href="/" aria-label={title}>
           <div className="app-brand-mark" aria-hidden="true">
             <span className="app-brand-logo">BOB</span>
           </div>
@@ -131,7 +131,7 @@ export function HeaderNav({
             </Title>
             <Paragraph className="app-subtitle">{subtitle}</Paragraph>
           </div>
-        </div>
+        </a>
         {showMenu && (
           <Menu
             mode="horizontal"
