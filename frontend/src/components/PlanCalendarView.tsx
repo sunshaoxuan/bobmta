@@ -24,6 +24,7 @@ import { listMockPlans } from '../mocks/planList';
 import {
   getPlanCalendarEventTime,
   mapPlanCalendarEventsByDate,
+  selectUpcomingPlanCalendarEvents,
 } from '../utils/planList';
 import type { ReactNode } from '../../vendor/react/index.js';
 
@@ -103,21 +104,10 @@ export function PlanCalendarView({
     return option ? option.label : translate('planCalendarGranularityMonth');
   }, [granularityOptions, granularity, translate]);
 
-  const upcomingEvents = useMemo(() => {
-    if (calendarEvents.length === 0) {
-      return [];
-    }
-    const now = Date.now();
-    const upcoming = calendarEvents.filter((event) => {
-      const anchorTime = getPlanCalendarEventTime(event);
-      if (!Number.isFinite(anchorTime)) {
-        return true;
-      }
-      return anchorTime >= now;
-    });
-    const source = upcoming.length > 0 ? upcoming : calendarEvents;
-    return source.slice(0, 20);
-  }, [calendarEvents]);
+  const upcomingEvents = useMemo(
+    () => selectUpcomingPlanCalendarEvents(calendarEvents),
+    [calendarEvents]
+  );
 
   const handlePanelChange = useCallback((_: unknown, nextMode: CalendarMode) => {
     setCalendarMode(nextMode);
