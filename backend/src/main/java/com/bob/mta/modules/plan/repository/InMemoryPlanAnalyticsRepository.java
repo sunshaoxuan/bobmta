@@ -2,6 +2,7 @@ package com.bob.mta.modules.plan.repository;
 
 import com.bob.mta.modules.plan.domain.Plan;
 import com.bob.mta.modules.plan.domain.PlanAnalytics;
+import com.bob.mta.modules.plan.domain.PlanRiskEvaluator;
 import com.bob.mta.modules.plan.domain.PlanStatus;
 import com.bob.mta.modules.plan.service.PlanBoardAggregator;
 import com.bob.mta.modules.plan.service.PlanBoardView;
@@ -121,6 +122,8 @@ public class InMemoryPlanAnalyticsRepository implements PlanAnalyticsRepository 
     public PlanBoardView getPlanBoard(String tenantId, PlanBoardWindow window, PlanBoardGrouping grouping) {
         PlanBoardWindow effectiveWindow = window == null ? PlanBoardWindow.builder().build() : window;
         PlanBoardGrouping effectiveGrouping = grouping == null ? PlanBoardGrouping.WEEK : grouping;
+        var reference = OffsetDateTime.now();
+        int dueSoonMinutes = PlanRiskEvaluator.DEFAULT_DUE_SOON_MINUTES;
         PlanSearchCriteria criteria = effectiveWindow.toCriteria(tenantId);
         List<Plan> candidates = planRepository.findByCriteria(criteria);
         if (effectiveWindow.hasCustomerFilter() && effectiveWindow.getCustomerIds().size() != 1) {
@@ -129,7 +132,7 @@ public class InMemoryPlanAnalyticsRepository implements PlanAnalyticsRepository 
                     .filter(plan -> plan.getCustomerId() != null && allowed.contains(plan.getCustomerId()))
                     .toList();
         }
-        return PlanBoardAggregator.aggregate(candidates, effectiveGrouping);
+        return PlanBoardAggregator.aggregate(candidates, effectiveGrouping, reference, dueSoonMinutes);
     }
 
     private boolean isOverdue(Plan plan, OffsetDateTime reference) {

@@ -1,6 +1,7 @@
 package com.bob.mta.modules.plan.persistence;
 
 import com.bob.mta.modules.plan.domain.PlanStatus;
+import com.bob.mta.modules.plan.domain.PlanRiskEvaluator;
 import com.bob.mta.modules.plan.repository.PlanBoardGrouping;
 import com.bob.mta.modules.plan.repository.PlanBoardWindow;
 
@@ -14,9 +15,15 @@ public record PlanBoardQueryParameters(String tenantId,
                                        List<PlanStatus> statuses,
                                        OffsetDateTime from,
                                        OffsetDateTime to,
-                                       PlanBoardGrouping grouping) {
+                                       PlanBoardGrouping grouping,
+                                       OffsetDateTime referenceTime,
+                                       int dueSoonMinutes) {
 
-    public static PlanBoardQueryParameters from(String tenantId, PlanBoardWindow window, PlanBoardGrouping grouping) {
+    public static PlanBoardQueryParameters from(String tenantId,
+                                                PlanBoardWindow window,
+                                                PlanBoardGrouping grouping,
+                                                OffsetDateTime referenceTime,
+                                                int dueSoonMinutes) {
         PlanBoardWindow effectiveWindow = window == null ? PlanBoardWindow.builder().build() : window;
         PlanBoardGrouping effectiveGrouping = grouping == null ? PlanBoardGrouping.WEEK : grouping;
         List<String> customers = effectiveWindow.hasCustomerFilter()
@@ -25,6 +32,8 @@ public record PlanBoardQueryParameters(String tenantId,
         List<PlanStatus> statuses = effectiveWindow.getStatuses().isEmpty()
                 ? List.of()
                 : List.copyOf(effectiveWindow.getStatuses());
+        OffsetDateTime reference = referenceTime == null ? OffsetDateTime.now() : referenceTime;
+        int dueSoon = dueSoonMinutes <= 0 ? PlanRiskEvaluator.DEFAULT_DUE_SOON_MINUTES : dueSoonMinutes;
         return new PlanBoardQueryParameters(
                 tenantId,
                 customers,
@@ -32,7 +41,9 @@ public record PlanBoardQueryParameters(String tenantId,
                 statuses,
                 effectiveWindow.getFrom(),
                 effectiveWindow.getTo(),
-                effectiveGrouping
+                effectiveGrouping,
+                reference,
+                dueSoon
         );
     }
 
