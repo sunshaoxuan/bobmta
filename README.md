@@ -221,7 +221,7 @@
   - ✅ 已完成：重构全局 `HeaderNav` 组件，使用 `Layout.Header` + `Menu` + `Dropdown` 承载品牌区、角色敏感导航与用户菜单，新增固定吸顶布局与加载提示；Session 状态同步暴露导航配置、角色集合(`roles`) 、用户菜单以及 `navigationPathMap`/`navigationPaths`/`canAccessPath` 等导航能力，组件内部按角色过滤菜单并在接口异常时降级为 Mock，同时保留后端菜单 `children` 层级便于未来扩展子菜单。未登录场景仅保留访客徽标与登录按钮，不再渲染导航项；命中 403 会在导航栏提示权限告警并保留 Mock 菜单回退，401 自动清理会话并提示重新登录入口。
   - ✅ 已完成：在鉴权态下基于 Session 暴露的 `canAccessPath` 校验前端路由授权，未匹配的路径会展示 403 提示与返回概览按钮，避免用户访问未开放的页面时出现空白视图。
   - ✅ 已完成：升级计划多视图为 Tabs + Segmented 联动切换，沿用筛选条件渲染表格、客户树形列表与日历视图，客户视图以 List/Tree 呈现负责人与状态分布，日历视图接入事件映射与多粒度聚合，并在即将开始列表中过滤出基于时间锚点的未来事件；PlanListBoard 将 `Segmented` 与 `Tabs` 共用的 `viewMode` 状态同步写回 URL，Node Test 覆盖客户聚合、日历分组与时间锚点推断逻辑。
-  - ✅ 已完成：封装 `PlanByCustomerView` 与 `PlanCalendarView` 组件复用计划聚合结果，客户视图展示状态树与负责人标签，日历视图支持日/周/月/年颗粒度分桶并联动列表渲染；配套在 `planList` 状态模块输出客户聚合与日历事件派生方法，并以 Node Test 校验排序、周起始日与年度区间边界。
+  - ✅ 已完成：封装 `PlanByCustomerView` 与 `PlanCalendarView` 组件复用计划聚合结果，客户视图展示状态树与负责人标签，日历视图支持日/周/月/年颗粒度分桶并联动列表渲染，并在后端提供统一时间粒度时自动沿用推荐视图；配套在 `planList` 状态模块输出客户聚合与日历事件派生方法，并以 Node Test 校验排序、周起始日与年度区间边界。
   - 📌 下一步：等待后端提供节点执行与提醒更新接口后对接真实调用，并补齐操作失败提示与权限校验的前端展现。
   - ✅ 后端已交付：F-001/F-002 依赖的字典接口已在 2025-09-29 进入生产环境，需求清单中的后端状态已标记为 `✅ 完成` 并附上契约、示例 `curl` 命令及返回片段供联调核对。
     - `GET /api/v1/plans/filter-options`：契约与示例响应详见《[计划列表筛选字典接口说明](docs/backend-requests/plan-filter-options.md#响应结构)》，可使用 `curl -H "Accept-Language: zh-CN" "${HOST}/api/v1/plans/filter-options?tenantId=acme"` 校验多语言标签与时间窗提示。
