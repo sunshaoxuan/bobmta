@@ -378,6 +378,24 @@ test('mapPlanCalendarEventsByDate groups events by local day and sorts within th
   assert.equal(mapWithTz['2025-05-01'][0].plan.id, 'p-12');
 });
 
+test('mapPlanCalendarEventsByDate skips events without an anchor timestamp', () => {
+  const missingAnchorPlan = createPlan('missing-anchor', {
+    plannedStartTime: null,
+    plannedEndTime: null,
+  });
+
+  const map = mapPlanCalendarEventsByDate([
+    {
+      plan: missingAnchorPlan,
+      startTime: null,
+      endTime: null,
+      durationMinutes: null,
+    },
+  ]);
+
+  assert.deepEqual(map, {});
+});
+
 test('getPlanCalendarEventAnchor/time prefer start then end timestamps', () => {
   const plan = createPlan('p-14', {
     plannedStartTime: '2025-05-10T09:00:00.000Z',
@@ -535,4 +553,22 @@ test('selectUpcomingPlanCalendarEvents falls back to earliest events when none u
     fallback.map((event) => event.plan.id),
     ['early', 'mid']
   );
+});
+
+test('selectUpcomingPlanCalendarEvents enforces default limit when limit missing', () => {
+  const plans = Array.from({ length: 30 }, (_, index) =>
+    createPlan(`limit-${index + 1}`, {
+      plannedStartTime: `2025-05-${String(index + 1).padStart(2, '0')}T08:00:00.000Z`,
+      plannedEndTime: `2025-05-${String(index + 1).padStart(2, '0')}T09:00:00.000Z`,
+    })
+  );
+
+  const events = createPlanCalendarEvents(plans);
+  const upcoming = selectUpcomingPlanCalendarEvents(events, {
+    referenceTime: new Date('2025-05-01T00:00:00.000Z').getTime(),
+  });
+
+  assert.equal(upcoming.length, 20);
+  assert.equal(upcoming[0].plan.id, 'limit-1');
+  assert.equal(upcoming[upcoming.length - 1].plan.id, 'limit-20');
 });
