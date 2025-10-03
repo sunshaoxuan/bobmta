@@ -337,6 +337,32 @@ class PlanControllerTest {
     }
 
     @Test
+    void boardShouldDefaultGranularityToWeekWhenNull() {
+        PlanService planServiceMock = Mockito.mock(PlanService.class);
+        OffsetDateTime reference = OffsetDateTime.parse("2024-06-12T00:00:00Z");
+        PlanBoardView emptyView = new PlanBoardView(List.of(), List.of(), null, PlanBoardGrouping.WEEK, reference);
+        when(planServiceMock.getPlanBoard(any(), any())).thenReturn(emptyView);
+
+        AuditRecorder recorder = new AuditRecorder(auditService, new ObjectMapper());
+        PlanController defaultGroupingController = new PlanController(planServiceMock, recorder, fileService, messageResolver);
+
+        ApiResponse<PlanBoardResponse> response = defaultGroupingController.board(
+                "tenant-default-week",
+                null,
+                null,
+                null,
+                null,
+                null,
+                null);
+
+        assertThat(response.getData()).isNotNull();
+
+        ArgumentCaptor<PlanBoardGrouping> groupingCaptor = ArgumentCaptor.forClass(PlanBoardGrouping.class);
+        verify(planServiceMock).getPlanBoard(any(), groupingCaptor.capture());
+        assertThat(groupingCaptor.getValue()).isEqualTo(PlanBoardGrouping.WEEK);
+    }
+
+    @Test
     void boardShouldReturnZeroMetricsWhenRepositoryOmitsAggregates() {
         PlanService planServiceMock = Mockito.mock(PlanService.class);
         OffsetDateTime reference = OffsetDateTime.parse("2024-07-01T00:00:00Z");

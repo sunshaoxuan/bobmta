@@ -109,23 +109,13 @@ public class PlanController {
                                                 @RequestParam(required = false) OffsetDateTime to,
                                                 @RequestParam(defaultValue = "WEEK")
                                                 PlanBoardGrouping granularity) {
-        List<PlanStatus> sanitizedStatuses = statuses == null ? null
-                : statuses.stream()
-                .filter(Objects::nonNull)
-                .distinct()
-                .toList();
-        List<String> sanitizedCustomers = customerIds == null ? null
-                : customerIds.stream()
-                .filter(Objects::nonNull)
-                .map(String::trim)
-                .filter(StringUtils::hasText)
-                .distinct()
-                .toList();
+        List<PlanStatus> sanitizedStatuses = sanitizeStatuses(statuses);
+        List<String> sanitizedCustomers = sanitizeCustomerIds(customerIds);
         PlanSearchCriteria criteria = PlanSearchCriteria.builder()
                 .tenantId(StringUtils.hasText(tenantId) ? tenantId : null)
                 .owner(StringUtils.hasText(owner) ? owner : null)
-                .statuses(sanitizedStatuses == null || sanitizedStatuses.isEmpty() ? null : sanitizedStatuses)
-                .customerIds(sanitizedCustomers == null || sanitizedCustomers.isEmpty() ? null : sanitizedCustomers)
+                .statuses(sanitizedStatuses)
+                .customerIds(sanitizedCustomers)
                 .from(from)
                 .to(to)
                 .build();
@@ -396,6 +386,30 @@ public class PlanController {
                 .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=" + id + ".ics")
                 .contentType(MediaType.parseMediaType("text/calendar"))
                 .body(content);
+    }
+
+    private List<PlanStatus> sanitizeStatuses(List<PlanStatus> statuses) {
+        if (statuses == null) {
+            return null;
+        }
+        List<PlanStatus> sanitized = statuses.stream()
+                .filter(Objects::nonNull)
+                .distinct()
+                .toList();
+        return sanitized.isEmpty() ? null : sanitized;
+    }
+
+    private List<String> sanitizeCustomerIds(List<String> customerIds) {
+        if (customerIds == null) {
+            return null;
+        }
+        List<String> sanitized = customerIds.stream()
+                .filter(Objects::nonNull)
+                .map(String::trim)
+                .filter(StringUtils::hasText)
+                .distinct()
+                .toList();
+        return sanitized.isEmpty() ? null : sanitized;
     }
 
     private List<PlanNodeCommand> toCommands(List<PlanNodeRequest> nodes) {
