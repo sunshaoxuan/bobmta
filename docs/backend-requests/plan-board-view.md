@@ -112,6 +112,7 @@
 - `plans[].overdue` / `plans[].dueSoon`：派生风险指标，分别表示计划已逾期或在默认阈值内即将到期。
 - `plans[].minutesUntilDue` / `plans[].minutesOverdue`：结合风险标识的分钟粒度倒计时，便于前端展示剩余时间或逾期时长。
 - `metrics.overduePlans` / `metrics.dueSoonPlans`：来自服务层的风险聚合统计，与上方计划卡片的 `overdue` / `dueSoon` 一致，可直接驱动告警提示或仪表盘。
+- 客户分组与时间桶内的计划卡片会按计划开始时间升序排列；当开始时间相同则按照计划 ID 升序，确保前端多视图切换时顺序稳定。
 - 当未命中任何计划时，`metrics` 字段依然会返回各项值为 `0` 的对象，避免前端处理空指针并保持界面指标稳定。
 
 ## 验收说明
