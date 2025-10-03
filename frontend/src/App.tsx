@@ -107,11 +107,11 @@ function AppView({ client, localization, session, planList, planDetail, router }
     state: sessionState,
     login,
     logout,
-    navigationMenu: sessionNavigationMenu,
     navigationItems: sessionNavigationItems,
     navigationPathMap: sessionNavigationPathMap,
     navigationPaths: sessionNavigationPaths,
     canAccessPath,
+    navigationSummary,
   } = session;
   const isAuthenticated = Boolean(sessionState.session);
   const { state: planState, refresh, changePage, changePageSize, restore: restorePlanList } = planList;
@@ -446,7 +446,7 @@ function AppView({ client, localization, session, planList, planDetail, router }
     }
     return navigationState.error;
   }, [navigationState.error, sessionState.session]);
-  const navigationUnauthorized = navigationState.unauthorized;
+  const navigationUnauthorized = navigationSummary.unauthorized;
   const navigationPathCount = sessionNavigationPaths.length;
 
   const navigationErrorLabel = useMemo(() => {
@@ -498,7 +498,7 @@ function AppView({ client, localization, session, planList, planDetail, router }
       children?: HeaderMenuItem[];
     };
 
-    const mapMenuItems = (items: typeof sessionNavigationMenu): HeaderMenuItem[] =>
+    const mapMenuItems = (items: typeof navigationSummary.menu): HeaderMenuItem[] =>
       items.map((item) => ({
         key: item.key,
         label: translate(item.labelKey),
@@ -506,8 +506,8 @@ function AppView({ client, localization, session, planList, planDetail, router }
         children: item.children ? mapMenuItems(item.children) : undefined,
       }));
 
-    return mapMenuItems(sessionNavigationMenu);
-  }, [sessionNavigationMenu, translate]);
+    return mapMenuItems(navigationSummary.menu);
+  }, [navigationSummary.menu, translate]);
 
   const flattenedNavigationItems = useMemo(
     () => flattenNavigationItems(sessionNavigationItems),
@@ -663,7 +663,7 @@ function AppView({ client, localization, session, planList, planDetail, router }
   }, []);
 
   const isForbiddenRoute = Boolean(
-    sessionState.session && (navigationState.forbidden || isRouteForbidden)
+    sessionState.session && (navigationSummary.forbidden || isRouteForbidden)
   );
   const showForbiddenResult = isForbiddenRoute;
 

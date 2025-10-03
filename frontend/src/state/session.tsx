@@ -32,6 +32,13 @@ export type SessionNavigationState = {
   forbidden: boolean;
 };
 
+export type SessionNavigationSummary = {
+  menu: SessionNavigationMenuConfigItem[];
+  roles: string[];
+  unauthorized: boolean;
+  forbidden: boolean;
+};
+
 export type SessionUserMenuAction = {
   key: string;
   labelKey: UiMessageKey;
@@ -84,6 +91,7 @@ export type SessionController = {
   navigationPathMap: Record<string, string>;
   navigationPaths: string[];
   canAccessPath: (path: string) => boolean;
+  navigationSummary: SessionNavigationSummary;
 };
 
 const normalizePath = (path: string): string => {
@@ -476,6 +484,21 @@ export function useSessionController(client: ApiClient): SessionController {
     [state.session, state.navigation.paths]
   );
 
+  const navigationSummary = useMemo<SessionNavigationSummary>(
+    () => ({
+      menu: state.navigation.config,
+      roles: state.permissions.normalizedRoles,
+      unauthorized: state.navigation.unauthorized,
+      forbidden: state.navigation.forbidden,
+    }),
+    [
+      state.navigation.config,
+      state.navigation.unauthorized,
+      state.navigation.forbidden,
+      state.permissions.normalizedRoles,
+    ]
+  );
+
   return useMemo(
     () => ({
       state,
@@ -489,7 +512,8 @@ export function useSessionController(client: ApiClient): SessionController {
       navigationPathMap: state.navigation.pathMap,
       navigationPaths: state.navigation.paths,
       canAccessPath,
+      navigationSummary,
     }),
-    [state, handleLogin, handleLogout, canAccessPath]
+    [state, handleLogin, handleLogout, canAccessPath, navigationSummary]
   );
 }
