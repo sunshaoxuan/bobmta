@@ -55,6 +55,7 @@ import java.util.Locale;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -300,6 +301,61 @@ class PlanControllerTest {
         assertThat(criteria.getCustomerIds()).containsExactly("cust-a", "cust-b");
         assertThat(criteria.getStatuses()).containsExactly(PlanStatus.SCHEDULED, PlanStatus.COMPLETED);
         assertThat(groupingCaptor.getValue()).isEqualTo(PlanBoardGrouping.MONTH);
+    }
+
+    @Test
+    void boardShouldTreatBlankTenantIdAsGlobalScope() {
+        PlanService planServiceMock = Mockito.mock(PlanService.class);
+        OffsetDateTime reference = OffsetDateTime.parse("2024-06-10T00:00:00Z");
+        PlanBoardView emptyView = new PlanBoardView(List.of(), List.of(), null, PlanBoardGrouping.MONTH, reference);
+        when(planServiceMock.getPlanBoard(any(), any())).thenReturn(emptyView);
+
+        AuditRecorder recorder = new AuditRecorder(auditService, new ObjectMapper());
+        PlanController blankTenantController = new PlanController(planServiceMock, recorder, fileService, messageResolver);
+
+        ApiResponse<PlanBoardResponse> response = blankTenantController.board(
+                "   ",
+                List.of("cust-blank"),
+                "owner-blank",
+                null,
+                null,
+                null,
+                PlanBoardGrouping.MONTH);
+
+        assertThat(response.getData()).isNotNull();
+
+        ArgumentCaptor<PlanSearchCriteria> criteriaCaptor = ArgumentCaptor.forClass(PlanSearchCriteria.class);
+        verify(planServiceMock).getPlanBoard(criteriaCaptor.capture(), eq(PlanBoardGrouping.MONTH));
+
+        PlanSearchCriteria delegatedCriteria = criteriaCaptor.getValue();
+        assertThat(delegatedCriteria.getTenantId()).isNull();
+        assertThat(delegatedCriteria.getCustomerIds()).containsExactly("cust-blank");
+    }
+
+    @Test
+    void boardShouldReturnZeroMetricsWhenRepositoryOmitsAggregates() {
+        PlanService planServiceMock = Mockito.mock(PlanService.class);
+        OffsetDateTime reference = OffsetDateTime.parse("2024-07-01T00:00:00Z");
+        PlanBoardView viewWithoutMetrics = new PlanBoardView(List.of(), List.of(), null, PlanBoardGrouping.WEEK, reference);
+        when(planServiceMock.getPlanBoard(any(), any())).thenReturn(viewWithoutMetrics);
+
+        AuditRecorder recorder = new AuditRecorder(auditService, new ObjectMapper());
+        PlanController controllerWithMock = new PlanController(planServiceMock, recorder, fileService, messageResolver);
+
+        ApiResponse<PlanBoardResponse> response = controllerWithMock.board(
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                PlanBoardGrouping.WEEK);
+
+        assertThat(response.getData().getMetrics().getTotalPlans()).isZero();
+        assertThat(response.getData().getMetrics().getCompletionRate()).isZero();
+        assertThat(response.getData().getReferenceTime()).isEqualTo(reference);
+
+        verify(planServiceMock).getPlanBoard(any(), eq(PlanBoardGrouping.WEEK));
     }
 
     @Test
