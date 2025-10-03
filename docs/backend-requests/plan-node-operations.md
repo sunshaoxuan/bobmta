@@ -17,7 +17,7 @@
 - 每次自动化执行都会记录到新的 `PlanActionHistory` 仓储中，字段包括动作类型、模板引用、执行状态、上下文（计划/节点/操作者等）与错误信息，便于审计。`metadata` 字段会落盘模板与网关返回的详情，如 `attempts`（重试次数）、`endpoint`（链接或远程会话地址）、`artifactName`（远程脚本/附件名）、`provider`（邮件/IM 服务商）等，供运营追溯。
 - API 调用场景会将模板 `metadata` 中非敏感键（如 `method`、`scenario` 等）与通知网关返回值写入历史，并过滤掉以 `header.` 开头的敏感首部内容，最终在时间线中以 `meta.method`、`meta.endpoint`、`meta.status` 等字段供前端展示；若模板缺失 `endpoint` 则直接以失败写入历史并提示 `plan.error.nodeActionApiEndpointMissing`。
 - 时间线新增 `NODE_ACTION_EXECUTED` 事件，前端可依据 `actionStatus`、`actionMessage`、`actionError`、`meta.*`（模板/网关元数据、尝试次数、远程会话地址、生成的知识库链接等）与 `context.*`（计划、节点、责任人、触发来源、执行结果等）属性展示成功/失败详情并支持筛选；事件中新增的 `actionId` 字段与 `PlanActionHistory` 主键对齐，便于点击时间线直接跳转或请求完整历史记录。缺失链接的场景会返回 `actionStatus = SKIPPED` 并附带默认错误文案 `plan.error.nodeActionLinkMissing`，便于提示人工补录。
-- 当通知网关返回失败或模板渲染异常时，服务会按通道自动重试至多 3 次，若仍失败则以失败状态写入历史与时间线；计划状态更新仍会提交，便于前端提示并允许用户发起人工重试。
+- 当通知网关返回失败、无响应或模板渲染异常时，服务会按通道自动重试至多 3 次，并在 `metadata.attempts` 中记录尝试次数。若仍失败则以失败状态写入历史与时间线，同时通过 `metadata.reason` 标记具体原因（如 `EXCEPTION`、`NO_RESPONSE`），计划状态更新仍会提交，便于前端提示并允许用户发起人工重试。
 - 当节点动作类型为 `FILE` 时，系统不会触发任何网关或模板渲染，执行会以 `actionStatus = SKIPPED` 写入动作历史与时间线，并在 `metadata.reason`
   字段标记 `NOT_SUPPORTED`，提醒操作者改为人工处理。
 
