@@ -29,6 +29,7 @@
 | 完成节点 | POST | `/api/v1/plans/{planId}/nodes/{nodeId}/complete` | `{ "operatorId": string, "resultSummary"?: string }` | `PlanDetailPayload` | 当子节点达到父节点 `completionThreshold` 时，响应会携带父节点的自动完成与被跳过的兄弟节点 |
 | 节点交接 | POST | `/api/v1/plans/{planId}/nodes/{nodeId}/handover` | `{ "operatorId": string, "assigneeId": string, "comment"?: string }` | `PlanDetailPayload` | 需校验节点允许交接的状态 |
 | 更新提醒 | PUT | `/api/v1/plans/{planId}/reminders/{reminderId}` | `{ "active": boolean, "offsetMinutes"?: number }` | `PlanDetailPayload` | 前端当前仅需要启停能力，后续可拓展字段 |
+| 获取动作历史 | GET | `/api/v1/plans/{planId}/actions` | 无 | `PlanActionHistory[]` | 返回最近的动作执行历史，列表按触发时间升序，元素包含 `context.*` 与 `meta.*` 详情，便于前端渲染时间线或溯源 |
 
 返回结构建议复用 `PlanDetailPayload`，以便前端用同一缓存写入逻辑覆盖节点、时间线与提醒最新值。
 
