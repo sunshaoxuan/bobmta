@@ -1,4 +1,10 @@
-import React, { useCallback, useEffect, useMemo, useState } from '../../vendor/react/index.js';
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from '../../vendor/react/index.js';
 import {
   Calendar,
   Card,
@@ -49,6 +55,7 @@ export function PlanCalendarView({
 }: PlanCalendarViewProps) {
   const [calendarMode, setCalendarMode] = useState<CalendarMode>('month');
   const [granularity, setGranularity] = useState<PlanCalendarGranularity>('month');
+  const userGranularityLockedRef = useRef(false);
 
   useEffect(() => {
     setCalendarMode((current) => {
@@ -99,6 +106,36 @@ export function PlanCalendarView({
     return groupCalendarEvents(calendarEvents, { granularity });
   }, [calendarEvents, granularity, prefetchedBuckets]);
 
+  const recommendedGranularity = useMemo(() => {
+    if (!prefetchedBuckets || prefetchedBuckets.length === 0) {
+      return null;
+    }
+    const first = prefetchedBuckets[0].granularity;
+    const consistent = prefetchedBuckets.every((bucket) => bucket.granularity === first);
+    return consistent ? first : null;
+  }, [prefetchedBuckets]);
+
+  useEffect(() => {
+    if (!recommendedGranularity) {
+      return;
+    }
+    if (userGranularityLockedRef.current) {
+      return;
+    }
+    if (granularity !== recommendedGranularity) {
+      setGranularity(recommendedGranularity);
+    }
+  }, [granularity, recommendedGranularity]);
+
+  useEffect(() => {
+    if (!recommendedGranularity) {
+      return;
+    }
+    if (granularity === recommendedGranularity) {
+      userGranularityLockedRef.current = false;
+    }
+  }, [granularity, recommendedGranularity]);
+
   const granularityLabel = useMemo(() => {
     const option = granularityOptions.find((item) => item.value === granularity);
     return option ? option.label : translate('planCalendarGranularityMonth');
@@ -145,19 +182,31 @@ export function PlanCalendarView({
     [eventsByDate, translate]
   );
 
+  const handleGranularityChange = useCallback(
+    (value: unknown) => {
+      if (typeof value !== 'string') {
+        return;
+      }
+      const nextGranularity = value as PlanCalendarGranularity;
+      if (nextGranularity === granularity) {
+        return;
+      }
+      if (!recommendedGranularity || nextGranularity !== recommendedGranularity) {
+        userGranularityLockedRef.current = true;
+      } else {
+        userGranularityLockedRef.current = false;
+      }
+      setGranularity(nextGranularity);
+    },
+    [granularity, recommendedGranularity]
+  );
+
   const control = (
     <Segmented
       size="small"
       value={granularity}
       options={granularityOptions}
-      onChange={(value) => {
-        if (typeof value === 'string') {
-          const nextGranularity = value as PlanCalendarGranularity;
-          if (nextGranularity !== granularity) {
-            setGranularity(nextGranularity);
-          }
-        }
-      }}
+      onChange={handleGranularityChange}
     />
   );
 
