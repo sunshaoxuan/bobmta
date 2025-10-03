@@ -925,6 +925,7 @@ class InMemoryPlanServiceTest {
         PlanActivity actionActivity = latestActivity(updated, PlanActivityType.NODE_ACTION_EXECUTED);
         assertThat(actionActivity).isNotNull();
         assertThat(actionActivity.getAttributes())
+                .containsEntry("actionId", history.getId())
                 .containsEntry("actionStatus", PlanActionStatus.SUCCESS.name())
                 .containsEntry("meta.templateId", String.valueOf(templateId))
                 .containsEntry("meta.attempts", "1")
@@ -962,6 +963,7 @@ class InMemoryPlanServiceTest {
 
         PlanActivity actionActivity = latestActivity(updated, PlanActivityType.NODE_ACTION_EXECUTED);
         assertThat(actionActivity.getAttributes())
+                .containsEntry("actionId", history.getId())
                 .containsEntry("actionStatus", PlanActionStatus.FAILED.name())
                 .containsEntry("actionError", "smtp-down")
                 .containsEntry("meta.attempts", "3");
@@ -999,6 +1001,7 @@ class InMemoryPlanServiceTest {
 
         PlanActivity actionActivity = latestActivity(completed, PlanActivityType.NODE_ACTION_EXECUTED);
         assertThat(actionActivity.getAttributes())
+                .containsEntry("actionId", history.getId())
                 .containsEntry("actionStatus", PlanActionStatus.SUCCESS.name())
                 .containsEntry("actionTrigger", "complete")
                 .containsEntry("meta.attempts", "1");
@@ -1035,6 +1038,7 @@ class InMemoryPlanServiceTest {
 
         PlanActivity actionActivity = latestActivity(updated, PlanActivityType.NODE_ACTION_EXECUTED);
         assertThat(actionActivity.getAttributes())
+                .containsEntry("actionId", history.getId())
                 .containsEntry("actionStatus", PlanActionStatus.SUCCESS.name())
                 .containsEntry("meta.attempts", "2");
     }
@@ -1071,6 +1075,7 @@ class InMemoryPlanServiceTest {
 
         PlanActivity actionActivity = latestActivity(updated, PlanActivityType.NODE_ACTION_EXECUTED);
         assertThat(actionActivity.getAttributes())
+                .containsEntry("actionId", history.getId())
                 .containsEntry("meta.endpoint", "https://remote.example/session")
                 .containsEntry("meta.attempts", "1")
                 .containsEntry("actionStatus", PlanActionStatus.SUCCESS.name());
@@ -1127,6 +1132,7 @@ class InMemoryPlanServiceTest {
 
         PlanActivity actionActivity = latestActivity(completed, PlanActivityType.NODE_ACTION_EXECUTED);
         assertThat(actionActivity.getAttributes())
+                .containsEntry("actionId", history.getId())
                 .containsEntry("actionStatus", PlanActionStatus.SUCCESS.name())
                 .containsEntry("meta.endpoint", "https://hooks.internal/api")
                 .containsEntry("meta.method", "PATCH")
