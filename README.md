@@ -223,7 +223,7 @@
   - ✅ 已完成：升级计划多视图为 Tabs + Segmented 联动切换，沿用筛选条件渲染表格、客户树形列表与日历视图，客户视图以 List/Tree 呈现负责人与状态分布，日历视图接入事件映射与多粒度聚合，并在即将开始列表中过滤出基于时间锚点的未来事件；PlanListBoard 将 `Segmented` 与 `Tabs` 共用的 `viewMode` 状态同步写回 URL，Node Test 覆盖客户聚合、日历分组与时间锚点推断逻辑。
   - ✅ 已完成：封装 `PlanByCustomerView` 与 `PlanCalendarView` 组件复用计划聚合结果，客户视图展示状态树与负责人标签，日历视图支持日/周/月/年颗粒度分桶并联动列表渲染；配套在 `planList` 状态模块输出客户聚合与日历事件派生方法，并以 Node Test 校验排序、周起始日与年度区间边界。
   - 📌 下一步：等待后端提供节点执行与提醒更新接口后对接真实调用，并补齐操作失败提示与权限校验的前端展现。
-  - ✅ 已确认：F-001/F-002 依赖的字典接口已在 2025-09-29 进入生产环境，契约、示例 `curl` 命令及返回片段已同步至前端需求清单供联调核对。
+  - ✅ 后端已交付：F-001/F-002 依赖的字典接口已在 2025-09-29 进入生产环境，需求清单中的后端状态已标记为 `✅ 完成` 并附上契约、示例 `curl` 命令及返回片段供联调核对。
     - `GET /api/v1/plans/filter-options`：契约与示例响应详见《[计划列表筛选字典接口说明](docs/backend-requests/plan-filter-options.md#响应结构)》，可使用 `curl -H "Accept-Language: zh-CN" "${HOST}/api/v1/plans/filter-options?tenantId=acme"` 校验多语言标签与时间窗提示。
     - `GET /api/v1/plans/activity-types`：契约与示例响应详见《[计划时间线事件字典说明](docs/backend-requests/plan-timeline-activities.md#响应结构)》，可使用 `curl -H "Accept-Language: ja-JP" "${HOST}/api/v1/plans/activity-types"` 核对消息键与属性描述。
     - 前端默认直接调用上述生产接口；`mockPlanFilterOptions.json`、`mockPlanActivityTypes.json` 与 `queryMockPlanSummaries` 仅在离线/测试环境或接口异常时兜底，并保持与 2025-09 契约字段一致的 Node Test 校验，同时记录真实接口联调下的缓存刷新与降级策略。
