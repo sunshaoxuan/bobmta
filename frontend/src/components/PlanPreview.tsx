@@ -57,9 +57,15 @@ import { formatApiErrorMessage } from '../utils/apiErrors';
 
 const { Text, Paragraph } = Typography;
 
+type PlanPreviewModePanelConfig = {
+  descriptionKey?: UiMessageKey;
+  labelKey?: UiMessageKey | null;
+};
+
 type PlanPreviewModeSectionDefinition = {
   title: UiMessageKey;
   showModePanel: boolean;
+  panel?: PlanPreviewModePanelConfig;
 };
 
 type PlanPreviewNodeSectionDefinition = PlanPreviewModeSectionDefinition & {
@@ -72,6 +78,7 @@ type PlanPreviewReminderSectionDefinition = PlanPreviewModeSectionDefinition & {
 
 type PlanPreviewModeDefinition = {
   tagColor: string;
+  actionStatuses: readonly PlanStatus[];
   sections: {
     nodes: PlanPreviewNodeSectionDefinition;
     actions: PlanPreviewModeSectionDefinition;
@@ -81,15 +88,24 @@ type PlanPreviewModeDefinition = {
 const PLAN_PREVIEW_MODE_DEFINITIONS: Record<PlanViewMode, PlanPreviewModeDefinition> = {
   design: {
     tagColor: 'purple',
+    actionStatuses: [],
     sections: {
       nodes: {
         title: 'planDetailNodesTitleDesign',
         showModePanel: true,
         allowEdit: true,
+        panel: {
+          descriptionKey: 'planDetailModeDesignHint',
+          labelKey: 'planDetailNodeEdit',
+        },
       },
       actions: {
         title: 'planDetailActionsTitleDesign',
         showModePanel: true,
+        panel: {
+          descriptionKey: 'planDetailModeDesignHint',
+          labelKey: null,
+        },
       },
       reminders: {
         title: 'planDetailRemindersTitle',
@@ -100,15 +116,24 @@ const PLAN_PREVIEW_MODE_DEFINITIONS: Record<PlanViewMode, PlanPreviewModeDefinit
   },
   execution: {
     tagColor: 'geekblue',
+    actionStatuses: ['SCHEDULED', 'IN_PROGRESS'],
     sections: {
       nodes: {
         title: 'planDetailNodesTitleExecution',
         showModePanel: true,
         allowEdit: false,
+        panel: {
+          descriptionKey: 'planDetailModeExecutionHint',
+          labelKey: null,
+        },
       },
       actions: {
         title: 'planDetailActionsTitleExecution',
         showModePanel: true,
+        panel: {
+          descriptionKey: 'planDetailModeExecutionHint',
+          labelKey: null,
+        },
       },
       reminders: {
         title: 'planDetailRemindersTitle',
@@ -164,7 +189,9 @@ export function PlanPreview({
   const actionsSection = modeDefinition.sections.actions;
   const remindersSection = modeDefinition.sections.reminders;
   const showActionList =
-    mode === 'execution' && previewStatus ? ['SCHEDULED', 'IN_PROGRESS'].includes(previewStatus) : false;
+    previewStatus && modeDefinition.actionStatuses.length > 0
+      ? modeDefinition.actionStatuses.includes(previewStatus)
+      : false;
   const currentNodeId = detailContext ? detailContext.currentNodeId : null;
   const [editingNodeId, setEditingNodeId] = useState<string | null>(null);
   const lastUpdatedLabel =
@@ -644,6 +671,7 @@ export function PlanPreview({
                   completedCount: completedNodeIds.size,
                   totalCount: totalNodeCount,
                   showModePanel: nodesSection.showModePanel,
+                  panel: nodesSection.panel,
                 })
               }
             >
@@ -676,6 +704,7 @@ export function PlanPreview({
                   completedCount: completedNodeIds.size,
                   totalCount: totalNodeCount,
                   showModePanel: actionsSection.showModePanel,
+                  panel: actionsSection.panel,
                 })
               }
             >
@@ -740,6 +769,7 @@ export function PlanPreview({
                   completedCount: completedNodeIds.size,
                   totalCount: totalNodeCount,
                   showModePanel: remindersSection.showModePanel,
+                  panel: remindersSection.panel,
                 })
               }
             >
@@ -833,6 +863,7 @@ type ModeAwareHelperOptions = {
   completedCount: number;
   totalCount: number;
   showModePanel?: boolean;
+  panel?: PlanPreviewModePanelConfig;
 };
 
 function renderModeAwareHelper({
@@ -843,13 +874,22 @@ function renderModeAwareHelper({
   completedCount,
   totalCount,
   showModePanel = false,
+  panel,
 }: ModeAwareHelperOptions): ReactNode {
   if (!showModePanel) {
     return helper;
   }
 
   if (mode === 'design') {
-    return <DesignModePanel translate={translate}>{helper}</DesignModePanel>;
+    return (
+      <DesignModePanel
+        translate={translate}
+        descriptionKey={panel?.descriptionKey}
+        labelKey={panel?.labelKey}
+      >
+        {helper}
+      </DesignModePanel>
+    );
   }
 
   return (
@@ -858,6 +898,7 @@ function renderModeAwareHelper({
       currentNodeName={currentNodeName}
       completedCount={completedCount}
       totalCount={totalCount}
+      descriptionKey={panel?.descriptionKey}
     >
       {helper}
     </ExecutionModePanel>
