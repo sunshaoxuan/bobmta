@@ -107,6 +107,51 @@ test('aggregatePlansByCustomer sorts alphabetically when using name comparator',
   );
 });
 
+test('aggregatePlansByCustomer sorts by total ascending when descending disabled', () => {
+  const plans = [
+    createPlan('p-18a', {
+      customer: { id: 'c-18a', name: 'Contoso' },
+      customerId: 'c-18a',
+      customerName: 'Contoso',
+    }),
+    createPlan('p-18b', {
+      customer: { id: 'c-18b', name: 'Fabrikam' },
+      customerId: 'c-18b',
+      customerName: 'Fabrikam',
+    }),
+    createPlan('p-18c', {
+      customer: { id: 'c-18b', name: 'Fabrikam' },
+      customerId: 'c-18b',
+      customerName: 'Fabrikam',
+    }),
+    createPlan('p-18d', {
+      customer: null,
+      customerId: null,
+      customerName: null,
+    }),
+    createPlan('p-18e', {
+      customer: null,
+      customerId: null,
+      customerName: null,
+    }),
+    createPlan('p-18f', {
+      customer: null,
+      customerId: null,
+      customerName: null,
+    }),
+  ];
+
+  const groups = aggregatePlansByCustomer(plans, { sortBy: 'total', descending: false });
+  assert.deepEqual(
+    groups.map((group) => group.total),
+    [1, 2, 3]
+  );
+  assert.deepEqual(
+    groups.map((group) => group.customerName),
+    ['Contoso', 'Fabrikam', 'Unassigned']
+  );
+});
+
 test('aggregatePlansByCustomer merges case-insensitive names without identifiers', () => {
   const plans = [
     createPlan('p-22', {
