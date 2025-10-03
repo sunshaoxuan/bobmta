@@ -55,6 +55,11 @@ export interface SpaceProps extends React.HTMLAttributes<HTMLDivElement> {
 }
 export const Space: React.FC<SpaceProps>;
 
+export interface SpinProps extends React.HTMLAttributes<HTMLSpanElement> {
+  size?: 'small' | 'middle' | 'large' | number;
+}
+export const Spin: React.FC<SpinProps>;
+
 export type MenuDividerItem = { type: 'divider'; key?: string };
 export type MenuOptionItem = {
   key: string;

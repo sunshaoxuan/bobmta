@@ -4,6 +4,7 @@ import {
   Dropdown,
   Layout,
   Menu,
+  Spin,
   Select,
   Space,
   Tag,
@@ -46,8 +47,8 @@ type HeaderNavProps = {
   forbiddenLabel: string;
   unauthorizedLabel: string;
   guestNoticeLabel: string;
-  userInitial: string;
-  userDisplayName: string;
+  userInitial?: string | null;
+  userDisplayName?: string | null;
   userMenuItems: MenuProps['items'];
   onUserMenuClick: MenuProps['onClick'];
   onLoginClick: () => void;
@@ -159,6 +160,8 @@ export function HeaderNav({
   const roleBadgeLabel = primaryRole
     ? `${primaryRole}${secondaryRoleCount > 0 ? ` +${secondaryRoleCount}` : ''}`
     : null;
+  const safeUserInitial = (userInitial ?? '').trim() || '•';
+  const safeUserDisplayName = (userDisplayName ?? '').trim() || loginLabel;
 
   const handleBrandClick = useCallback(
     (event: Event) => {
@@ -219,26 +222,31 @@ export function HeaderNav({
             onClick={handleMenuClick}
           />
         )}
-        {showForbiddenNotice && (
-          <Tag color="volcano" className="nav-status-tag nav-status-forbidden">
-            {forbiddenLabel}
-          </Tag>
-        )}
-        {!showForbiddenNotice && showUnauthorizedNotice && (
-          <Tag color="gold" className="nav-status-tag nav-status-unauthorized">
-            {unauthorizedLabel}
-          </Tag>
-        )}
-        {!showMenu && !showForbiddenNotice && showGuestNotice && (
-          <Tag color="geekblue" className="nav-status-tag nav-status-guest">
-            {guestNoticeLabel}
-          </Tag>
-        )}
-        {showNavigationError && (
-          <Tag color="volcano" className="nav-error-badge">
-            {navigationErrorLabel}
-          </Tag>
-        )}
+        <div className="app-header-status" aria-live="polite">
+          {navigationLoading && isAuthenticated && (
+            <Spin size="small" className="nav-status-spinner" aria-hidden="true" />
+          )}
+          {showForbiddenNotice && (
+            <Tag color="volcano" className="nav-status-tag nav-status-forbidden">
+              {forbiddenLabel}
+            </Tag>
+          )}
+          {!showForbiddenNotice && showUnauthorizedNotice && (
+            <Tag color="gold" className="nav-status-tag nav-status-unauthorized">
+              {unauthorizedLabel}
+            </Tag>
+          )}
+          {!showMenu && !showForbiddenNotice && showGuestNotice && (
+            <Tag color="geekblue" className="nav-status-tag nav-status-guest">
+              {guestNoticeLabel}
+            </Tag>
+          )}
+          {showNavigationError && (
+            <Tag color="volcano" className="nav-error-badge">
+              {navigationErrorLabel}
+            </Tag>
+          )}
+        </div>
       </div>
       <div className="app-header-right">
         <Space align="center" size="middle" className="locale-switcher">
@@ -264,10 +272,10 @@ export function HeaderNav({
               aria-expanded="false"
             >
               <span className="user-avatar" aria-hidden="true">
-                {userInitial}
+                {safeUserInitial}
               </span>
               <span className="user-bio">
-                <span className="user-name">{userDisplayName}</span>
+                <span className="user-name">{safeUserDisplayName}</span>
                 {roleBadgeLabel && <span className="user-role-badge">{roleBadgeLabel}</span>}
               </span>
             </button>

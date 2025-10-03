@@ -78,6 +78,7 @@ export type SessionController = {
   logout: () => void;
   userMenu: SessionUserMenuState;
   permissions: SessionPermissionsState;
+  roles: string[];
   navigationMenu: SessionNavigationMenuConfigItem[];
   navigationItems: SessionNavigationItem[];
   navigationPathMap: Record<string, string>;
@@ -482,6 +483,7 @@ export function useSessionController(client: ApiClient): SessionController {
       logout: handleLogout,
       userMenu: state.userMenu,
       permissions: state.permissions,
+      roles: state.permissions.normalizedRoles,
       navigationMenu: state.navigation.config,
       navigationItems: state.navigation.items,
       navigationPathMap: state.navigation.pathMap,
