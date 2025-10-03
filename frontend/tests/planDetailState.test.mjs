@@ -355,6 +355,12 @@ test('selectPlanDetailPlanStatus mirrors context regardless of legacy mode field
   assert.equal(selectPlanDetailPlanStatus(mutatedState), 'IN_PROGRESS');
 });
 
+test('selectPlanDetailPlanStatus returns null when detail context missing', () => {
+  const emptyState = createState(null);
+
+  assert.equal(selectPlanDetailPlanStatus(emptyState), null);
+});
+
 test('selectPlanDetailCurrentNodeId resets when detail context is cleared', () => {
   const executionState = createState(
     createDetail({

@@ -184,14 +184,16 @@ export function PlanPreview({
     detailContext?.planStatus ?? detail?.status ?? plan?.status ?? null;
   const statusMode: PlanViewMode = previewStatus ? PLAN_STATUS_MODE[previewStatus] : 'design';
   const mode: PlanViewMode = detailContext ? detailContext.mode : statusMode;
-  const modeDefinition = PLAN_PREVIEW_MODE_DEFINITIONS[mode];
+  const modeDefinition = useMemo(() => PLAN_PREVIEW_MODE_DEFINITIONS[mode], [mode]);
   const nodesSection = modeDefinition.sections.nodes;
   const actionsSection = modeDefinition.sections.actions;
   const remindersSection = modeDefinition.sections.reminders;
-  const showActionList =
-    previewStatus && modeDefinition.actionStatuses.length > 0
-      ? modeDefinition.actionStatuses.includes(previewStatus)
-      : false;
+  const showActionList = useMemo(() => {
+    if (!previewStatus || modeDefinition.actionStatuses.length === 0) {
+      return false;
+    }
+    return modeDefinition.actionStatuses.includes(previewStatus);
+  }, [modeDefinition, previewStatus]);
   const currentNodeId = detailContext ? detailContext.currentNodeId : null;
   const [editingNodeId, setEditingNodeId] = useState<string | null>(null);
   const lastUpdatedLabel =
