@@ -143,6 +143,36 @@ class InMemoryPlanServiceActionTest {
     }
 
     @Test
+    void getPlanActionHistory_shouldReturnEntriesPersistedForPlan() {
+        Plan plan = seedPlan("plan-email-history", PlanStatus.SCHEDULED, PlanNodeStatus.PENDING,
+                PlanNodeActionType.EMAIL, "111", "harry");
+        aggregateRepository.planRepository.save(plan);
+        RenderedTemplate template = new RenderedTemplate(
+                "Subject",
+                "Body",
+                List.of("history@example.com"),
+                List.of(),
+                "https://history.example.com",
+                null,
+                null,
+                null,
+                Map.of()
+        );
+        when(templateService.render(anyLong(), anyMap(), any(Locale.class))).thenReturn(template);
+        NotificationResult success = NotificationResult.success("EMAIL", "email.sent", Map.of());
+        when(notificationGateway.sendEmail(any(EmailMessage.class))).thenReturn(success);
+
+        planService.startNode(plan.getId(), plan.getNodes().get(0).getId(), "operator-history");
+
+        List<PlanActionHistory> histories = planService.getPlanActionHistory(plan.getId());
+        assertThat(histories).hasSize(1);
+        PlanActionHistory history = histories.get(0);
+        assertThat(history.getPlanId()).isEqualTo(plan.getId());
+        assertThat(history.getStatus()).isEqualTo(PlanActionStatus.SUCCESS);
+        assertThat(history.getContext()).containsEntry("trigger", "start");
+    }
+
+    @Test
     void startNode_shouldRecordEmailFailureWhenTemplateThrows() {
         Plan plan = seedPlan("plan-email-failure", PlanStatus.SCHEDULED, PlanNodeStatus.PENDING,
                 PlanNodeActionType.EMAIL, "102", "bob");
