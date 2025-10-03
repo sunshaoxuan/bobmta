@@ -173,6 +173,74 @@ class InMemoryPlanServiceTest {
     }
 
     @Test
+    @DisplayName("getPlanBoard filters using unique customer set when multiple values provided")
+    void shouldFilterPlanBoardByMultipleCustomersWithoutDuplicates() {
+        OffsetDateTime baseline = OffsetDateTime.parse("2024-05-12T09:00:00+08:00");
+        CreatePlanCommand customerA = new CreatePlanCommand(
+                "tenant-board-multi",
+                "多客户过滤-A",
+                "多客户过滤A描述",
+                "cust-multi-a",
+                "multi-owner",
+                baseline.plusHours(1),
+                baseline.plusHours(3),
+                "Asia/Shanghai",
+                List.of("multi-owner"),
+                List.of(new PlanNodeCommand(null, "节点A", "CHECKLIST", "multi-owner", 1, 45,
+                        PlanNodeActionType.NONE, 100, null, "", List.of()))
+        );
+        CreatePlanCommand customerB = new CreatePlanCommand(
+                "tenant-board-multi",
+                "多客户过滤-B",
+                "多客户过滤B描述",
+                "cust-multi-b",
+                "multi-owner",
+                baseline.plusDays(1),
+                baseline.plusDays(1).plusHours(2),
+                "Asia/Shanghai",
+                List.of("multi-owner"),
+                List.of(new PlanNodeCommand(null, "节点B", "CHECKLIST", "multi-owner", 1, 60,
+                        PlanNodeActionType.NONE, 100, null, "", List.of()))
+        );
+        CreatePlanCommand ignoredCustomer = new CreatePlanCommand(
+                "tenant-board-multi",
+                "多客户过滤-忽略",
+                "应被过滤的客户",
+                "cust-multi-ignore",
+                "multi-owner",
+                baseline.plusDays(2),
+                baseline.plusDays(2).plusHours(1),
+                "Asia/Shanghai",
+                List.of("multi-owner"),
+                List.of(new PlanNodeCommand(null, "节点C", "CHECKLIST", "multi-owner", 1, 30,
+                        PlanNodeActionType.NONE, 100, null, "", List.of()))
+        );
+
+        var planA = service.createPlan(customerA);
+        var planB = service.createPlan(customerB);
+        var planIgnored = service.createPlan(ignoredCustomer);
+        service.publishPlan(planA.getId(), "multi-owner");
+        service.publishPlan(planB.getId(), "multi-owner");
+        service.publishPlan(planIgnored.getId(), "multi-owner");
+
+        PlanSearchCriteria criteria = PlanSearchCriteria.builder()
+                .tenantId("tenant-board-multi")
+                .customerIds(List.of("cust-multi-b", "cust-multi-a", "cust-multi-b"))
+                .from(baseline.minusDays(1))
+                .to(baseline.plusDays(4))
+                .build();
+
+        PlanBoardView board = service.getPlanBoard(criteria, PlanBoardGrouping.WEEK);
+
+        assertThat(board.getCustomerGroups())
+                .extracting(PlanBoardView.CustomerGroup::getCustomerId)
+                .containsExactly("cust-multi-a", "cust-multi-b");
+        assertThat(board.getCustomerGroups()).hasSize(2);
+        assertThat(board.getCustomerGroups())
+                .allSatisfy(group -> assertThat(group.getCustomerId()).isIn("cust-multi-a", "cust-multi-b"));
+    }
+
+    @Test
     @DisplayName("getPlanBoard returns empty structures when no plans match")
     void shouldReturnEmptyPlanBoardWhenNoPlans() {
         PlanSearchCriteria criteria = PlanSearchCriteria.builder()

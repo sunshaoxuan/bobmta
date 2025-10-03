@@ -16,7 +16,7 @@
   - `from` / `to` *(optional, ISO-8601 datetime)*：限制计划预计时间窗的上下界。
   - `granularity` *(optional, enum)*：时间桶粒度，支持 `DAY`/`WEEK`/`MONTH`/`YEAR`，默认 `WEEK`。
   - 所有筛选条件将汇总到 `PlanSearchCriteria` 中，由服务层统一传递至持久层执行聚合。
-  - 空字符串与重复的 `customerId` / `status` 会在控制层被自动去重、裁剪，避免生成冗余的筛选条件与审计快照。
+- 空字符串（包括 `tenantId`）与重复的 `customerId` / `status` 会在控制层被自动去重、裁剪，避免生成冗余的筛选条件与审计快照。
 
 ## 响应
 
@@ -120,6 +120,7 @@
 - `status` 过滤与 `GET /api/v1/plans` 保持一致，默认返回全部状态。
 - 已提供控制层与服务层单元测试覆盖不同租户/客户的组合，以支撑多租户环境下的联调。
 - 新增 `PlanPersistenceAnalyticsRepositoryTest` 中的持久化层集成测试，校验 SQL 聚合在多客户筛选、跨租户过滤及空结果场景下与内存实现保持一致。
+- 控制层单测覆盖空白租户 ID 的全局视图访问、聚合缺省指标与多客户去重过滤，保障多租户与客户筛选逻辑在接口层稳定。
 - 每次调用会写入 `PlanBoard` 的审计快照，包含查询租户范围与响应摘要，便于追踪驾驶舱访问行为。
 
 ## 交付状态
