@@ -41,6 +41,7 @@ import com.bob.mta.i18n.LocalizationKeys;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
@@ -299,6 +300,85 @@ class PlanControllerTest {
         assertThat(criteria.getCustomerIds()).containsExactly("cust-a", "cust-b");
         assertThat(criteria.getStatuses()).containsExactly(PlanStatus.SCHEDULED, PlanStatus.COMPLETED);
         assertThat(groupingCaptor.getValue()).isEqualTo(PlanBoardGrouping.MONTH);
+    }
+
+    @Test
+    @DisplayName("board should filter by tenant scope and sort plan cards")
+    void boardShouldFilterByTenantScopeAndSortPlans() {
+        OffsetDateTime base = OffsetDateTime.parse("2024-09-01T08:00:00+08:00");
+        CreatePlanCommand laterStart = new CreatePlanCommand(
+                "tenant-controller-sorting",
+                "驾驶舱排序-较晚计划",
+                "同一客户稍晚开始的计划",
+                "cust-board-sort",
+                "controller-board-owner",
+                base.plusHours(4),
+                base.plusHours(6),
+                "Asia/Shanghai",
+                List.of("controller-board-owner"),
+                List.of(new PlanNodeCommand(null, "准备阶段", "CHECKLIST", "controller-board-owner", 1, 45,
+                        PlanNodeActionType.NONE, 100, null, "", List.of()))
+        );
+        CreatePlanCommand earlierStart = new CreatePlanCommand(
+                "tenant-controller-sorting",
+                "驾驶舱排序-最早计划",
+                "同一客户较早开始的计划",
+                "cust-board-sort",
+                "controller-board-owner",
+                base.plusHours(1),
+                base.plusHours(2),
+                "Asia/Shanghai",
+                List.of("controller-board-owner"),
+                List.of(new PlanNodeCommand(null, "执行阶段", "CHECKLIST", "controller-board-owner", 1, 30,
+                        PlanNodeActionType.NONE, 100, null, "", List.of()))
+        );
+        CreatePlanCommand otherTenant = new CreatePlanCommand(
+                "tenant-controller-sorting-other",
+                "驾驶舱排序-其他租户",
+                "不同租户的计划不应出现",
+                "cust-board-sort",
+                "controller-board-owner",
+                base.plusHours(3),
+                base.plusHours(5),
+                "Asia/Shanghai",
+                List.of("controller-board-owner"),
+                List.of(new PlanNodeCommand(null, "忽略阶段", "CHECKLIST", "controller-board-owner", 1, 30,
+                        PlanNodeActionType.NONE, 100, null, "", List.of()))
+        );
+
+        var laterPlan = planService.createPlan(laterStart);
+        planService.publishPlan(laterPlan.getId(), "controller-board-owner");
+        var earlierPlan = planService.createPlan(earlierStart);
+        planService.publishPlan(earlierPlan.getId(), "controller-board-owner");
+        var otherPlan = planService.createPlan(otherTenant);
+        planService.publishPlan(otherPlan.getId(), "controller-board-owner");
+
+        ApiResponse<PlanBoardResponse> response = controller.board(
+                "tenant-controller-sorting",
+                null,
+                null,
+                null,
+                base.minusDays(1),
+                base.plusDays(1),
+                PlanBoardGrouping.DAY);
+
+        PlanBoardResponse board = response.getData();
+        assertThat(board.getMetrics().getTotalPlans()).isEqualTo(2);
+        assertThat(board.getCustomerGroups()).hasSize(1);
+        PlanBoardResponse.CustomerGroupResponse group = board.getCustomerGroups().get(0);
+        assertThat(group.getCustomerId()).isEqualTo("cust-board-sort");
+        assertThat(group.getPlans()).extracting(PlanBoardResponse.PlanCardResponse::getPlannedStartTime)
+                .containsExactly(base.plusHours(1), base.plusHours(4));
+        assertThat(group.getPlans())
+                .extracting(PlanBoardResponse.PlanCardResponse::getId)
+                .containsExactly(earlierPlan.getId(), laterPlan.getId())
+                .doesNotContain(otherPlan.getId());
+
+        assertThat(board.getTimeBuckets()).hasSize(1);
+        PlanBoardResponse.TimeBucketResponse bucket = board.getTimeBuckets().get(0);
+        assertThat(bucket.getPlans())
+                .extracting(PlanBoardResponse.PlanCardResponse::getId)
+                .containsExactly(earlierPlan.getId(), laterPlan.getId());
     }
 
     @Test
