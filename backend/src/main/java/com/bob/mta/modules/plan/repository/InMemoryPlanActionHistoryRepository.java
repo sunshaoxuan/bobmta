@@ -40,7 +40,7 @@ public class InMemoryPlanActionHistoryRepository implements PlanActionHistoryRep
         if (planId == null) {
             return List.of();
         }
-        return storage.getOrDefault(planId, List.of());
+        return List.copyOf(storage.getOrDefault(planId, List.of()));
     }
 
     @Override
