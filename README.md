@@ -20,9 +20,9 @@
 ### 后端配合事项
 - 后端完成接口或数据能力后，应在 `frontend/FRONTEND_REQUIREMENTS.md` 的相应条目标记交付阶段，并补充接口契约或样例数据链接。
 - 若后端接口调整影响已交付的前端功能，需要在 README 中追加「变更通告」小节说明影响范围、兼容策略与迁移时间窗口。
-- 已于 2025-09-29 在生产环境上线 F-001/F-002 依赖的字典接口：
-  - `GET /api/v1/plans/filter-options`（筛选字典）与 `GET /api/v1/plans/activity-types`（时间线事件字典）现为联调默认入口，示例请求与契约详见《docs/backend-requests/plan-filter-options.md》《docs/backend-requests/plan-timeline-activities.md》。
-  - 前端在命中生产接口返回 `304 Not Modified` 或协商缓存命中时，需按照需求清单中约定的缓存刷新策略降级至本地缓存或 Mock 兜底数据。
+- 已于 2025-09-29 在生产环境上线 F-001/F-002 依赖的字典接口，并在 2025-10-02 与后端再次确认可直接在生产调用：
+  - `GET /api/v1/plans/filter-options`（筛选字典）与 `GET /api/v1/plans/activity-types`（时间线事件字典）现为联调默认入口，示例请求与契约详见《docs/backend-requests/plan-filter-options.md》《docs/backend-requests/plan-timeline-activities.md》，可分别通过 `curl -H "Accept-Language: zh-CN" "${HOST}/api/v1/plans/filter-options?tenantId=acme"`、`curl -H "Accept-Language: ja-JP" "${HOST}/api/v1/plans/activity-types"` 校验。
+  - 前端在命中生产接口返回 `304 Not Modified` 或协商缓存命中时，需按照需求清单中约定的缓存刷新策略降级至本地缓存或 Mock 兜底数据，并记录刷新时间以便追溯。
 
 ## 后端阶段四迭代进度
 
@@ -223,7 +223,7 @@
   - ✅ 已完成：升级计划多视图为 Tabs + Segmented 联动切换，沿用筛选条件渲染表格、客户树形列表与日历视图，客户视图以 List/Tree 呈现负责人与状态分布，日历视图接入事件映射与多粒度聚合，并在即将开始列表中过滤出基于时间锚点的未来事件；PlanListBoard 将 `Segmented` 与 `Tabs` 共用的 `viewMode` 状态同步写回 URL，Node Test 覆盖客户聚合、日历分组与时间锚点推断逻辑。
   - ✅ 已完成：封装 `PlanByCustomerView` 与 `PlanCalendarView` 组件复用计划聚合结果，客户视图展示状态树与负责人标签，日历视图支持日/周/月/年颗粒度分桶并联动列表渲染，并在后端提供统一时间粒度时自动沿用推荐视图；配套在 `planList` 状态模块输出客户聚合与日历事件派生方法，并以 Node Test 校验排序、周起始日与年度区间边界。
   - 📌 下一步：等待后端提供节点执行与提醒更新接口后对接真实调用，并补齐操作失败提示与权限校验的前端展现。
-  - ✅ 后端已交付：F-001/F-002 依赖的字典接口已在 2025-09-29 进入生产环境，需求清单中的后端状态已标记为 `✅ 完成` 并附上契约、示例 `curl` 命令及返回片段供联调核对。
+  - ✅ 后端已交付：F-001/F-002 依赖的字典接口已在 2025-09-29 进入生产环境，并于 2025-10-02 再次确认可直接联调；需求清单中的后端状态已标记为 `✅ 完成` 并附上契约、示例 `curl` 命令及返回片段供联调核对。
     - `GET /api/v1/plans/filter-options`：契约与示例响应详见《[计划列表筛选字典接口说明](docs/backend-requests/plan-filter-options.md#响应结构)》，可使用 `curl -H "Accept-Language: zh-CN" "${HOST}/api/v1/plans/filter-options?tenantId=acme"` 校验多语言标签与时间窗提示。
     - `GET /api/v1/plans/activity-types`：契约与示例响应详见《[计划时间线事件字典说明](docs/backend-requests/plan-timeline-activities.md#响应结构)》，可使用 `curl -H "Accept-Language: ja-JP" "${HOST}/api/v1/plans/activity-types"` 核对消息键与属性描述。
     - 前端默认直接调用上述生产接口；`mockPlanFilterOptions.json`、`mockPlanActivityTypes.json` 与 `queryMockPlanSummaries` 仅在离线/测试环境或接口异常时兜底，并保持与 2025-09 契约字段一致的 Node Test 校验，同时记录真实接口联调下的缓存刷新与降级策略。
