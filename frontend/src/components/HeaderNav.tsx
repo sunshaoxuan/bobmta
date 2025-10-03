@@ -1,6 +1,16 @@
-import React, { useCallback, useMemo } from 'react';
-import { Button, Dropdown, Layout, Menu, Select, Space, Spin, Tag, Typography } from 'antd';
-import type { MenuProps } from 'antd';
+import React, { useCallback, useMemo } from '../../vendor/react/index.js';
+import {
+  Button,
+  Dropdown,
+  Layout,
+  Menu,
+  Select,
+  Space,
+  Spin,
+  Tag,
+  Typography,
+  type MenuProps,
+} from '../../vendor/antd/index.js';
 import type { SessionPermissionsState } from '../state/session';
 
 const { Header } = Layout;
