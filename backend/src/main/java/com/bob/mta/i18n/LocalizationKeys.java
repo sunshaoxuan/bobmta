@@ -125,6 +125,7 @@ public final class LocalizationKeys {
         public static final String PLAN_NODE_START = "audit.plan.node.start";
         public static final String PLAN_NODE_COMPLETE = "audit.plan.node.complete";
         public static final String PLAN_BOARD_VIEW = "audit.plan.board.view";
+        public static final String PLAN_ACTION_HISTORY_VIEW = "audit.plan.actionHistory";
 
         public static final String TEMPLATE_CREATE = "audit.template.create";
         public static final String TEMPLATE_UPDATE = "audit.template.update";

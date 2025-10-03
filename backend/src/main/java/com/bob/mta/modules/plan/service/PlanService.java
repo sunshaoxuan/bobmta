@@ -1,6 +1,7 @@
 package com.bob.mta.modules.plan.service;
 
 import com.bob.mta.modules.plan.domain.Plan;
+import com.bob.mta.modules.plan.domain.PlanActionHistory;
 import com.bob.mta.modules.plan.domain.PlanActivity;
 import com.bob.mta.modules.plan.domain.PlanAnalytics;
 import com.bob.mta.modules.plan.domain.PlanNodeExecution;
@@ -66,4 +67,6 @@ public interface PlanService {
     PlanReminderConfigurationDescriptor describeReminderOptions();
 
     PlanFilterDescriptor describePlanFilters(String tenantId);
+
+    List<PlanActionHistory> getPlanActionHistory(String planId);
 }

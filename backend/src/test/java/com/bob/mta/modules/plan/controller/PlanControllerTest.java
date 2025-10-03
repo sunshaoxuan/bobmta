@@ -8,10 +8,12 @@ import com.bob.mta.modules.audit.service.AuditQuery;
 import com.bob.mta.modules.audit.service.AuditRecorder;
 import com.bob.mta.modules.audit.service.impl.InMemoryAuditService;
 import com.bob.mta.modules.file.service.impl.InMemoryFileService;
+import com.bob.mta.modules.plan.domain.PlanActionStatus;
 import com.bob.mta.modules.plan.domain.PlanActivityType;
 import com.bob.mta.modules.plan.domain.PlanAnalytics;
 import com.bob.mta.modules.plan.domain.PlanReminderTrigger;
 import com.bob.mta.modules.plan.domain.PlanNodeActionType;
+import com.bob.mta.modules.plan.dto.PlanActionHistoryResponse;
 import com.bob.mta.modules.plan.dto.CancelPlanRequest;
 import com.bob.mta.modules.plan.dto.CompleteNodeRequest;
 import com.bob.mta.modules.plan.dto.PlanActivityResponse;
@@ -38,6 +40,7 @@ import com.bob.mta.modules.plan.service.impl.TestTemplateService;
 import com.bob.mta.modules.plan.service.command.CreatePlanCommand;
 import com.bob.mta.modules.plan.service.command.PlanNodeCommand;
 import com.bob.mta.i18n.LocalizationKeys;
+import com.bob.mta.modules.template.domain.RenderedTemplate;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -52,6 +55,7 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
@@ -746,6 +750,52 @@ class PlanControllerTest {
         assertThat(timeline)
                 .extracting(entry -> entry.getType())
                 .contains(PlanActivityType.PLAN_CREATED, PlanActivityType.PLAN_PUBLISHED);
+    }
+
+    @Test
+    void actionHistoryShouldExposeAutomationAttemptsAndAuditTrail() {
+        OffsetDateTime start = OffsetDateTime.now().plusHours(1);
+        CreatePlanCommand command = new CreatePlanCommand(
+                "tenant-action-history",
+                "动作历史计划",
+                "验证动作历史查询",
+                "cust-action",
+                "operator",
+                start,
+                start.plusHours(2),
+                "Asia/Shanghai",
+                List.of("operator"),
+                List.of(new PlanNodeCommand(null, "告警通知", "CHECKLIST", "operator", 1, 30,
+                        PlanNodeActionType.EMAIL, 100, "701", "", List.of()))
+        );
+        var plan = planService.createPlan(command);
+        planService.publishPlan(plan.getId(), "operator");
+        templateService.register(701L, new RenderedTemplate(
+                "通知",
+                "测试内容",
+                List.of("ops@example.com"),
+                List.of(),
+                "https://notify.example.com",
+                null,
+                null,
+                null,
+                Map.of("provider", "mock-mail")));
+        authenticate("operator");
+        PlanNodeStartRequest request = new PlanNodeStartRequest();
+        request.setOperatorId("operator");
+        controller.startNode(plan.getId(), plan.getNodes().get(0).getId(), request);
+
+        List<PlanActionHistoryResponse> histories = controller.actionHistory(plan.getId()).getData();
+
+        assertThat(histories).hasSize(1);
+        PlanActionHistoryResponse history = histories.get(0);
+        assertThat(history.getStatus()).isEqualTo(PlanActionStatus.SUCCESS);
+        assertThat(history.getMetadata()).containsEntry("templateId", "701").containsEntry("provider", "mock-mail");
+        assertThat(history.getContext()).containsEntry("trigger", "start").containsEntry("planId", plan.getId());
+
+        var logs = auditService.query(new AuditQuery("PlanAction", plan.getId(), "VIEW_PLAN_ACTIONS", "operator"));
+        assertThat(logs).hasSize(1);
+        assertThat(logs.get(0).getNewData()).contains("EMAIL");
     }
 
     @Test

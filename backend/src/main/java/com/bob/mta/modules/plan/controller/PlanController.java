@@ -12,6 +12,7 @@ import com.bob.mta.modules.plan.domain.PlanStatus;
 import com.bob.mta.modules.plan.dto.CancelPlanRequest;
 import com.bob.mta.modules.plan.dto.CompleteNodeRequest;
 import com.bob.mta.modules.plan.dto.CreatePlanRequest;
+import com.bob.mta.modules.plan.dto.PlanActionHistoryResponse;
 import com.bob.mta.modules.plan.dto.PlanActivityResponse;
 import com.bob.mta.modules.plan.dto.PlanActivityTypeMetadataResponse;
 import com.bob.mta.modules.plan.dto.PlanAnalyticsResponse;
@@ -184,6 +185,18 @@ public class PlanController {
                 .map(PlanActivityResponse::from)
                 .toList();
         return ApiResponse.success(timeline);
+    }
+
+    @PreAuthorize("hasAnyRole('ADMIN','OPERATOR')")
+    @GetMapping("/{id}/actions")
+    public ApiResponse<List<PlanActionHistoryResponse>> actionHistory(@PathVariable String id) {
+        List<PlanActionHistoryResponse> histories = planService.getPlanActionHistory(id).stream()
+                .map(PlanActionHistoryResponse::from)
+                .toList();
+        auditRecorder.record("PlanAction", id, "VIEW_PLAN_ACTIONS",
+                messageResolver.getMessage(LocalizationKeys.Audit.PLAN_ACTION_HISTORY_VIEW),
+                null, histories);
+        return ApiResponse.success(histories);
     }
 
     @PreAuthorize("hasAnyRole('ADMIN','OPERATOR')")

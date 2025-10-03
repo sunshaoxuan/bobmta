@@ -559,6 +559,14 @@ public class InMemoryPlanService implements PlanService {
     }
 
     @Override
+    public List<PlanActionHistory> getPlanActionHistory(String planId) {
+        if (!StringUtils.hasText(planId)) {
+            return List.of();
+        }
+        return actionHistoryRepository.findByPlanId(planId);
+    }
+
+    @Override
     @Transactional
     public Plan updateReminderPolicy(String planId, List<PlanReminderRule> rules, String operator) {
         Plan current = requirePlan(planId);

@@ -1,22 +1,12 @@
-import React, { useCallback, useMemo } from '../../vendor/react/index.js';
-import {
-  Button,
-  Dropdown,
-  Layout,
-  Menu,
-  Spin,
-  Select,
-  Space,
-  Tag,
-  Typography,
-  type MenuProps,
-} from '../../vendor/antd/index.js';
+import React, { useCallback, useMemo } from 'react';
+import { Button, Dropdown, Layout, Menu, Select, Space, Spin, Tag, Typography } from 'antd';
+import type { MenuProps } from 'antd';
 import type { SessionPermissionsState } from '../state/session';
 
 const { Header } = Layout;
 const { Title, Paragraph, Text } = Typography;
 
-type HeaderNavMenuItem = {
+export type HeaderNavMenuItem = {
   key: string;
   label: string;
   roles?: string[];
@@ -24,7 +14,7 @@ type HeaderNavMenuItem = {
   children?: HeaderNavMenuItem[];
 };
 
-type HeaderNavProps = {
+export type HeaderNavProps = {
   title: string;
   subtitle: string;
   localeLabel: string;
@@ -52,6 +42,57 @@ type HeaderNavProps = {
   userMenuItems: MenuProps['items'];
   onUserMenuClick: MenuProps['onClick'];
   onLoginClick: () => void;
+};
+
+const normalizeRoles = (roles: string[] = []): string[] =>
+  roles
+    .map((role) => role.trim().toUpperCase())
+    .filter((role) => role.length > 0);
+
+const mapMenuItems = (
+  items: HeaderNavMenuItem[],
+  allowedRoles: Set<string>
+): HeaderNavMenuItem[] => {
+  const visit = (item: HeaderNavMenuItem): HeaderNavMenuItem | null => {
+    const normalizedRoles = normalizeRoles(item.roles ?? []);
+    const children = item.children ? mapMenuItems(item.children, allowedRoles) : [];
+    const isAllowed =
+      normalizedRoles.length === 0 || normalizedRoles.some((role) => allowedRoles.has(role));
+
+    if (!isAllowed && children.length === 0) {
+      return null;
+    }
+
+    const shouldDisable = !isAllowed && children.length > 0;
+
+    return {
+      ...item,
+      disabled: shouldDisable ? true : item.disabled,
+      children: children.length > 0 ? children : undefined,
+    };
+  };
+
+  return items
+    .map((item) => visit(item))
+    .filter((item): item is HeaderNavMenuItem => Boolean(item));
+};
+
+const toAntdMenuItems = (items: HeaderNavMenuItem[]): NonNullable<MenuProps['items']> =>
+  items.map((item) => ({
+    key: item.key,
+    label: item.label,
+    disabled: item.disabled,
+    children: item.children ? toAntdMenuItems(item.children) : undefined,
+  }));
+
+const collectVisibleKeys = (items: HeaderNavMenuItem[], bucket: Set<string>): Set<string> => {
+  items.forEach((item) => {
+    bucket.add(item.key);
+    if (item.children) {
+      collectVisibleKeys(item.children, bucket);
+    }
+  });
+  return bucket;
 };
 
 export function HeaderNav({
@@ -83,82 +124,46 @@ export function HeaderNav({
   onUserMenuClick,
   onLoginClick,
 }: HeaderNavProps) {
-  const normalizedUserRoles = permissions.normalizedRoles;
-
-  const filterMenuItemsByRoles = useCallback(
-    (items: HeaderNavMenuItem[]): HeaderNavMenuItem[] => {
-      if (items.length === 0) {
-        return [];
-      }
-      const allowedRoles = new Set(normalizedUserRoles);
-      const mapItem = (item: HeaderNavMenuItem): HeaderNavMenuItem | null => {
-        const children = item.children ? filterMenuItemsByRoles(item.children) : [];
-        const normalizedRoles = (item.roles ?? []).map((role) => role.trim().toUpperCase());
-        const allowed =
-          normalizedRoles.length === 0 || normalizedRoles.some((role) => allowedRoles.has(role));
-        if (!allowed && children.length === 0) {
-          return null;
-        }
-        const shouldDisable = !allowed && children.length > 0;
-        return {
-          ...item,
-          disabled: shouldDisable ? true : item.disabled,
-          children: children.length > 0 ? children : undefined,
-        };
-      };
-
-      return items
-        .map((item) => mapItem(item))
-        .filter((item): item is HeaderNavMenuItem => Boolean(item));
-    },
-    [normalizedUserRoles]
+  const allowedRoles = useMemo(
+    () => new Set(permissions.normalizedRoles ?? []),
+    [permissions.normalizedRoles]
   );
 
-  const visibleMenuItems = useMemo<HeaderNavMenuItem[]>(() => {
+  const filteredMenuItems = useMemo(() => {
+    if (!isAuthenticated) {
+      return [];
+    }
     if (!menuItems || menuItems.length === 0) {
       return [];
     }
-    return filterMenuItemsByRoles(menuItems);
-  }, [filterMenuItemsByRoles, menuItems]);
+    return mapMenuItems(menuItems, allowedRoles);
+  }, [allowedRoles, isAuthenticated, menuItems]);
 
-  const collectVisibleMenuKeys = useCallback((items: HeaderNavMenuItem[], keys: Set<string>) => {
-    items.forEach((item) => {
-      keys.add(item.key);
-      if (item.children) {
-        collectVisibleMenuKeys(item.children, keys);
-      }
-    });
-    return keys;
-  }, []);
-
-  const visibleMenuKeySet = useMemo(() => collectVisibleMenuKeys(visibleMenuItems, new Set<string>()), [collectVisibleMenuKeys, visibleMenuItems]);
-
-  const antMenuItems = useMemo<MenuProps['items']>(() => {
-    const mapMenu = (items: HeaderNavMenuItem[]): NonNullable<MenuProps['items']> =>
-      items.map((item) => ({
-        key: item.key,
-        label: item.label,
-        disabled: item.disabled,
-        children: item.children ? mapMenu(item.children) : undefined,
-      }));
-    return mapMenu(visibleMenuItems);
-  }, [visibleMenuItems]);
-
-  const selectedMenuKeys = useMemo<MenuProps['selectedKeys']>(
-    () => {
-      if (!menuSelectedKeys || menuSelectedKeys.length === 0) {
-        return [];
-      }
-      return menuSelectedKeys.filter((key) => visibleMenuKeySet.has(key));
-    },
-    [menuSelectedKeys, visibleMenuKeySet]
+  const visibleKeySet = useMemo(
+    () => collectVisibleKeys(filteredMenuItems, new Set<string>()),
+    [filteredMenuItems]
   );
 
-  const showMenu = isAuthenticated && visibleMenuItems.length > 0;
-  const primaryRole = isAuthenticated && normalizedUserRoles.length > 0 ? normalizedUserRoles[0] : null;
-  const secondaryRoleCount = primaryRole ? Math.max(normalizedUserRoles.length - 1, 0) : 0;
+  const antMenuItems = useMemo<MenuProps['items']>(() => {
+    if (filteredMenuItems.length === 0) {
+      return [];
+    }
+    return toAntdMenuItems(filteredMenuItems);
+  }, [filteredMenuItems]);
+
+  const selectedKeys = useMemo<MenuProps['selectedKeys']>(() => {
+    if (!menuSelectedKeys || menuSelectedKeys.length === 0) {
+      return [];
+    }
+    return menuSelectedKeys.filter((key) => visibleKeySet.has(key));
+  }, [menuSelectedKeys, visibleKeySet]);
+
+  const showMenu = isAuthenticated && filteredMenuItems.length > 0;
+  const normalizedUserRoles = permissions.normalizedRoles ?? [];
+  const primaryRole = normalizedUserRoles.length > 0 ? normalizedUserRoles[0] : null;
+  const extraRoleCount = primaryRole ? Math.max(normalizedUserRoles.length - 1, 0) : 0;
   const roleBadgeLabel = primaryRole
-    ? `${primaryRole}${secondaryRoleCount > 0 ? ` +${secondaryRoleCount}` : ''}`
+    ? `${primaryRole}${extraRoleCount > 0 ? ` +${extraRoleCount}` : ''}`
     : null;
   const safeUserInitial = (userInitial ?? '').trim() || '•';
   const safeUserDisplayName = (userDisplayName ?? '').trim() || loginLabel;
@@ -174,14 +179,12 @@ export function HeaderNav({
     [onBrandClick]
   );
 
-  const handleMenuClick = useCallback<NonNullable<MenuProps['onClick']>>( 
+  const handleMenuClick = useCallback<NonNullable<MenuProps['onClick']>>(
     (info) => {
       if (navigationLoading) {
         return;
       }
-      if (onMenuClick) {
-        onMenuClick(info);
-      }
+      onMenuClick?.(info);
     },
     [navigationLoading, onMenuClick]
   );
@@ -218,7 +221,7 @@ export function HeaderNav({
             mode="horizontal"
             className={menuClassName}
             items={antMenuItems}
-            selectedKeys={selectedMenuKeys}
+            selectedKeys={selectedKeys}
             onClick={handleMenuClick}
           />
         )}

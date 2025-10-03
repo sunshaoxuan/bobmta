@@ -327,6 +327,26 @@ test('transformPlansToCalendarBuckets reuses event aggregation', () => {
   assert.equal(transformed[0].events[1].durationMinutes, 90);
 });
 
+test('transformPlansToCalendarBuckets respects weekStartsOn override', () => {
+  const plans = [
+    createPlan('p-10w', {
+      plannedStartTime: '2025-05-07T09:00:00.000Z',
+      plannedEndTime: '2025-05-07T10:00:00.000Z',
+    }),
+  ];
+
+  const buckets = transformPlansToCalendarBuckets(plans, {
+    granularity: 'week',
+    weekStartsOn: 0,
+  });
+
+  assert.equal(buckets.length, 1);
+  const [bucket] = buckets;
+  assert.ok(bucket);
+  assert.equal(bucket.start, '2025-05-04T00:00:00.000Z');
+  assert.equal(bucket.end, '2025-05-11T00:00:00.000Z');
+});
+
 test('mapPlanCalendarEventsByDate groups events by local day and sorts within the day', () => {
   const plans = [
     createPlan('p-12', {

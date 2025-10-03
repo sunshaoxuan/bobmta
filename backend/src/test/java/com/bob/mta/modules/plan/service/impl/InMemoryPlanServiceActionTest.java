@@ -143,6 +143,36 @@ class InMemoryPlanServiceActionTest {
     }
 
     @Test
+    void getPlanActionHistory_shouldReturnEntriesPersistedForPlan() {
+        Plan plan = seedPlan("plan-email-history", PlanStatus.SCHEDULED, PlanNodeStatus.PENDING,
+                PlanNodeActionType.EMAIL, "111", "harry");
+        aggregateRepository.planRepository.save(plan);
+        RenderedTemplate template = new RenderedTemplate(
+                "Subject",
+                "Body",
+                List.of("history@example.com"),
+                List.of(),
+                "https://history.example.com",
+                null,
+                null,
+                null,
+                Map.of()
+        );
+        when(templateService.render(anyLong(), anyMap(), any(Locale.class))).thenReturn(template);
+        NotificationResult success = NotificationResult.success("EMAIL", "email.sent", Map.of());
+        when(notificationGateway.sendEmail(any(EmailMessage.class))).thenReturn(success);
+
+        planService.startNode(plan.getId(), plan.getNodes().get(0).getId(), "operator-history");
+
+        List<PlanActionHistory> histories = planService.getPlanActionHistory(plan.getId());
+        assertThat(histories).hasSize(1);
+        PlanActionHistory history = histories.get(0);
+        assertThat(history.getPlanId()).isEqualTo(plan.getId());
+        assertThat(history.getStatus()).isEqualTo(PlanActionStatus.SUCCESS);
+        assertThat(history.getContext()).containsEntry("trigger", "start");
+    }
+
+    @Test
     void startNode_shouldRecordEmailFailureWhenTemplateThrows() {
         Plan plan = seedPlan("plan-email-failure", PlanStatus.SCHEDULED, PlanNodeStatus.PENDING,
                 PlanNodeActionType.EMAIL, "102", "bob");
@@ -165,6 +195,49 @@ class InMemoryPlanServiceActionTest {
                 .containsEntry("actionStatus", PlanActionStatus.FAILED.name())
                 .containsEntry("actionError", "render failed")
                 .containsEntry("actionMessage", "plan.action.failed");
+    }
+
+    @Test
+    void completeNode_shouldRetryEmailUntilSuccess() {
+        Plan plan = seedPlan("plan-email-retry", PlanStatus.IN_PROGRESS, PlanNodeStatus.IN_PROGRESS,
+                PlanNodeActionType.EMAIL, "103", "bianca");
+        aggregateRepository.planRepository.save(plan);
+        RenderedTemplate template = new RenderedTemplate(
+                "Subject",
+                "Body",
+                List.of("user@example.com"),
+                List.of(),
+                null,
+                null,
+                null,
+                null,
+                Map.of()
+        );
+        when(templateService.render(anyLong(), anyMap(), any(Locale.class))).thenReturn(template);
+        NotificationResult failure = NotificationResult.failure("EMAIL", "email.retry", "service unavailable",
+                Map.of("provider", "mock"));
+        NotificationResult success = NotificationResult.success("EMAIL", "email.sent", Map.of("provider", "mock"));
+        when(notificationGateway.sendEmail(any(EmailMessage.class))).thenReturn(failure, success);
+
+        Plan updated = planService.completeNode(plan.getId(), plan.getNodes().get(0).getId(),
+                "operator-2", "ok", null, null);
+
+        verify(notificationGateway, times(2)).sendEmail(any(EmailMessage.class));
+        assertThat(actionHistoryRepository.entries).hasSize(1);
+        PlanActionHistory history = actionHistoryRepository.entries.get(0);
+        assertThat(history.getStatus()).isEqualTo(PlanActionStatus.SUCCESS);
+        assertThat(history.getMetadata())
+                .containsEntry("attempts", "2")
+                .containsEntry("templateId", "103")
+                .containsEntry("provider", "mock");
+
+        PlanActivity actionActivity = findActionActivity(updated);
+        assertThat(actionActivity.getAttributes())
+                .containsEntry("actionId", history.getId())
+                .containsEntry("actionStatus", PlanActionStatus.SUCCESS.name())
+                .containsEntry("actionMessage", "email.sent")
+                .containsEntry("meta.provider", "mock")
+                .containsEntry("meta.attempts", "2");
     }
 
     @Test
@@ -389,6 +462,48 @@ class InMemoryPlanServiceActionTest {
                 .containsEntry("actionId", history.getId())
                 .containsEntry("actionStatus", PlanActionStatus.FAILED.name())
                 .containsEntry("actionError", "api gateway down")
+                .containsEntry("meta.attempts", "3");
+    }
+
+    @Test
+    void startNode_shouldRecordApiFailureWhenGatewayReturnsNoResponse() {
+        Plan plan = seedPlan("plan-api-no-response", PlanStatus.SCHEDULED, PlanNodeStatus.PENDING,
+                PlanNodeActionType.API_CALL, "604", "lisa");
+        aggregateRepository.planRepository.save(plan);
+        RenderedTemplate template = new RenderedTemplate(
+                null,
+                "{}",
+                List.of(),
+                List.of(),
+                "https://hooks.example.com/unreachable",
+                null,
+                null,
+                null,
+                Map.of()
+        );
+        when(templateService.render(anyLong(), anyMap(), any(Locale.class))).thenReturn(template);
+        when(notificationGateway.invokeApiCall(any(ApiCallRequest.class))).thenReturn(null);
+
+        Plan updated = planService.startNode(plan.getId(), plan.getNodes().get(0).getId(), "operator-9");
+
+        verify(notificationGateway, times(3)).invokeApiCall(any(ApiCallRequest.class));
+        assertThat(actionHistoryRepository.entries).hasSize(1);
+        PlanActionHistory history = actionHistoryRepository.entries.get(0);
+        assertThat(history.getStatus()).isEqualTo(PlanActionStatus.FAILED);
+        assertThat(history.getMessage()).isEqualTo("plan.action.failed");
+        assertThat(history.getError()).isEqualTo("plan.error.nodeActionNoResponse");
+        assertThat(history.getMetadata())
+                .containsEntry("attempts", "3")
+                .containsEntry("reason", "NO_RESPONSE")
+                .containsEntry("endpoint", "https://hooks.example.com/unreachable");
+
+        PlanActivity actionActivity = findActionActivity(updated);
+        assertThat(actionActivity.getAttributes())
+                .containsEntry("actionId", history.getId())
+                .containsEntry("actionStatus", PlanActionStatus.FAILED.name())
+                .containsEntry("actionMessage", "plan.action.failed")
+                .containsEntry("actionError", "plan.error.nodeActionNoResponse")
+                .containsEntry("meta.reason", "NO_RESPONSE")
                 .containsEntry("meta.attempts", "3");
     }
 
