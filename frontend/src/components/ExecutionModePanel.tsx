@@ -1,5 +1,6 @@
 import React, { type ReactNode } from '../../vendor/react/index.js';
 import { Space, Tag, Typography } from '../../vendor/antd/index.js';
+import type { UiMessageKey } from '../i18n/localization';
 import type { LocalizationState } from '../i18n/useLocalization';
 import { PLAN_MODE_LABEL } from '../constants/planMode';
 
@@ -11,6 +12,7 @@ type ExecutionModePanelProps = {
   completedCount: number;
   totalCount: number;
   children?: ReactNode;
+  descriptionKey?: UiMessageKey;
 };
 
 export function ExecutionModePanel({
@@ -19,6 +21,7 @@ export function ExecutionModePanel({
   completedCount,
   totalCount,
   children,
+  descriptionKey = 'planDetailModeExecutionHint',
 }: ExecutionModePanelProps) {
   const hasNodes = totalCount > 0;
 
@@ -34,7 +37,7 @@ export function ExecutionModePanel({
         <span className="plan-mode-panel-value">{translate('planDetailModeExecution')}</span>
       </Text>
       <Paragraph type="secondary" className="plan-mode-panel-description">
-        {translate('planDetailModeExecutionHint')}
+        {translate(descriptionKey)}
       </Paragraph>
       {hasNodes ? (
         <Space size={8} wrap>
