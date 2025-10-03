@@ -157,6 +157,31 @@ export const Space = ({
   );
 };
 
+const spinSizeMap = {
+  small: 16,
+  middle: 24,
+  large: 32,
+};
+
+export const Spin = ({ size = 'small', className = '', style }) => {
+  const dimension = typeof size === 'number' ? size : spinSizeMap[size] ?? spinSizeMap.small;
+  const thickness = Math.max(2, Math.round(dimension / 8));
+  const baseStyle = {
+    width: dimension,
+    height: dimension,
+    borderWidth: thickness,
+  };
+  return (
+    <span
+      className={classNames('antd-spin', className)}
+      style={{ ...baseStyle, ...(style ?? {}) }}
+      role="status"
+      aria-live="polite"
+      aria-busy="true"
+    />
+  );
+};
+
 const normalizeMenuItems = (items = []) =>
   Array.isArray(items) ? items.filter(Boolean) : [];
 
