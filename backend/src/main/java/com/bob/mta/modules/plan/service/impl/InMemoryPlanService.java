@@ -711,20 +711,30 @@ public class InMemoryPlanService implements PlanService {
         if (criteria == null) {
             return PlanSearchCriteria.builder().build();
         }
+        List<PlanStatus> sanitizedStatuses = criteria.getStatuses().stream()
+                .filter(Objects::nonNull)
+                .distinct()
+                .toList();
+        List<String> sanitizedCustomerIds = criteria.getCustomerIds().stream()
+                .filter(StringUtils::hasText)
+                .map(String::trim)
+                .distinct()
+                .toList();
+
         PlanSearchCriteria.Builder builder = PlanSearchCriteria.builder()
-                .tenantId(StringUtils.hasText(criteria.getTenantId()) ? criteria.getTenantId() : null)
-                .owner(StringUtils.hasText(criteria.getOwner()) ? criteria.getOwner() : null)
+                .tenantId(StringUtils.hasText(criteria.getTenantId()) ? criteria.getTenantId().trim() : null)
+                .owner(StringUtils.hasText(criteria.getOwner()) ? criteria.getOwner().trim() : null)
                 .keyword(criteria.getKeyword())
                 .status(criteria.getStatus())
-                .statuses(criteria.getStatuses().isEmpty() ? null : criteria.getStatuses())
-                .customerIds(criteria.getCustomerIds().isEmpty() ? null : criteria.getCustomerIds())
+                .statuses(sanitizedStatuses.isEmpty() ? null : sanitizedStatuses)
+                .customerIds(sanitizedCustomerIds.isEmpty() ? null : sanitizedCustomerIds)
                 .from(criteria.getFrom())
                 .to(criteria.getTo())
                 .limit(criteria.getLimit())
                 .offset(criteria.getOffset())
                 .excludePlanId(criteria.getExcludePlanId());
         if (StringUtils.hasText(criteria.getCustomerId())) {
-            builder.customerId(criteria.getCustomerId());
+            builder.customerId(criteria.getCustomerId().trim());
         }
         return builder.build();
     }

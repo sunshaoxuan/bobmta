@@ -30,6 +30,7 @@ import com.bob.mta.modules.plan.repository.PlanReminderPolicyRepository;
 import com.bob.mta.modules.plan.repository.PlanRepository;
 import com.bob.mta.modules.plan.repository.PlanSearchCriteria;
 import com.bob.mta.modules.plan.repository.PlanTimelineRepository;
+import com.bob.mta.modules.plan.service.PlanBoardView;
 import com.bob.mta.modules.template.domain.RenderedTemplate;
 import com.bob.mta.modules.template.service.TemplateService;
 import org.junit.jupiter.api.AfterEach;
@@ -707,6 +708,42 @@ class InMemoryPlanServiceActionTest {
                 .orElseThrow(() -> new AssertionError("Missing NODE_ACTION_EXECUTED activity"));
     }
 
+    @Test
+    void getPlanBoardShouldSanitizeCriteriaBeforeDelegation() {
+        CapturingPlanAnalyticsRepository capturingRepository = new CapturingPlanAnalyticsRepository();
+        InMemoryPlanService sanitizedService = new InMemoryPlanService(
+                fileService,
+                aggregateRepository,
+                capturingRepository,
+                actionHistoryRepository,
+                templateService,
+                notificationGateway,
+                messageResolver
+        );
+
+        PlanSearchCriteria noisyCriteria = PlanSearchCriteria.builder()
+                .tenantId(" tenant-sanitize ")
+                .owner(" owner-sanitize ")
+                .customerId(" single-customer ")
+                .customerIds(List.of(" cust-a ", null, "cust-b", "cust-a"))
+                .statuses(List.of(PlanStatus.SCHEDULED, null, PlanStatus.SCHEDULED, PlanStatus.COMPLETED))
+                .from(OffsetDateTime.parse("2024-07-01T00:00:00Z"))
+                .to(OffsetDateTime.parse("2024-07-31T23:59:59Z"))
+                .build();
+
+        PlanBoardView board = sanitizedService.getPlanBoard(noisyCriteria, null);
+
+        assertThat(board).isNotNull();
+        assertThat(capturingRepository.lastGrouping).isEqualTo(PlanBoardGrouping.WEEK);
+
+        PlanSearchCriteria delegated = capturingRepository.lastCriteria;
+        assertThat(delegated.getTenantId()).isEqualTo("tenant-sanitize");
+        assertThat(delegated.getOwner()).isEqualTo("owner-sanitize");
+        assertThat(delegated.getCustomerId()).isEqualTo("single-customer");
+        assertThat(delegated.getCustomerIds()).containsExactly("cust-a", "cust-b");
+        assertThat(delegated.getStatuses()).containsExactly(PlanStatus.SCHEDULED, PlanStatus.COMPLETED);
+    }
+
     private static final class RecordingPlanActionHistoryRepository implements PlanActionHistoryRepository {
 
         private final List<PlanActionHistory> entries = new ArrayList<>();
@@ -724,6 +761,27 @@ class InMemoryPlanServiceActionTest {
         @Override
         public void deleteByPlanId(String planId) {
             entries.removeIf(history -> history.getPlanId().equals(planId));
+        }
+    }
+
+    private static final class CapturingPlanAnalyticsRepository implements PlanAnalyticsRepository {
+
+        private PlanSearchCriteria lastCriteria;
+        private PlanBoardGrouping lastGrouping;
+
+        @Override
+        public PlanAnalytics summarize(PlanAnalyticsQuery query) {
+            return null;
+        }
+
+        @Override
+        public PlanBoardView getPlanBoard(PlanSearchCriteria criteria, PlanBoardGrouping grouping) {
+            this.lastCriteria = criteria;
+            this.lastGrouping = grouping;
+            OffsetDateTime reference = OffsetDateTime.parse("2024-07-15T00:00:00Z");
+            PlanBoardGrouping effective = grouping == null ? PlanBoardGrouping.WEEK : grouping;
+            return new PlanBoardView(List.of(), List.of(),
+                    new PlanBoardView.Metrics(0, 0, 0, 0, 0, 0, 0, 0), effective, reference);
         }
     }
 
