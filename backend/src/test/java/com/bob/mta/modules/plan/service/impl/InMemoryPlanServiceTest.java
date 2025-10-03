@@ -305,6 +305,90 @@ class InMemoryPlanServiceTest {
     }
 
     @Test
+    @DisplayName("getPlanBoard sorts plan cards within groups and time buckets")
+    void shouldSortPlanCardsWithinGroupsAndBuckets() {
+        OffsetDateTime base = OffsetDateTime.parse("2024-08-15T09:00:00+08:00");
+        CreatePlanCommand late = new CreatePlanCommand(
+                "tenant-board-sort-cards",
+                "排序计划-较晚开始",
+                "同一客户计划稍晚开始",
+                "cust-card-sort",
+                "sort-owner",
+                base.plusHours(5),
+                base.plusHours(7),
+                "Asia/Shanghai",
+                List.of("sort-owner"),
+                List.of(new PlanNodeCommand(null, "节点A", "CHECKLIST", "sort-owner", 1, 60,
+                        PlanNodeActionType.NONE, 100, null, "", List.of()))
+        );
+        CreatePlanCommand early = new CreatePlanCommand(
+                "tenant-board-sort-cards",
+                "排序计划-最早开始",
+                "同一客户计划最早开始",
+                "cust-card-sort",
+                "sort-owner",
+                base.plusHours(1),
+                base.plusHours(3),
+                "Asia/Shanghai",
+                List.of("sort-owner"),
+                List.of(new PlanNodeCommand(null, "节点B", "CHECKLIST", "sort-owner", 1, 45,
+                        PlanNodeActionType.NONE, 100, null, "", List.of()))
+        );
+        CreatePlanCommand tie = new CreatePlanCommand(
+                "tenant-board-sort-cards",
+                "排序计划-相同开始",
+                "同一客户计划相同时间开始",
+                "cust-card-sort",
+                "sort-owner",
+                base.plusHours(5),
+                base.plusHours(6),
+                "Asia/Shanghai",
+                List.of("sort-owner"),
+                List.of(new PlanNodeCommand(null, "节点C", "CHECKLIST", "sort-owner", 1, 30,
+                        PlanNodeActionType.NONE, 100, null, "", List.of()))
+        );
+
+        var latePlan = service.createPlan(late);
+        service.publishPlan(latePlan.getId(), "sort-owner");
+        var earlyPlan = service.createPlan(early);
+        service.publishPlan(earlyPlan.getId(), "sort-owner");
+        var tiePlan = service.createPlan(tie);
+        service.publishPlan(tiePlan.getId(), "sort-owner");
+
+        PlanSearchCriteria criteria = PlanSearchCriteria.builder()
+                .tenantId("tenant-board-sort-cards")
+                .from(base.minusDays(1))
+                .to(base.plusDays(1))
+                .build();
+
+        PlanBoardView board = service.getPlanBoard(criteria, PlanBoardGrouping.DAY);
+
+        assertThat(board.getCustomerGroups()).hasSize(1);
+        PlanBoardView.CustomerGroup group = board.getCustomerGroups().get(0);
+        assertThat(group.getCustomerId()).isEqualTo("cust-card-sort");
+        assertThat(group.getPlans())
+                .extracting(PlanBoardView.PlanCard::getId)
+                .containsExactly(
+                        earlyPlan.getId(),
+                        latePlan.getId(),
+                        tiePlan.getId()
+                );
+
+        assertThat(board.getTimeBuckets()).hasSize(1);
+        PlanBoardView.TimeBucket bucket = board.getTimeBuckets().get(0);
+        assertThat(bucket.getPlans())
+                .extracting(PlanBoardView.PlanCard::getId)
+                .containsExactly(
+                        earlyPlan.getId(),
+                        latePlan.getId(),
+                        tiePlan.getId()
+                );
+
+        assertThat(group.getTotalPlans()).isEqualTo(3);
+        assertThat(bucket.getTotalPlans()).isEqualTo(3);
+    }
+
+    @Test
     @DisplayName("getPlanBoard applies status filters before aggregation")
     void shouldRespectStatusFiltersForPlanBoard() {
         OffsetDateTime base = OffsetDateTime.parse("2024-08-01T10:00:00+08:00");
