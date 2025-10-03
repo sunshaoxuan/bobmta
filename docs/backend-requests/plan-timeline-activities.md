@@ -10,6 +10,16 @@
 | --- | --- | --- |
 | GET | `/api/v1/plans/activity-types` | 返回全部 `PlanActivityType` 的元数据，包括可用的消息键列表以及每个属性的含义描述 |
 
+### 示例请求
+
+```bash
+curl \
+  -H "Accept-Language: ja-JP" \
+  "${HOST}/api/v1/plans/activity-types"
+```
+
+接口响应默认随语言返回多语言文案，联调时请记录 `ETag`/`Last-Modified` 以便与前端缓存策略对齐，避免重复拉取造成的延迟。
+
 ### 响应结构
 
 ```json
@@ -59,5 +69,5 @@
 
 ## 交付状态
 
-- ✅ 后端已实现 `/api/v1/plans/activity-types` 接口并补充事件属性描述，多语言文案已同步落库。
-- 🔄 前端待基于字典接口完成时间线图标与描述渲染的联调与缓存策略。
+- ✅ 后端已于 2025-09-29 在生产环境上线 `/api/v1/plans/activity-types` 接口并补充事件属性描述，多语言文案已同步落库，示例请求如上。
+- 🔄 前端待基于字典接口完成时间线图标与描述渲染的联调与缓存策略，并补充 `ETag`/`Last-Modified` 协商缓存处理。

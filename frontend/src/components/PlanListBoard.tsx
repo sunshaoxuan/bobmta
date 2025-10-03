@@ -274,7 +274,10 @@ export function PlanListBoard({
               options={viewOptions}
               onChange={(value) => {
                 if (typeof value === 'string') {
-                  onChangeViewMode(value as PlanListViewMode);
+                  const nextMode = value as PlanListViewMode;
+                  if (nextMode !== viewMode) {
+                    onChangeViewMode(nextMode);
+                  }
                 }
               }}
             />

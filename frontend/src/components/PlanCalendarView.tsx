@@ -152,7 +152,10 @@ export function PlanCalendarView({
       options={granularityOptions}
       onChange={(value) => {
         if (typeof value === 'string') {
-          setGranularity(value as PlanCalendarGranularity);
+          const nextGranularity = value as PlanCalendarGranularity;
+          if (nextGranularity !== granularity) {
+            setGranularity(nextGranularity);
+          }
         }
       }}
     />

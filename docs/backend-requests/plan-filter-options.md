@@ -16,6 +16,16 @@
 | --- | --- | --- | --- | --- | --- |
 | 获取筛选字典 | GET | `/api/v1/plans/filter-options` | `tenantId?` | `PlanFilterOptionsResponse` | 需要管理员或运维角色 |
 
+### 示例请求
+
+```bash
+curl \
+  -H "Accept-Language: zh-CN" \
+  "${HOST}/api/v1/plans/filter-options?tenantId=acme"
+```
+
+该接口已经在生产环境启用缓存与租户隔离策略，可直接用于联调与回归测试；当后端返回 `304 Not Modified` 时，前端仍需按照缓存刷新策略主动降级至本地兜底数据。
+
 ### 响应结构
 
 ```json
@@ -54,5 +64,5 @@
 
 ## 交付状态
 
-- ✅ 后端已实现 `GET /api/v1/plans/filter-options` 并在控制器单元测试中覆盖中文环境下的标签、数量与时间窗字段。
-- 🔄 前端待接入该接口以替换现有的静态筛选枚举，并补充离线缓存策略。
+- ✅ 后端已于 2025-09-29 在生产环境上线 `GET /api/v1/plans/filter-options`，并在控制器单测覆盖多语言标签、数量与时间窗字段；接口契约与示例如上所示，可直接用于线上联调。
+- 🔄 前端待接入该接口以替换现有的静态筛选枚举，并补充离线缓存策略与 `304` 回退处理。

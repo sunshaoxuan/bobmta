@@ -66,6 +66,14 @@ test('derivePlanDetailContext returns design mode and first actionable node for 
   assert.equal(context.currentNodeId, 'NODE-1');
 });
 
+test('derivePlanDetailContext falls back to defaults when detail payload is missing', () => {
+  const context = derivePlanDetailContext(null);
+
+  assert.equal(context.planStatus, null);
+  assert.equal(context.mode, 'design');
+  assert.equal(context.currentNodeId, null);
+});
+
 test('derivePlanDetailContext keeps design mode when draft plan has no actionable nodes', () => {
   const detail = createDetail({
     status: 'DESIGN',

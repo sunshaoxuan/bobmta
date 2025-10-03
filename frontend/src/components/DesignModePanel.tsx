@@ -1,5 +1,6 @@
 import React, { type ReactNode } from '../../vendor/react/index.js';
 import { Space, Tag, Typography } from '../../vendor/antd/index.js';
+import type { UiMessageKey } from '../i18n/localization';
 import type { LocalizationState } from '../i18n/useLocalization';
 import { PLAN_MODE_LABEL } from '../constants/planMode';
 
@@ -8,9 +9,16 @@ const { Paragraph, Text } = Typography;
 type DesignModePanelProps = {
   translate: LocalizationState['translate'];
   children?: ReactNode;
+  descriptionKey?: UiMessageKey;
+  labelKey?: UiMessageKey | null;
 };
 
-export function DesignModePanel({ translate, children }: DesignModePanelProps) {
+export function DesignModePanel({
+  translate,
+  children,
+  descriptionKey = 'planDetailModeDesignHint',
+  labelKey = 'planDetailNodeEdit',
+}: DesignModePanelProps) {
   return (
     <Space
       direction="vertical"
@@ -23,11 +31,13 @@ export function DesignModePanel({ translate, children }: DesignModePanelProps) {
         <span className="plan-mode-panel-value">{translate('planDetailModeDesign')}</span>
       </Text>
       <Paragraph type="secondary" style={{ marginBottom: 0 }}>
-        {translate('planDetailModeDesignHint')}
+        {translate(descriptionKey)}
       </Paragraph>
-      <Text type="secondary" className="plan-mode-panel-label">
-        {translate('planDetailNodeEdit')}
-      </Text>
+      {labelKey ? (
+        <Text type="secondary" className="plan-mode-panel-label">
+          {translate(labelKey)}
+        </Text>
+      ) : null}
       {children ? <Space direction="vertical" size="small">{children}</Space> : null}
     </Space>
   );
