@@ -303,6 +303,34 @@ class PlanControllerTest {
     }
 
     @Test
+    void boardShouldDefaultGranularityAndExposeReference() {
+        PlanService planServiceMock = Mockito.mock(PlanService.class);
+        OffsetDateTime reference = OffsetDateTime.parse("2024-07-01T12:00:00Z");
+        PlanBoardView view = new PlanBoardView(List.of(), List.of(),
+                new PlanBoardView.Metrics(0, 0, 0, 0, 0, 0, 0, 0), PlanBoardGrouping.WEEK, reference);
+        when(planServiceMock.getPlanBoard(any(), any())).thenReturn(view);
+        AuditRecorder recorder = new AuditRecorder(auditService, new ObjectMapper());
+        PlanController controllerWithMock = new PlanController(planServiceMock, recorder, fileService, messageResolver);
+
+        ApiResponse<PlanBoardResponse> response = controllerWithMock.board(
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null);
+
+        ArgumentCaptor<PlanBoardGrouping> groupingCaptor = ArgumentCaptor.forClass(PlanBoardGrouping.class);
+        verify(planServiceMock).getPlanBoard(any(), groupingCaptor.capture());
+        assertThat(groupingCaptor.getValue()).isEqualTo(PlanBoardGrouping.WEEK);
+
+        PlanBoardResponse board = response.getData();
+        assertThat(board.getGranularity()).isEqualTo(PlanBoardGrouping.WEEK.name());
+        assertThat(board.getReferenceTime()).isEqualTo(reference);
+    }
+
+    @Test
     @DisplayName("board should filter by tenant scope and sort plan cards")
     void boardShouldFilterByTenantScopeAndSortPlans() {
         OffsetDateTime base = OffsetDateTime.parse("2024-09-01T08:00:00+08:00");

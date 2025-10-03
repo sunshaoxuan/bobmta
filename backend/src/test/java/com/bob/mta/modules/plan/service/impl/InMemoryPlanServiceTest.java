@@ -225,6 +225,78 @@ class InMemoryPlanServiceTest {
     }
 
     @Test
+    @DisplayName("getPlanBoard exposes risk metrics and minutes deltas")
+    void shouldExposeRiskMetricsAndMinutes() {
+        OffsetDateTime now = OffsetDateTime.now().withNano(0);
+        CreatePlanCommand dueSoonCommand = new CreatePlanCommand(
+                "tenant-board-risk",
+                "风险指标-即将到期",
+                "计划即将到期", 
+                "cust-risk-due",
+                "risk-owner",
+                now.minusHours(4),
+                now.plusHours(6),
+                "Asia/Shanghai",
+                List.of("risk-owner"),
+                List.of(new PlanNodeCommand(null, "风险节点A", "CHECKLIST", "risk-owner", 1, 60,
+                        PlanNodeActionType.NONE, 100, null, "", List.of()))
+        );
+        CreatePlanCommand overdueCommand = new CreatePlanCommand(
+                "tenant-board-risk",
+                "风险指标-已逾期",
+                "计划已经逾期",
+                "cust-risk-overdue",
+                "risk-owner",
+                now.minusDays(1),
+                now.minusHours(2),
+                "Asia/Shanghai",
+                List.of("risk-owner"),
+                List.of(new PlanNodeCommand(null, "风险节点B", "CHECKLIST", "risk-owner", 1, 45,
+                        PlanNodeActionType.NONE, 100, null, "", List.of()))
+        );
+
+        var dueSoonPlan = service.createPlan(dueSoonCommand);
+        service.publishPlan(dueSoonPlan.getId(), "risk-owner");
+
+        var overduePlan = service.createPlan(overdueCommand);
+        service.publishPlan(overduePlan.getId(), "risk-owner");
+
+        PlanSearchCriteria criteria = PlanSearchCriteria.builder()
+                .tenantId("tenant-board-risk")
+                .from(now.minusDays(2))
+                .to(now.plusDays(1))
+                .build();
+
+        PlanBoardView board = service.getPlanBoard(criteria, PlanBoardGrouping.DAY);
+
+        PlanBoardView.Metrics metrics = board.getMetrics();
+        assertThat(metrics.getTotalPlans()).isEqualTo(2);
+        assertThat(metrics.getActivePlans()).isEqualTo(2);
+        assertThat(metrics.getDueSoonPlans()).isEqualTo(1);
+        assertThat(metrics.getOverduePlans()).isEqualTo(1);
+
+        PlanBoardView.PlanCard dueSoonCard = board.getCustomerGroups().stream()
+                .filter(group -> group.getCustomerId().equals("cust-risk-due"))
+                .findFirst()
+                .orElseThrow()
+                .getPlans()
+                .get(0);
+        assertThat(dueSoonCard.isDueSoon()).isTrue();
+        assertThat(dueSoonCard.getMinutesUntilDue()).isNotNull();
+        assertThat(dueSoonCard.getMinutesOverdue()).isNull();
+
+        PlanBoardView.PlanCard overdueCard = board.getCustomerGroups().stream()
+                .filter(group -> group.getCustomerId().equals("cust-risk-overdue"))
+                .findFirst()
+                .orElseThrow()
+                .getPlans()
+                .get(0);
+        assertThat(overdueCard.isOverdue()).isTrue();
+        assertThat(overdueCard.getMinutesOverdue()).isNotNull();
+        assertThat(overdueCard.getMinutesUntilDue()).isNull();
+    }
+
+    @Test
     @DisplayName("getPlanBoard sorts customer groups by total count then customer id")
     void shouldSortCustomerGroupsByPlanCountAndId() {
         OffsetDateTime base = OffsetDateTime.parse("2024-07-01T09:00:00+08:00");
