@@ -41,7 +41,7 @@
 | `PLAN_HANDOVER` | `plan.activity.handover` | `oldOwner`、`newOwner`、`operator`、`participantCount`、`note` |
 | `NODE_STARTED` | `plan.activity.nodeStarted` | `nodeName`、`assignee`、`operator` |
 | `NODE_COMPLETED` | `plan.activity.nodeCompleted` | `nodeName`、`operator`、`result` |
-| `NODE_ACTION_EXECUTED` | `plan.activity.nodeActionExecuted` | `nodeName`、`actionType`、`actionStatus`、`actionMessage`、`actionTrigger`、`actionError` |
+| `NODE_ACTION_EXECUTED` | `plan.activity.nodeActionExecuted` | `nodeName`、`actionType`、`actionStatus`、`actionMessage`、`actionTrigger`、`actionError`、`actionId` |
 | `NODE_HANDOVER` | `plan.activity.nodeHandover` | `nodeName`、`previousAssignee`、`newAssignee`、`operator`、`comment` |
 | `NODE_AUTO_COMPLETED` | `plan.activity.nodeAutoCompleted` | `nodeName`、`threshold`、`completedChildren`、`totalChildren` |
 | `NODE_SKIPPED` | `plan.activity.nodeSkipped` | `nodeName`、`parentNodeId`、`parentNode` |

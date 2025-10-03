@@ -131,6 +131,7 @@ class InMemoryPlanServiceActionTest {
 
         PlanActivity actionActivity = findActionActivity(updated);
         assertThat(actionActivity.getAttributes())
+                .containsEntry("actionId", history.getId())
                 .containsEntry("actionType", PlanNodeActionType.EMAIL.name())
                 .containsEntry("actionStatus", PlanActionStatus.SUCCESS.name())
                 .containsEntry("actionMessage", "email.sent")
@@ -160,6 +161,7 @@ class InMemoryPlanServiceActionTest {
 
         PlanActivity actionActivity = findActionActivity(updated);
         assertThat(actionActivity.getAttributes())
+                .containsEntry("actionId", history.getId())
                 .containsEntry("actionStatus", PlanActionStatus.FAILED.name())
                 .containsEntry("actionError", "render failed")
                 .containsEntry("actionMessage", "plan.action.failed");
@@ -197,6 +199,7 @@ class InMemoryPlanServiceActionTest {
 
         PlanActivity actionActivity = findActionActivity(updated);
         assertThat(actionActivity.getAttributes())
+                .containsEntry("actionId", history.getId())
                 .containsEntry("actionStatus", PlanActionStatus.FAILED.name())
                 .containsEntry("actionError", "gateway down")
                 .containsEntry("meta.attempts", "3")
@@ -233,6 +236,7 @@ class InMemoryPlanServiceActionTest {
 
         PlanActivity actionActivity = findActionActivity(updated);
         assertThat(actionActivity.getAttributes())
+                .containsEntry("actionId", history.getId())
                 .containsEntry("actionStatus", PlanActionStatus.SUCCESS.name())
                 .containsEntry("actionMessage", "im.sent")
                 .containsEntry("meta.channel", "mock");
@@ -266,6 +270,7 @@ class InMemoryPlanServiceActionTest {
 
         PlanActivity actionActivity = findActionActivity(updated);
         assertThat(actionActivity.getAttributes())
+                .containsEntry("actionId", history.getId())
                 .containsEntry("actionStatus", PlanActionStatus.SUCCESS.name())
                 .containsEntry("meta.endpoint", "https://remote.example.com/session")
                 .containsEntry("context.nodeAssignee", "frank")
@@ -291,6 +296,7 @@ class InMemoryPlanServiceActionTest {
 
         PlanActivity actionActivity = findActionActivity(updated);
         assertThat(actionActivity.getAttributes())
+                .containsEntry("actionId", history.getId())
                 .containsEntry("actionStatus", PlanActionStatus.FAILED.name())
                 .containsEntry("actionError", "template missing")
                 .containsEntry("context.trigger", "handover")
@@ -338,6 +344,7 @@ class InMemoryPlanServiceActionTest {
 
         PlanActivity actionActivity = findActionActivity(updated);
         assertThat(actionActivity.getAttributes())
+                .containsEntry("actionId", history.getId())
                 .containsEntry("actionStatus", PlanActionStatus.SUCCESS.name())
                 .containsEntry("meta.endpoint", "https://hooks.example.com/workflow")
                 .containsEntry("meta.method", "PUT")
@@ -379,6 +386,7 @@ class InMemoryPlanServiceActionTest {
 
         PlanActivity actionActivity = findActionActivity(updated);
         assertThat(actionActivity.getAttributes())
+                .containsEntry("actionId", history.getId())
                 .containsEntry("actionStatus", PlanActionStatus.FAILED.name())
                 .containsEntry("actionError", "api gateway down")
                 .containsEntry("meta.attempts", "3");
@@ -418,6 +426,7 @@ class InMemoryPlanServiceActionTest {
 
         PlanActivity actionActivity = findActionActivity(updated);
         assertThat(actionActivity.getAttributes())
+                .containsEntry("actionId", history.getId())
                 .containsEntry("actionStatus", PlanActionStatus.FAILED.name())
                 .containsEntry("actionMessage", "plan.action.apiMissingEndpoint")
                 .containsEntry("actionError", messageResolver.getMessage("plan.error.nodeActionApiEndpointMissing"))
@@ -455,6 +464,7 @@ class InMemoryPlanServiceActionTest {
 
         PlanActivity actionActivity = findActionActivity(updated);
         assertThat(actionActivity.getAttributes())
+                .containsEntry("actionId", history.getId())
                 .containsEntry("actionStatus", PlanActionStatus.SUCCESS.name())
                 .containsEntry("meta.endpoint", "https://kb.example.com/task")
                 .containsEntry("meta.doc", "kb-article")
@@ -491,6 +501,7 @@ class InMemoryPlanServiceActionTest {
 
         PlanActivity actionActivity = findActionActivity(updated);
         assertThat(actionActivity.getAttributes())
+                .containsEntry("actionId", history.getId())
                 .containsEntry("actionStatus", PlanActionStatus.SKIPPED.name())
                 .containsEntry("actionMessage", "plan.action.linkMissing")
                 .containsEntry("actionError", messageResolver.getMessage("plan.error.nodeActionLinkMissing"));
@@ -516,6 +527,7 @@ class InMemoryPlanServiceActionTest {
 
         PlanActivity actionActivity = findActionActivity(updated);
         assertThat(actionActivity.getAttributes())
+                .containsEntry("actionId", history.getId())
                 .containsEntry("actionType", PlanNodeActionType.FILE.name())
                 .containsEntry("actionStatus", PlanActionStatus.SKIPPED.name())
                 .containsEntry("actionMessage", "plan.action.noAutomation")

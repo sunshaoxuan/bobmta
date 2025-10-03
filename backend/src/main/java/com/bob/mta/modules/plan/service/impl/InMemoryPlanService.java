@@ -1180,6 +1180,7 @@ public class InMemoryPlanService implements PlanService {
                 dispatchResult.metadata()
         );
         actionHistoryRepository.append(history);
+        attributes.put("actionId", history.getId());
         return new PlanActivity(
                 PlanActivityType.NODE_ACTION_EXECUTED,
                 occurredAt,
