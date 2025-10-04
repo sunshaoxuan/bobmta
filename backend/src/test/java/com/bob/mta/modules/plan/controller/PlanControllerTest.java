@@ -269,6 +269,12 @@ class PlanControllerTest {
                 .containsAnyOf("cust-board-1", "cust-board-2");
         assertThat(board.getMetrics().getDueSoonPlans()).isGreaterThanOrEqualTo(0);
         assertThat(board.getMetrics().getAtRiskPlans()).isGreaterThanOrEqualTo(0);
+        assertThat(board.getCustomerGroups())
+                .allSatisfy(group -> assertThat(group.getAtRiskPlans())
+                        .isEqualTo(group.getOverduePlans() + group.getDueSoonPlans()));
+        assertThat(board.getTimeBuckets())
+                .allSatisfy(bucket -> assertThat(bucket.getAtRiskPlans())
+                        .isEqualTo(bucket.getOverduePlans() + bucket.getDueSoonPlans()));
 
         List<AuditLog> logs = auditService.query(new AuditQuery(
                 "PlanBoard", "tenant-controller-board", "VIEW_PLAN_BOARD", null));

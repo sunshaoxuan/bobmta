@@ -9,6 +9,7 @@ public record PlanBoardCustomerAggregateEntity(String customerId,
                                                long completedPlans,
                                                long overduePlans,
                                                long dueSoonPlans,
+                                               long atRiskPlans,
                                                double averageProgress,
                                                OffsetDateTime earliestStart,
                                                OffsetDateTime latestEnd) {

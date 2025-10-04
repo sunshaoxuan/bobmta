@@ -145,7 +145,7 @@ public class PlanPersistenceAnalyticsRepository implements PlanAnalyticsReposito
                         entity.completedPlans(),
                         entity.overduePlans(),
                         entity.dueSoonPlans(),
-                        entity.overduePlans() + entity.dueSoonPlans(),
+                        entity.atRiskPlans(),
                         PlanBoardViewHelper.roundAverage(entity.averageProgress()),
                         entity.earliestStart(),
                         entity.latestEnd(),
@@ -176,7 +176,7 @@ public class PlanPersistenceAnalyticsRepository implements PlanAnalyticsReposito
                         bucket.completedPlans(),
                         bucket.overduePlans(),
                         bucket.dueSoonPlans(),
-                        bucket.overduePlans() + bucket.dueSoonPlans(),
+                        bucket.atRiskPlans(),
                         plansByBucket.getOrDefault(bucket.bucketId(), List.of())
                 ))
                 .toList();

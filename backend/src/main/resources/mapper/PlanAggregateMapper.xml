@@ -133,6 +133,7 @@
         <result column="completed_plans" property="completedPlans"/>
         <result column="overdue_plans" property="overduePlans"/>
         <result column="due_soon_plans" property="dueSoonPlans"/>
+        <result column="at_risk_plans" property="atRiskPlans"/>
         <result column="average_progress" property="averageProgress"/>
         <result column="earliest_start" property="earliestStart"/>
         <result column="latest_end" property="latestEnd"/>
@@ -147,6 +148,7 @@
         <result column="completed_plans" property="completedPlans"/>
         <result column="overdue_plans" property="overduePlans"/>
         <result column="due_soon_plans" property="dueSoonPlans"/>
+        <result column="at_risk_plans" property="atRiskPlans"/>
     </resultMap>
 
     <resultMap id="PlanBoardPlanResult" type="com.bob.mta.modules.plan.persistence.PlanBoardPlanEntity">
@@ -559,6 +561,21 @@
                            AND filtered.planned_end_time &lt; #{referenceTime} + make_interval(mins => #{dueSoonMinutes})
                            THEN 1
                        ELSE 0 END)                                                             AS due_soon_plans,
+               SUM(
+                       CASE
+                           WHEN filtered.status IN ('SCHEDULED', 'IN_PROGRESS')
+                               AND filtered.planned_end_time IS NOT NULL
+                               AND filtered.planned_end_time &lt; #{referenceTime}
+                               THEN 1
+                           ELSE 0 END
+                   +   CASE
+                           WHEN filtered.status IN ('SCHEDULED', 'IN_PROGRESS')
+                               AND filtered.planned_end_time IS NOT NULL
+                               AND filtered.planned_end_time &gt;= #{referenceTime}
+                               AND filtered.planned_end_time &lt; #{referenceTime} + make_interval(mins => #{dueSoonMinutes})
+                               THEN 1
+                           ELSE 0 END
+               )                                                                              AS at_risk_plans,
                AVG(COALESCE(progress.progress, 0))                                            AS average_progress,
                MIN(filtered.planned_start_time)                                                AS earliest_start,
                MAX(filtered.planned_end_time)                                                  AS latest_end
@@ -649,7 +666,22 @@
                            AND enriched.planned_end_time &gt;= #{referenceTime}
                            AND enriched.planned_end_time &lt; #{referenceTime} + make_interval(mins => #{dueSoonMinutes})
                            THEN 1
-                       ELSE 0 END)                                                                AS due_soon_plans
+                       ELSE 0 END)                                                                AS due_soon_plans,
+               SUM(
+                       CASE
+                           WHEN enriched.status IN ('SCHEDULED', 'IN_PROGRESS')
+                               AND enriched.planned_end_time IS NOT NULL
+                               AND enriched.planned_end_time &lt; #{referenceTime}
+                               THEN 1
+                           ELSE 0 END
+                   +   CASE
+                           WHEN enriched.status IN ('SCHEDULED', 'IN_PROGRESS')
+                               AND enriched.planned_end_time IS NOT NULL
+                               AND enriched.planned_end_time &gt;= #{referenceTime}
+                               AND enriched.planned_end_time &lt; #{referenceTime} + make_interval(mins => #{dueSoonMinutes})
+                               THEN 1
+                           ELSE 0 END
+               )                                                                               AS at_risk_plans
         FROM enriched
         GROUP BY enriched.bucket_start
         ORDER BY enriched.bucket_start
