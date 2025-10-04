@@ -1,5 +1,6 @@
 package com.bob.mta.modules.plan.controller;
 
+import com.bob.mta.common.api.ApiResponse;
 import com.bob.mta.common.api.PageResponse;
 import com.bob.mta.common.i18n.MessageResolver;
 import com.bob.mta.common.i18n.TestMessageResolverFactory;
@@ -305,6 +306,33 @@ class PlanControllerTest {
         assertThat(criteria.getCustomerIds()).containsExactly("cust-a", "cust-b");
         assertThat(criteria.getStatuses()).containsExactly(PlanStatus.SCHEDULED, PlanStatus.COMPLETED);
         assertThat(groupingCaptor.getValue()).isEqualTo(PlanBoardGrouping.MONTH);
+    }
+
+    @Test
+    void boardShouldReturnZeroMetricsWhenServiceOmitsAggregates() {
+        PlanService planServiceMock = Mockito.mock(PlanService.class);
+        OffsetDateTime reference = OffsetDateTime.parse("2024-06-12T00:00:00Z");
+        PlanBoardView viewWithoutMetrics = new PlanBoardView(List.of(), List.of(), null,
+                PlanBoardGrouping.DAY, reference);
+        when(planServiceMock.getPlanBoard(any(), any())).thenReturn(viewWithoutMetrics);
+
+        AuditRecorder recorder = new AuditRecorder(auditService, new ObjectMapper());
+        PlanController controllerWithMock = new PlanController(planServiceMock, recorder, fileService, messageResolver);
+
+        ApiResponse<PlanBoardResponse> response = controllerWithMock.board(
+                "tenant-zero-metrics",
+                null,
+                null,
+                null,
+                null,
+                null,
+                PlanBoardGrouping.DAY);
+
+        PlanBoardResponse board = response.getData();
+        assertThat(board.getMetrics().getTotalPlans()).isZero();
+        assertThat(board.getMetrics().getDueSoonPlans()).isZero();
+        assertThat(board.getReferenceTime()).isEqualTo(reference);
+        verify(planServiceMock).getPlanBoard(any(), eq(PlanBoardGrouping.DAY));
     }
 
     @Test

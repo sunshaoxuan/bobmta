@@ -14,6 +14,18 @@ import static org.assertj.core.api.Assertions.assertThat;
 class PlanBoardResponseTest {
 
     @Test
+    @DisplayName("from() should return empty response when source view is null")
+    void shouldReturnEmptyResponseWhenViewIsNull() {
+        PlanBoardResponse response = PlanBoardResponse.from(null);
+
+        assertThat(response.getCustomerGroups()).isEmpty();
+        assertThat(response.getTimeBuckets()).isEmpty();
+        assertThat(response.getMetrics().getTotalPlans()).isZero();
+        assertThat(response.getGranularity()).isNull();
+        assertThat(response.getReferenceTime()).isNull();
+    }
+
+    @Test
     @DisplayName("from() should provide zero metrics when source view omits metrics")
     void shouldProvideDefaultMetricsWhenSourceHasNoMetrics() {
         OffsetDateTime reference = OffsetDateTime.parse("2024-06-01T00:00:00Z");
