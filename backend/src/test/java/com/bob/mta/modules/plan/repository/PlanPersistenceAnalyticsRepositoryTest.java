@@ -269,6 +269,34 @@ class PlanPersistenceAnalyticsRepositoryTest {
     }
 
     @Test
+    void shouldKeepPlansWithoutStartInMetricsButNotBuckets() {
+        OffsetDateTime baseline = OffsetDateTime.now().withNano(0);
+
+        Plan noStart = createPlan(planRepository.nextPlanId(), "tenant-board-no-start", PlanStatus.SCHEDULED,
+                "owner-no-start", "customer-no-start", null, baseline.plusHours(5),
+                baseline.minusDays(3), baseline.minusDays(1), List.of(PlanNodeStatus.DONE, PlanNodeStatus.PENDING));
+
+        persist(noStart);
+
+        PlanSearchCriteria criteria = PlanSearchCriteria.builder()
+                .tenantId("tenant-board-no-start")
+                .from(baseline.minusDays(4))
+                .build();
+
+        PlanBoardView persistence = analyticsRepository.getPlanBoard(criteria, PlanBoardGrouping.DAY);
+        PlanBoardView inMemory = inMemoryAnalyticsRepository.getPlanBoard(criteria, PlanBoardGrouping.DAY);
+
+        assertThat(persistence.getMetrics().getTotalPlans()).isEqualTo(1);
+        assertThat(persistence.getMetrics().getActivePlans()).isEqualTo(1);
+        assertThat(persistence.getTimeBuckets()).isEmpty();
+        assertThat(inMemory.getTimeBuckets()).isEmpty();
+        assertThat(customerGroupTuples(persistence.getCustomerGroups()))
+                .isEqualTo(customerGroupTuples(inMemory.getCustomerGroups()));
+        assertThat(planCardTuples(persistence.getCustomerGroups()))
+                .isEqualTo(planCardTuples(inMemory.getCustomerGroups()));
+    }
+
+    @Test
     void shouldGroupUnknownCustomersUnderFallbackIdentifier() {
         OffsetDateTime baseline = OffsetDateTime.of(2024, 9, 1, 9, 0, 0, 0, ZoneOffset.UTC);
 

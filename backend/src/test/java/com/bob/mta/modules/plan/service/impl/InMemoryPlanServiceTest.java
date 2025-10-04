@@ -366,6 +366,76 @@ class InMemoryPlanServiceTest {
     }
 
     @Test
+    @DisplayName("publishPlan should treat null planned start as in progress")
+    void shouldPublishPlanWithNullStart() {
+        OffsetDateTime reference = OffsetDateTime.now().withNano(0);
+        CreatePlanCommand command = new CreatePlanCommand(
+                "tenant-board-null-start",
+                "无开始时间计划",
+                "计划缺少开始时间",
+                "cust-null-start",
+                "owner-null-start",
+                null,
+                reference.plusHours(4),
+                "Asia/Shanghai",
+                List.of("owner-null-start"),
+                List.of(new PlanNodeCommand(null, "节点-无开始", "CHECKLIST", "owner-null-start", 1, 60,
+                        PlanNodeActionType.NONE, 100, null, "", List.of()))
+        );
+
+        Plan plan = service.createPlan(command);
+        Plan published = service.publishPlan(plan.getId(), "owner-null-start");
+
+        assertThat(published.getStatus()).isEqualTo(PlanStatus.IN_PROGRESS);
+        assertThat(published.getPlannedStartTime()).isNull();
+        assertThat(published.getActualStartTime()).isNotNull();
+    }
+
+    @Test
+    @DisplayName("getPlanBoard should include plans without planned start in metrics but exclude from buckets")
+    void shouldHandlePlanWithoutStartInBoard() {
+        OffsetDateTime now = OffsetDateTime.now().withNano(0);
+        CreatePlanCommand command = new CreatePlanCommand(
+                "tenant-board-null-start",
+                "驾驶舱无开始时间",
+                "驾驶舱聚合缺少开始时间的计划",
+                "cust-null-start",
+                "owner-null-start",
+                null,
+                now.plusHours(6),
+                "Asia/Shanghai",
+                List.of("owner-null-start"),
+                List.of(new PlanNodeCommand(null, "节点-无开始", "CHECKLIST", "owner-null-start", 1, 30,
+                        PlanNodeActionType.NONE, 100, null, "", List.of()))
+        );
+
+        Plan plan = service.createPlan(command);
+        service.publishPlan(plan.getId(), "owner-null-start");
+
+        PlanSearchCriteria criteria = PlanSearchCriteria.builder()
+                .tenantId("tenant-board-null-start")
+                .from(now.minusDays(1))
+                .build();
+
+        PlanBoardView board = service.getPlanBoard(criteria, PlanBoardGrouping.DAY);
+
+        assertThat(board.getMetrics().getTotalPlans()).isEqualTo(1);
+        assertThat(board.getMetrics().getActivePlans()).isEqualTo(1);
+        assertThat(board.getCustomerGroups())
+                .singleElement()
+                .satisfies(group -> {
+                    assertThat(group.getCustomerId()).isEqualTo("cust-null-start");
+                    assertThat(group.getPlans())
+                            .singleElement()
+                            .satisfies(card -> {
+                                assertThat(card.getPlannedStartTime()).isNull();
+                                assertThat(card.getPlannedEndTime()).isEqualTo(now.plusHours(6));
+                            });
+                });
+        assertThat(board.getTimeBuckets()).isEmpty();
+    }
+
+    @Test
     @DisplayName("getPlanBoard sorts customer groups by total count then customer id")
     void shouldSortCustomerGroupsByPlanCountAndId() {
         OffsetDateTime base = OffsetDateTime.parse("2024-07-01T09:00:00+08:00");

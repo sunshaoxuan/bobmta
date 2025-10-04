@@ -312,8 +312,16 @@ public class InMemoryPlanService implements PlanService {
         }
         ensureNoConflictsForPublication(current);
         OffsetDateTime now = OffsetDateTime.now();
-        PlanStatus nextStatus = current.getPlannedStartTime().isAfter(now) ? PlanStatus.SCHEDULED : PlanStatus.IN_PROGRESS;
-        OffsetDateTime actualStart = nextStatus == PlanStatus.IN_PROGRESS ? now : current.getActualStartTime();
+        OffsetDateTime plannedStart = current.getPlannedStartTime();
+        PlanStatus nextStatus;
+        if (plannedStart == null) {
+            nextStatus = PlanStatus.IN_PROGRESS;
+        } else {
+            nextStatus = plannedStart.isAfter(now) ? PlanStatus.SCHEDULED : PlanStatus.IN_PROGRESS;
+        }
+        OffsetDateTime actualStart = nextStatus == PlanStatus.IN_PROGRESS
+                ? (current.getActualStartTime() == null ? now : current.getActualStartTime())
+                : current.getActualStartTime();
         List<PlanActivity> activities = appendActivity(current, new PlanActivity(
                 PlanActivityType.PLAN_PUBLISHED,
                 now,
