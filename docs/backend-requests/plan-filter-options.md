@@ -68,6 +68,12 @@ curl \
 - 多语言由后端依据请求语言在服务端完成，前端无需额外翻译。
 - 返回的数量字段可直接用于前端标注或排序，不需要再额外查询。
 
+## 联调与 Mock 指南
+
+- **默认调用生产接口**：前端在联调及回归时应直接命中生产环境的 `GET /api/v1/plans/filter-options`。如需快速验证，可使用前文示例中的 `curl -H "Accept-Language: zh-CN" "${HOST}/api/v1/plans/filter-options?tenantId=acme"` 命令校验响应字段与多语言标签。
+- **Mock 仅作为兜底**：`frontend/src/mocks/mockPlanFilterOptions.json` 与相关查询方法（如 `queryMockPlanSummaries`）仅在离线或接口异常时启用，需保持与线上契约一致并通过 Node Test 持续校验；当真实接口返回 `304 Not Modified` 时，前端应按缓存策略回退本地缓存并记录刷新时间。
+- **联调记录**：2025-10-02 与后端确认接口持续可用后，联调结果与缓存降级策略需同步更新至《frontend/FRONTEND_REQUIREMENTS.md》及根目录 README，以保持团队协同。
+
 ## 交付状态
 
 - ✅ 后端已于 2025-09-29 在生产环境上线 `GET /api/v1/plans/filter-options`，并在控制器单测覆盖多语言标签、数量与时间窗字段；接口契约与示例如上所示，可直接用于线上联调。2025-10-02 再次与后端确认接口保持可用，`curl` 示例同上。
