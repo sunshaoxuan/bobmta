@@ -566,6 +566,52 @@ class PlanControllerTest {
     }
 
     @Test
+    void boardShouldExcludeBucketsForPlansWithoutStart() {
+        OffsetDateTime now = OffsetDateTime.now().withNano(0);
+        CreatePlanCommand command = new CreatePlanCommand(
+                "tenant-controller-null-start",
+                "驾驶舱缺少开始时间",
+                "计划缺少开始时间",
+                "cust-controller-null-start",
+                "controller-null-start-owner",
+                null,
+                now.plusHours(6),
+                "Asia/Shanghai",
+                List.of("controller-null-start-owner"),
+                List.of(new PlanNodeCommand(null, "无开始节点", "CHECKLIST", "controller-null-start-owner", 1, 45,
+                        PlanNodeActionType.NONE, 100, null, "", List.of()))
+        );
+
+        var plan = planService.createPlan(command);
+        planService.publishPlan(plan.getId(), "controller-null-start-owner");
+
+        ApiResponse<PlanBoardResponse> response = controller.board(
+                "tenant-controller-null-start",
+                null,
+                null,
+                null,
+                now.minusDays(1),
+                null,
+                PlanBoardGrouping.DAY);
+
+        PlanBoardResponse board = response.getData();
+        assertThat(board.getMetrics().getTotalPlans()).isEqualTo(1);
+        assertThat(board.getMetrics().getActivePlans()).isEqualTo(1);
+        assertThat(board.getCustomerGroups())
+                .singleElement()
+                .satisfies(group -> {
+                    assertThat(group.getCustomerId()).isEqualTo("cust-controller-null-start");
+                    assertThat(group.getPlans())
+                            .singleElement()
+                            .satisfies(card -> {
+                                assertThat(card.getPlannedStartTime()).isNull();
+                                assertThat(card.getPlannedEndTime()).isEqualTo(now.plusHours(6));
+                            });
+                });
+        assertThat(board.getTimeBuckets()).isEmpty();
+    }
+
+    @Test
     void filterOptionsShouldExposeDictionaryMetadata() {
         OffsetDateTime start = OffsetDateTime.now().plusDays(2);
         OffsetDateTime end = start.plusHours(4);

@@ -136,6 +136,7 @@
 - `customerGroups`：按 `customerId` 聚合的分组信息，包含活跃/完成数量、时间窗口范围以及计划卡片。
 - `customerGroups[].customerName`：预留客户名称字段，当前若后端无客户档案会返回 `null`，前端可选择性展示或回退至 `customerId`。
 - 当计划缺失客户编号时，`customerId` 会被折叠为 `UNKNOWN`，仍可通过分组下的卡片访问原始计划。
+- 当计划缺失 `plannedStartTime` 时，仍会计入客户分组与顶部指标，但不会出现在 `timeBuckets` 中；前端可根据卡片的 `plannedEndTime` 做兜底展示或提示补全开始时间。
 - `timeBuckets`：按粒度拆分的时间桶，`bucketId` 作为前端 Tab/日历的 key，`plans` 用于快速渲染对应视图。
 - `customerGroups[].atRiskPlans` 与 `timeBuckets[].atRiskPlans`：对应分组内即将到期与已逾期计划的总数，排序或标注风险分段时可直接使用；该字段来自 SQL 聚合的 `at_risk_plans` 列，与顶部指标保持一致。
 - `plans[].overdue` / `plans[].dueSoon`：派生风险指标，分别表示计划已逾期或在默认阈值内即将到期。
