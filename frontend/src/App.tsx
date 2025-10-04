@@ -62,8 +62,13 @@ import {
   buildPlanListSearch,
   parsePlanListUrlState,
 } from './utils/planListUrl';
-import { useHistoryRouter, type HistoryRouter } from './router/router';
+import {
+  BrowserRouter,
+  useLocation,
+  useNavigate,
+} from '../vendor/react-router-dom/index.js';
 import { buildPlanDetailPath, parsePlanRoute } from './router/planRoutes';
+import { AppRoutes } from './router/AppRoutes';
 
 const { Content } = Layout;
 const { Text } = Typography;
@@ -98,10 +103,9 @@ type AppViewProps = {
   session: SessionController;
   planList: PlanListController;
   planDetail: PlanDetailController;
-  router: HistoryRouter;
 };
 
-function AppView({ client, localization, session, planList, planDetail, router }: AppViewProps) {
+function AppView({ client, localization, session, planList, planDetail }: AppViewProps) {
   const { locale, translate, availableLocales, loading, setLocale } = localization;
   const {
     state: sessionState,
@@ -124,7 +128,8 @@ function AppView({ client, localization, session, planList, planDetail, router }
     updateReminder: updatePlanReminder,
     setTimelineCategoryFilter,
   } = planDetail;
-  const { location, navigate } = router;
+  const location = useLocation();
+  const navigate = useNavigate();
   const planRoute = useMemo(() => parsePlanRoute(location.pathname), [location.pathname]);
   const authSectionRef = useRef<HTMLDivElement | null>(null);
   const initialUrlStateRef = useRef<PlanDetailUrlState | null>(null);
@@ -899,7 +904,18 @@ function App() {
   const session = useSessionController(client);
   const planList = usePlanListController(client, session.state.session);
   const planDetail = usePlanDetailController(client, session.state.session);
-  const router = useHistoryRouter();
+  const renderAppView = useCallback(
+    () => (
+      <AppView
+        client={client}
+        localization={localization}
+        session={session}
+        planList={planList}
+        planDetail={planDetail}
+      />
+    ),
+    [client, localization, session, planList, planDetail]
+  );
 
   return (
     <ConfigProvider
@@ -911,14 +927,9 @@ function App() {
         },
       }}
     >
-      <AppView
-        client={client}
-        localization={localization}
-        session={session}
-        planList={planList}
-        planDetail={planDetail}
-        router={router}
-      />
+      <BrowserRouter>
+        <AppRoutes renderApp={renderAppView} />
+      </BrowserRouter>
     </ConfigProvider>
   );
 }
