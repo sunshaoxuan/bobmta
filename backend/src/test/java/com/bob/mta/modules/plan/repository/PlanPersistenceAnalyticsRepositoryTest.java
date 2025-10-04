@@ -12,6 +12,7 @@ import com.bob.mta.modules.plan.repository.PlanAnalyticsQuery;
 import com.bob.mta.modules.plan.repository.PlanBoardGrouping;
 import com.bob.mta.modules.plan.repository.PlanSearchCriteria;
 import com.bob.mta.modules.plan.service.PlanBoardView;
+import com.bob.mta.modules.plan.service.PlanBoardViewHelper;
 import org.assertj.core.groups.Tuple;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
@@ -265,6 +266,69 @@ class PlanPersistenceAnalyticsRepositoryTest {
                 .isEqualTo(customerGroupTuples(inMemory.getCustomerGroups()));
         assertThat(bucketTuples(persistence.getTimeBuckets()))
                 .isEqualTo(bucketTuples(inMemory.getTimeBuckets()));
+    }
+
+    @Test
+    void shouldSortPlanBoardAggregatesByTotalsAndBucketStart() {
+        OffsetDateTime baseline = OffsetDateTime.of(2024, 6, 10, 9, 0, 0, 0, ZoneOffset.UTC);
+
+        Plan custCScheduledA = createPlan(planRepository.nextPlanId(), "tenant-board-order", PlanStatus.SCHEDULED,
+                "owner-order", "cust-sort-c", baseline.plusDays(1), baseline.plusDays(1).plusHours(2),
+                baseline.minusDays(30), baseline.minusDays(29), List.of(PlanNodeStatus.DONE, PlanNodeStatus.PENDING));
+        Plan custCScheduledB = createPlan(planRepository.nextPlanId(), "tenant-board-order", PlanStatus.SCHEDULED,
+                "owner-order", "cust-sort-c", baseline.plusDays(1), baseline.plusDays(1).plusHours(3),
+                baseline.minusDays(29), baseline.minusDays(28), List.of(PlanNodeStatus.PENDING));
+        Plan custCScheduledC = createPlan(planRepository.nextPlanId(), "tenant-board-order", PlanStatus.IN_PROGRESS,
+                "owner-order", "cust-sort-c", baseline.plusWeeks(1).plusDays(2), baseline.plusWeeks(1).plusDays(2).plusHours(2),
+                baseline.minusDays(28), baseline.minusDays(27), List.of(PlanNodeStatus.DONE));
+
+        Plan custAScheduledA = createPlan(planRepository.nextPlanId(), "tenant-board-order", PlanStatus.SCHEDULED,
+                "owner-order", "cust-sort-a", baseline.minusWeeks(1).plusDays(2), baseline.minusWeeks(1).plusDays(2).plusHours(2),
+                baseline.minusDays(27), baseline.minusDays(26), List.of(PlanNodeStatus.DONE));
+        Plan custAScheduledB = createPlan(planRepository.nextPlanId(), "tenant-board-order", PlanStatus.COMPLETED,
+                "owner-order", "cust-sort-a", baseline.plusWeeks(2).plusDays(1), baseline.plusWeeks(2).plusDays(1).plusHours(1),
+                baseline.minusDays(26), baseline.minusDays(25), List.of(PlanNodeStatus.DONE));
+
+        Plan custBScheduledA = createPlan(planRepository.nextPlanId(), "tenant-board-order", PlanStatus.SCHEDULED,
+                "owner-order", "cust-sort-b", baseline.minusWeeks(2).plusDays(3), baseline.minusWeeks(2).plusDays(3).plusHours(3),
+                baseline.minusDays(25), baseline.minusDays(24), List.of(PlanNodeStatus.PENDING));
+        Plan custBScheduledB = createPlan(planRepository.nextPlanId(), "tenant-board-order", PlanStatus.IN_PROGRESS,
+                "owner-order", "cust-sort-b", baseline.plusWeeks(3).plusDays(4), baseline.plusWeeks(3).plusDays(4).plusHours(2),
+                baseline.minusDays(24), baseline.minusDays(23), List.of(PlanNodeStatus.DONE));
+
+        persist(custCScheduledA, custCScheduledB, custCScheduledC,
+                custAScheduledA, custAScheduledB,
+                custBScheduledA, custBScheduledB);
+
+        PlanSearchCriteria criteria = PlanSearchCriteria.builder()
+                .tenantId("tenant-board-order")
+                .from(baseline.minusWeeks(3))
+                .to(baseline.plusWeeks(4))
+                .build();
+
+        PlanBoardView board = analyticsRepository.getPlanBoard(criteria, PlanBoardGrouping.WEEK);
+
+        assertThat(board.getCustomerGroups())
+                .extracting(PlanBoardView.CustomerGroup::getCustomerId)
+                .containsExactly("cust-sort-c", "cust-sort-a", "cust-sort-b");
+        assertThat(board.getCustomerGroups())
+                .extracting(PlanBoardView.CustomerGroup::getTotalPlans)
+                .containsExactly(3L, 2L, 2L);
+
+        assertThat(board.getTimeBuckets())
+                .extracting(PlanBoardView.TimeBucket::getStart)
+                .isSorted();
+
+        OffsetDateTime expectedBucketStart = PlanBoardViewHelper.normalizeBucketStart(
+                baseline.plusDays(1), PlanBoardGrouping.WEEK);
+
+        PlanBoardView.TimeBucket weekBucket = board.getTimeBuckets().stream()
+                .filter(bucket -> expectedBucketStart.equals(bucket.getStart()))
+                .findFirst()
+                .orElseThrow(() -> new AssertionError("Expected bucket for week starting " + expectedBucketStart));
+
+        assertThat(weekBucket.getPlans())
+                .isSortedAccordingTo(PlanBoardViewHelper.PLAN_CARD_COMPARATOR);
     }
 
     private void persist(Plan... plans) {
