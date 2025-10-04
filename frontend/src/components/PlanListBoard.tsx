@@ -191,6 +191,7 @@ export function PlanListBoard({
       translate={translate}
       groups={planState.customerGroups}
       plans={planState.records}
+      locale={locale}
       wrapWithCard={false}
     />
   );
