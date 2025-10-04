@@ -116,3 +116,48 @@ export type PlanDetailPayload = {
 export type PingResponse = {
   status: string;
 };
+
+export type PlanAnalyticsRiskLevel = 'OVERDUE' | 'DUE_SOON';
+
+export type PlanAnalyticsUpcomingPlan = {
+  id: string;
+  title: string;
+  status: PlanStatus;
+  plannedStartTime: string | null;
+  plannedEndTime: string | null;
+  owner: string;
+  customerId: string | null;
+  progress: number | null;
+};
+
+export type PlanAnalyticsOwnerLoad = {
+  ownerId: string;
+  totalPlans: number;
+  activePlans: number;
+  overduePlans: number;
+};
+
+export type PlanAnalyticsRiskPlan = {
+  id: string;
+  title: string;
+  status: PlanStatus;
+  plannedEndTime: string | null;
+  owner: string;
+  customerId: string | null;
+  riskLevel: PlanAnalyticsRiskLevel;
+  minutesUntilDue: number;
+  minutesOverdue: number;
+};
+
+export type PlanAnalyticsOverview = {
+  totalPlans: number;
+  designCount: number;
+  scheduledCount: number;
+  inProgressCount: number;
+  completedCount: number;
+  canceledCount: number;
+  overdueCount: number;
+  upcomingPlans: PlanAnalyticsUpcomingPlan[];
+  ownerLoads: PlanAnalyticsOwnerLoad[];
+  riskPlans: PlanAnalyticsRiskPlan[];
+};

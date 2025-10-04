@@ -158,6 +158,210 @@
   box-shadow: 0 8px 20px rgba(22, 119, 255, 0.18);
 }
 
+.plan-analytics-card {
+  box-shadow: 0 16px 40px rgba(22, 119, 255, 0.08);
+  border-radius: 20px;
+  background: linear-gradient(180deg, #ffffff 0%, #f9fbff 100%);
+}
+
+.plan-analytics-dashboard {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.plan-analytics-loading {
+  padding: 12px 16px;
+  background: rgba(22, 119, 255, 0.06);
+  border-radius: 12px;
+}
+
+.plan-analytics-section {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.plan-analytics-section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.plan-analytics-section-title {
+  font-size: 16px;
+  font-weight: 600;
+  color: #1d1d1f;
+}
+
+.plan-analytics-status-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 16px;
+}
+
+.plan-analytics-status-card {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 16px;
+  border-radius: 16px;
+  background: #ffffff;
+  box-shadow: 0 12px 32px rgba(56, 95, 255, 0.08);
+  min-height: 132px;
+}
+
+.plan-analytics-status-risk {
+  background: linear-gradient(135deg, rgba(255, 77, 79, 0.12) 0%, rgba(255, 140, 0, 0.12) 100%);
+}
+
+.plan-analytics-status-label {
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.plan-analytics-status-value {
+  font-size: 28px;
+  font-weight: 700;
+  color: #1d1d1f;
+}
+
+.plan-analytics-status-hint {
+  font-size: 12px;
+  color: #fa541c;
+}
+
+.plan-analytics-status-progress .antd-progress-bg {
+  background: linear-gradient(90deg, rgba(22, 119, 255, 0.16), rgba(22, 119, 255, 0.68));
+}
+
+.plan-analytics-owner-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 16px;
+}
+
+.plan-analytics-owner-card {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 18px 20px;
+  border-radius: 16px;
+  background: #ffffff;
+  box-shadow: 0 10px 28px rgba(19, 194, 194, 0.12);
+}
+
+.plan-analytics-owner-card-wrapper {
+  display: contents;
+}
+
+.plan-analytics-owner-id {
+  font-size: 14px;
+  font-weight: 600;
+  color: #0b7285;
+}
+
+.plan-analytics-owner-metric {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 13px;
+  color: #5a5e66;
+}
+
+.plan-analytics-owner-metric strong {
+  font-size: 18px;
+  color: #1d1d1f;
+}
+
+.plan-analytics-risk-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.plan-analytics-risk-item {
+  padding: 16px 18px;
+  border-radius: 14px;
+  background: #ffffff;
+  box-shadow: 0 12px 32px rgba(250, 84, 28, 0.12);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.plan-analytics-risk-item-wrapper {
+  display: contents;
+}
+
+.plan-analytics-risk-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.plan-analytics-risk-title {
+  font-size: 15px;
+  font-weight: 600;
+  color: #1d1d1f;
+}
+
+.plan-analytics-risk-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  font-size: 12px;
+  color: #5a5e66;
+}
+
+.plan-analytics-upcoming-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.plan-analytics-upcoming-item {
+  padding: 16px 18px;
+  border-radius: 14px;
+  background: linear-gradient(135deg, rgba(22, 119, 255, 0.08) 0%, rgba(22, 119, 255, 0.02) 100%);
+  box-shadow: 0 12px 24px rgba(22, 119, 255, 0.1);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.plan-analytics-upcoming-title {
+  font-size: 15px;
+  font-weight: 600;
+  color: #1d1d1f;
+}
+
+.plan-analytics-upcoming-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 12px;
+  color: #5a5e66;
+}
+
+.plan-analytics-total {
+  background: rgba(22, 119, 255, 0.12);
+  color: #1677ff;
+  border: none;
+  border-radius: 999px;
+  padding: 4px 12px;
+}
+
+.plan-analytics-meta {
+  color: #5a5e66;
+}
+
+.plan-analytics-updated {
+  font-size: 12px;
+}
+
 .app-header-menu .antd-menu-item-button:disabled {
   cursor: not-allowed;
   opacity: 0.5;
