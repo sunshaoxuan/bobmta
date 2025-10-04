@@ -10,6 +10,7 @@ import java.time.OffsetDateTime;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class PlanBoardResponseTest {
 
@@ -123,5 +124,63 @@ class PlanBoardResponseTest {
                 .containsExactly("plan-dto-1");
         assertThat(response.getTimeBuckets().get(0).getAtRiskPlans()).isEqualTo(2);
         assertThat(response.getMetrics().getAtRiskPlans()).isEqualTo(2);
+    }
+
+    @Test
+    @DisplayName("PlanBoardResponse collections should be unmodifiable for callers")
+    void shouldExposeUnmodifiableCollections() {
+        OffsetDateTime now = OffsetDateTime.parse("2024-07-01T00:00:00Z");
+        PlanBoardView.PlanCard planCard = new PlanBoardView.PlanCard(
+                "plan-unmodifiable",
+                "受保护计划",
+                PlanStatus.SCHEDULED,
+                "owner-unmodifiable",
+                "customer-unmodifiable",
+                now,
+                now.plusHours(1),
+                "UTC",
+                10,
+                false,
+                false,
+                null,
+                null
+        );
+        PlanBoardView.CustomerGroup group = new PlanBoardView.CustomerGroup(
+                "customer-unmodifiable",
+                null,
+                1,
+                1,
+                0,
+                0,
+                0,
+                0,
+                10.0,
+                now,
+                now.plusHours(1),
+                List.of(planCard)
+        );
+        PlanBoardView.TimeBucket bucket = new PlanBoardView.TimeBucket(
+                "2024-07-01",
+                now,
+                now.plusDays(1),
+                1,
+                1,
+                0,
+                0,
+                0,
+                0,
+                List.of(planCard)
+        );
+        PlanBoardView view = new PlanBoardView(List.of(group), List.of(bucket),
+                new PlanBoardView.Metrics(1, 1, 0, 0, 0, 0, 10.0, 1.0, 0.0), PlanBoardGrouping.DAY, now);
+
+        PlanBoardResponse response = PlanBoardResponse.from(view);
+
+        assertThatThrownBy(() -> response.getCustomerGroups().add(null)).isInstanceOf(UnsupportedOperationException.class);
+        PlanBoardResponse.CustomerGroupResponse customerResponse = response.getCustomerGroups().get(0);
+        assertThatThrownBy(() -> customerResponse.getPlans().add(null)).isInstanceOf(UnsupportedOperationException.class);
+        assertThatThrownBy(() -> response.getTimeBuckets().add(null)).isInstanceOf(UnsupportedOperationException.class);
+        PlanBoardResponse.TimeBucketResponse bucketResponse = response.getTimeBuckets().get(0);
+        assertThatThrownBy(() -> bucketResponse.getPlans().add(null)).isInstanceOf(UnsupportedOperationException.class);
     }
 }
