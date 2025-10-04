@@ -57,6 +57,12 @@ public interface PlanService {
     PlanAnalytics getAnalytics(String tenantId, String customerId, String ownerId,
                                OffsetDateTime from, OffsetDateTime to);
 
+    /**
+     * Builds a multi-view board snapshot that aggregates plan metrics by customer and normalized time buckets.
+     * The supplied {@link PlanSearchCriteria} is sanitized by implementations to remove duplicate or blank
+     * filters before delegating to the analytics repository. When {@code grouping} is {@code null} the default
+     * grouping (WEEK) should be applied.
+     */
     PlanBoardView getPlanBoard(PlanSearchCriteria criteria, PlanBoardGrouping grouping);
 
     List<Plan> findConflictingPlans(String tenantId, String customerId, String ownerId,
