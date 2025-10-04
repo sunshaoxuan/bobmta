@@ -21,8 +21,8 @@
 - 后端完成接口或数据能力后，应在 `frontend/FRONTEND_REQUIREMENTS.md` 的相应条目标记交付阶段，并补充接口契约或样例数据链接。
 - 若后端接口调整影响已交付的前端功能，需要在 README 中追加「变更通告」小节说明影响范围、兼容策略与迁移时间窗口。
 - 已于 2025-09-29 在生产环境上线 F-001/F-002 依赖的字典接口，并在 2025-10-02 与后端再次确认可直接在生产调用：
-  - `GET /api/v1/plans/filter-options`（筛选字典）与 `GET /api/v1/plans/activity-types`（时间线事件字典）现为联调默认入口，示例请求与契约详见《docs/backend-requests/plan-filter-options.md》《docs/backend-requests/plan-timeline-activities.md》，可分别通过 `curl -H "Accept-Language: zh-CN" "${HOST}/api/v1/plans/filter-options?tenantId=acme"`、`curl -H "Accept-Language: ja-JP" "${HOST}/api/v1/plans/activity-types"` 校验。
-  - 前端在命中生产接口返回 `304 Not Modified` 或协商缓存命中时，需按照需求清单中约定的缓存刷新策略降级至本地缓存或 Mock 兜底数据，并记录刷新时间以便追溯。
+  - `GET /api/v1/plans/filter-options`（筛选字典）与 `GET /api/v1/plans/activity-types`（时间线事件字典）现为联调默认入口，示例请求与契约详见《docs/backend-requests/plan-filter-options.md》《docs/backend-requests/plan-timeline-activities.md》。请优先参考文档中的「联调与 Mock 指南」部分获取最新的缓存与降级策略，可分别通过 `curl -H "Accept-Language: zh-CN" "${HOST}/api/v1/plans/filter-options?tenantId=acme"`、`curl -H "Accept-Language: ja-JP" "${HOST}/api/v1/plans/activity-types"` 校验。
+  - 前端在命中生产接口返回 `304 Not Modified` 或协商缓存命中时，需按照需求清单中约定的缓存刷新策略降级至本地缓存或 Mock 兜底数据，并记录刷新时间以便追溯；相关结果需同步更新到《frontend/FRONTEND_REQUIREMENTS.md》的 F-001/F-002 条目。
 
 ## 后端阶段四迭代进度
 

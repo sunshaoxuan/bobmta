@@ -33,7 +33,7 @@ import {
 } from '../constants/planMode';
 import { PLAN_REMINDER_CHANNEL_COLOR, PLAN_REMINDER_CHANNEL_LABEL } from '../constants/planReminder';
 import { formatDateTime, formatPlanWindow } from '../utils/planFormatting';
-import type { PlanDetailState } from '../state/planDetail';
+import type { PlanDetailContext, PlanDetailState } from '../state/planDetail';
 import { PlanNodeTree } from './PlanNodeTree';
 import { PlanDetailSection } from './PlanDetailSection';
 import { PlanNodeActions, type PlanNodeActionIntent } from './PlanNodeActions';
@@ -45,6 +45,7 @@ import {
   collectCompletedPlanNodeIds,
   flattenPlanNodes,
   getActionablePlanNodes,
+  findCurrentPlanNodeId,
   type PlanNodeWithPath,
   type PlanNodeActionType,
 } from '../utils/planNodes';
@@ -84,6 +85,12 @@ type PlanPreviewModeDefinition = {
     actions: PlanPreviewModeSectionDefinition;
     reminders: PlanPreviewReminderSectionDefinition;
   };
+};
+
+type PlanPreviewModeContext = {
+  mode: PlanViewMode;
+  planStatus: PlanStatus | null;
+  currentNodeId: string | null;
 };
 const PLAN_PREVIEW_MODE_DEFINITIONS: Record<PlanViewMode, PlanPreviewModeDefinition> = {
   design: {
@@ -180,10 +187,11 @@ export function PlanPreview({
   const detailError = isActiveDetail ? detailState.error : null;
   const detailOrigin = isActiveDetail ? detailState.origin : null;
   const detailContext = isActiveDetail ? detailState.context : null;
-  const previewStatus: PlanStatus | null =
-    detailContext?.planStatus ?? detail?.status ?? plan?.status ?? null;
-  const statusMode: PlanViewMode = previewStatus ? PLAN_STATUS_MODE[previewStatus] : 'design';
-  const mode: PlanViewMode = detailContext ? detailContext.mode : statusMode;
+  const previewModeContext = useMemo<PlanPreviewModeContext>(() => {
+    return resolvePlanPreviewModeContext({ detail, plan, detailContext });
+  }, [detail, detailContext, plan]);
+  const mode = previewModeContext.mode;
+  const previewStatus = previewModeContext.planStatus;
   const modeDefinition = useMemo(() => PLAN_PREVIEW_MODE_DEFINITIONS[mode], [mode]);
   const nodesSection = modeDefinition.sections.nodes;
   const actionsSection = modeDefinition.sections.actions;
@@ -194,7 +202,7 @@ export function PlanPreview({
     }
     return modeDefinition.actionStatuses.includes(previewStatus);
   }, [modeDefinition, previewStatus]);
-  const currentNodeId = detailContext ? detailContext.currentNodeId : null;
+  const currentNodeId = previewModeContext.currentNodeId;
   const [editingNodeId, setEditingNodeId] = useState<string | null>(null);
   const lastUpdatedLabel =
     isActiveDetail && detailState.lastUpdated
@@ -867,6 +875,29 @@ type ModeAwareHelperOptions = {
   showModePanel?: boolean;
   panel?: PlanPreviewModePanelConfig;
 };
+
+type PlanPreviewModeResolveOptions = {
+  detail: PlanDetail | null;
+  plan: PlanSummary | null;
+  detailContext: PlanDetailContext | null;
+};
+
+function resolvePlanPreviewModeContext({
+  detail,
+  plan,
+  detailContext,
+}: PlanPreviewModeResolveOptions): PlanPreviewModeContext {
+  if (detailContext) {
+    return detailContext;
+  }
+
+  const planStatus = detail?.status ?? plan?.status ?? null;
+  const mode: PlanViewMode = planStatus ? PLAN_STATUS_MODE[planStatus] : 'design';
+  const nodes = detail?.nodes ?? [];
+  const currentNodeId = findCurrentPlanNodeId(nodes);
+
+  return { mode, planStatus, currentNodeId };
+}
 
 function renderModeAwareHelper({
   mode,

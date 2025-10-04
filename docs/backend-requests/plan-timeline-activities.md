@@ -65,6 +65,12 @@ curl \
 2. 时间线接口（`GET /api/v1/plans/{id}/timeline`）继续返回 `PlanActivityResponse`，其中 `type` 字段与字典接口中的 `type` 对应。
 3. 属性描述的多语言文案在 `messages.properties`、`messages_zh.properties`、`messages_ja.properties` 中维护，前端可直接使用描述或根据 `descriptionKey` 做自定义渲染。
 
+## 联调与 Mock 指南
+
+- **优先使用生产接口**：时间线事件字典已于 2025-09-29 上线生产环境，联调时直接调用 `GET /api/v1/plans/activity-types` 并结合示例中的 `curl -H "Accept-Language: ja-JP" "${HOST}/api/v1/plans/activity-types"` 验证多语言内容与字段完备性。
+- **离线兜底策略**：`mockPlanActivityTypes.json` 仅保留在前端离线或自动化测试场景下使用，必须与线上契约保持一致，并结合 Node Test 校验 `descriptionKey`、`messages` 等字段未发生漂移。
+- **缓存与降级**：若生产接口命中协商缓存（`304 Not Modified`），前端需复用现有缓存刷新/记录逻辑，确保时间线事件配置在切换回本地缓存时仍满足展示需求；相关联调经验应同步记录在《frontend/FRONTEND_REQUIREMENTS.md》与 README 协同章节。
+
 ## 更新记录
 
 - 2025-09-29：新增时间线事件字典接口与属性描述，满足 F-002 的时间线展示需求。

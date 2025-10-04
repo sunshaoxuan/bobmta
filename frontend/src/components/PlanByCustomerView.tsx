@@ -23,6 +23,8 @@ import {
 } from '../constants/planStatus';
 import { listMockPlans } from '../mocks/planList';
 import type { ReactNode } from '../../vendor/react/index.js';
+import type { Locale } from '../i18n/localization';
+import { formatPlanWindow } from '../utils/planFormatting';
 
 const { Text } = Typography;
 
@@ -30,6 +32,7 @@ export type PlanByCustomerViewProps = {
   plans?: PlanSummary[];
   groups?: PlanCustomerGroup[];
   translate: LocalizationState['translate'];
+  locale: Locale;
   wrapWithCard?: boolean;
 };
 
@@ -43,6 +46,7 @@ export function PlanByCustomerView({
   plans,
   groups,
   translate,
+  locale,
   wrapWithCard = true,
 }: PlanByCustomerViewProps) {
   const dataSource = useMemo(() => {
@@ -95,7 +99,7 @@ export function PlanByCustomerView({
               showLine
               selectable={false}
               defaultExpandAll
-              treeData={buildCustomerTreeData(group, translate)}
+              treeData={buildCustomerTreeData(group, translate, locale)}
             />
           </Space>
         </List.Item>
@@ -123,7 +127,8 @@ function resolveGroupName(group: PlanCustomerGroup, translate: LocalizationState
 
 function buildCustomerTreeData(
   group: PlanCustomerGroup,
-  translate: LocalizationState['translate']
+  translate: LocalizationState['translate'],
+  locale: Locale
 ): CustomerTreeNode[] {
   const nodes: CustomerTreeNode[] = [];
   PLAN_STATUS_ORDER.forEach((status) => {
@@ -145,7 +150,11 @@ function buildCustomerTreeData(
           <Space direction="vertical" size={0} className="plan-customer-tree-leaf">
             <Text strong>{plan.title}</Text>
             <Text type="secondary">
-              {translate('planTableHeaderWindow')}: {formatPlanWindowLabel(plan, translate)}
+              {translate('planTableHeaderWindow')}: {formatPlanWindowLabel(
+                plan,
+                locale,
+                translate
+              )}
             </Text>
           </Space>
         ),
@@ -158,12 +167,10 @@ function buildCustomerTreeData(
 
 function formatPlanWindowLabel(
   plan: PlanSummaryWithCustomer,
+  locale: Locale,
   translate: LocalizationState['translate']
 ): string {
-  const empty = translate('planPreviewEmptyValue');
-  const start = plan.plannedStartTime ? new Date(plan.plannedStartTime).toLocaleString() : empty;
-  const end = plan.plannedEndTime ? new Date(plan.plannedEndTime).toLocaleString() : empty;
-  return `${start} → ${end}`;
+  return formatPlanWindow(plan, locale, translate);
 }
 
 function sortPlansForDisplay(
