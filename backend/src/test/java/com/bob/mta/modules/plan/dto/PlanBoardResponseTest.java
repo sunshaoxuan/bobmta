@@ -114,6 +114,7 @@ class PlanBoardResponseTest {
         assertThat(response.getCustomerGroups()).hasSize(1);
         PlanBoardResponse.CustomerGroupResponse customer = response.getCustomerGroups().get(0);
         assertThat(customer.getCustomerId()).isEqualTo("cust-dto");
+        assertThat(customer.getCustomerName()).isEqualTo("客户DTO");
         assertThat(customer.getAtRiskPlans()).isEqualTo(2);
         assertThat(customer.getPlans()).hasSize(1);
         PlanBoardResponse.PlanCardResponse dtoCard = customer.getPlans().get(0);

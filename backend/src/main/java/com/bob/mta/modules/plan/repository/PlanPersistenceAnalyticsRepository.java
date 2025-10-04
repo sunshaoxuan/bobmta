@@ -137,20 +137,24 @@ public class PlanPersistenceAnalyticsRepository implements PlanAnalyticsReposito
                     }
                     return normalizeCustomerId(left.customerId()).compareTo(normalizeCustomerId(right.customerId()));
                 })
-                .map(entity -> new PlanBoardView.CustomerGroup(
-                        normalizeCustomerId(entity.customerId()),
-                        entity.customerName(),
-                        entity.totalPlans(),
-                        entity.activePlans(),
-                        entity.completedPlans(),
-                        entity.overduePlans(),
-                        entity.dueSoonPlans(),
-                        entity.atRiskPlans(),
-                        PlanBoardViewHelper.roundAverage(entity.averageProgress()),
-                        entity.earliestStart(),
-                        entity.latestEnd(),
-                        plansByCustomer.getOrDefault(normalizeCustomerId(entity.customerId()), List.of())
-                ))
+                .map(entity -> {
+                    String normalizedCustomerId = normalizeCustomerId(entity.customerId());
+                    List<PlanBoardView.PlanCard> customerPlans = plansByCustomer.getOrDefault(normalizedCustomerId, List.of());
+                    return new PlanBoardView.CustomerGroup(
+                            normalizedCustomerId,
+                            entity.customerName(),
+                            entity.totalPlans(),
+                            entity.activePlans(),
+                            entity.completedPlans(),
+                            entity.overduePlans(),
+                            entity.dueSoonPlans(),
+                            entity.atRiskPlans(),
+                            PlanBoardViewHelper.roundAverage(entity.averageProgress()),
+                            entity.earliestStart(),
+                            entity.latestEnd(),
+                            customerPlans
+                    );
+                })
                 .toList();
 
         List<PlanBoardTimeBucketEntity> bucketAggregates = mapper.aggregateTimeBuckets(parameters);

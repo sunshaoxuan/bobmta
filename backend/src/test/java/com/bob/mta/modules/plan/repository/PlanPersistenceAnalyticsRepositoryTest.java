@@ -269,6 +269,48 @@ class PlanPersistenceAnalyticsRepositoryTest {
     }
 
     @Test
+    void shouldGroupUnknownCustomersUnderFallbackIdentifier() {
+        OffsetDateTime baseline = OffsetDateTime.of(2024, 9, 1, 9, 0, 0, 0, ZoneOffset.UTC);
+
+        Plan nullCustomer = createPlan(planRepository.nextPlanId(), "tenant-board-unknown", PlanStatus.SCHEDULED,
+                "owner-unknown", null, baseline.plusHours(1), baseline.plusHours(3),
+                baseline.minusDays(2), baseline.minusDays(1), List.of(PlanNodeStatus.PENDING));
+        Plan blankCustomer = createPlan(planRepository.nextPlanId(), "tenant-board-unknown", PlanStatus.IN_PROGRESS,
+                "owner-unknown", "", baseline.plusHours(4), baseline.plusHours(6),
+                baseline.minusDays(3), baseline.minusDays(2), List.of(PlanNodeStatus.DONE));
+
+        persist(nullCustomer, blankCustomer);
+
+        PlanSearchCriteria criteria = PlanSearchCriteria.builder()
+                .tenantId("tenant-board-unknown")
+                .from(baseline.minusDays(3))
+                .to(baseline.plusDays(3))
+                .build();
+
+        PlanBoardView board = analyticsRepository.getPlanBoard(criteria, PlanBoardGrouping.DAY);
+
+        assertThat(board.getCustomerGroups())
+                .extracting(PlanBoardView.CustomerGroup::getCustomerId)
+                .containsExactly(PlanBoardView.UNKNOWN_CUSTOMER_ID);
+
+        PlanBoardView.CustomerGroup customerGroup = board.getCustomerGroups().get(0);
+        assertThat(customerGroup.getTotalPlans()).isEqualTo(2);
+        assertThat(customerGroup.getPlans())
+                .extracting(PlanBoardView.PlanCard::getId)
+                .containsExactlyInAnyOrder(nullCustomer.getId(), blankCustomer.getId());
+        assertThat(customerGroup.getPlans())
+                .extracting(PlanBoardView.PlanCard::getCustomerId)
+                .containsExactlyInAnyOrder(null, "");
+
+        List<String> bucketPlanIds = board.getTimeBuckets().stream()
+                .flatMap(bucket -> bucket.getPlans().stream())
+                .map(PlanBoardView.PlanCard::getId)
+                .toList();
+        assertThat(bucketPlanIds)
+                .contains(nullCustomer.getId(), blankCustomer.getId());
+    }
+
+    @Test
     void shouldSortPlanBoardAggregatesByTotalsAndBucketStart() {
         OffsetDateTime baseline = OffsetDateTime.of(2024, 6, 10, 9, 0, 0, 0, ZoneOffset.UTC);
 
