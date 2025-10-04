@@ -223,6 +223,7 @@
   - ✅ 已完成：在鉴权态下基于 Session 暴露的 `canAccessPath` 校验前端路由授权，未匹配的路径会展示 403 提示与返回概览按钮，避免用户访问未开放的页面时出现空白视图。
   - ✅ 已完成：升级计划多视图为 Tabs + Segmented 联动切换，沿用筛选条件渲染表格、客户树形列表与日历视图，客户视图以 List/Tree 呈现负责人与状态分布，日历视图接入事件映射与多粒度聚合，并在即将开始列表中过滤出基于时间锚点的未来事件；PlanListBoard 将 `Segmented` 与 `Tabs` 共用的 `viewMode` 状态同步写回 URL，Node Test 覆盖客户聚合、日历分组与时间锚点推断逻辑。
   - ✅ 已完成：封装 `PlanByCustomerView` 与 `PlanCalendarView` 组件复用计划聚合结果，客户视图展示状态树与负责人标签，日历视图支持日/周/月/年颗粒度分桶并联动列表渲染，并在后端提供统一时间粒度时自动沿用推荐视图；配套在 `planList` 状态模块输出客户聚合与日历事件派生方法，并以 Node Test 校验排序、周起始日与年度区间边界。
+  - ✅ 已完成：构建计划驾驶舱统计容器 `usePlanAnalyticsController` 与 `PlanAnalyticsDashboard` 组件，默认以 Mock 数据渲染状态分布、负责人负载与风险提醒，允许切换实时模式并在接口异常时回退 Mock；新增 `/api/v1/plans/analytics` Node Test 校验查询参数拼装与空载荷错误映射，为后续联调留出手动重试入口。
   - 📌 下一步：等待后端提供节点执行与提醒更新接口后对接真实调用，并补齐操作失败提示与权限校验的前端展现。
   - ✅ 后端已交付：F-001/F-002 依赖的字典接口已在 2025-09-29 进入生产环境，并于 2025-10-02 再次确认可直接联调；需求清单中的后端状态已标记为 `✅ 完成` 并附上契约、示例 `curl` 命令及返回片段供联调核对。
     - `GET /api/v1/plans/filter-options`：契约与示例响应详见《[计划列表筛选字典接口说明](docs/backend-requests/plan-filter-options.md#响应结构)》，可使用 `curl -H "Accept-Language: zh-CN" "${HOST}/api/v1/plans/filter-options?tenantId=acme"` 校验多语言标签与时间窗提示。
