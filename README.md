@@ -227,7 +227,9 @@
   - ✅ 后端已交付：F-001/F-002 依赖的字典接口已在 2025-09-29 进入生产环境，并于 2025-10-02 再次确认可直接联调；需求清单中的后端状态已标记为 `✅ 完成` 并附上契约、示例 `curl` 命令及返回片段供联调核对。
     - `GET /api/v1/plans/filter-options`：契约与示例响应详见《[计划列表筛选字典接口说明](docs/backend-requests/plan-filter-options.md#响应结构)》，可使用 `curl -H "Accept-Language: zh-CN" "${HOST}/api/v1/plans/filter-options?tenantId=acme"` 校验多语言标签与时间窗提示。
     - `GET /api/v1/plans/activity-types`：契约与示例响应详见《[计划时间线事件字典说明](docs/backend-requests/plan-timeline-activities.md#响应结构)》，可使用 `curl -H "Accept-Language: ja-JP" "${HOST}/api/v1/plans/activity-types"` 核对消息键与属性描述。
-    - 前端默认直接调用上述生产接口；`mockPlanFilterOptions.json`、`mockPlanActivityTypes.json` 与 `queryMockPlanSummaries` 仅在离线/测试环境或接口异常时兜底，并保持与 2025-09 契约字段一致的 Node Test 校验，同时记录真实接口联调下的缓存刷新与降级策略。
+  - 🧪 前端联调：
+    - F-001 计划列表筛选面板已接入生产环境 `GET /api/v1/plans/filter-options`，当前验证分页筛选与缓存回退流程，并记录 `ETag`/`Last-Modified` 以支撑 304 降级与刷新审计；`mockPlanFilterOptions.json` 与 `queryMockPlanSummaries` 仅在离线/异常场景兜底，持续通过 Node Test 对齐契约。
+    - F-002 时间线视图正在使用生产环境 `GET /api/v1/plans/activity-types` 校准事件字典与详情缓存命中提示，同时补齐多语言回退策略；`mockPlanActivityTypes.json` 保留为离线/自动化测试兜底，并对齐协商缓存命中时的回退体验。
 
 ### ⏭️ 下一步
 - 迭代 #2：设计前端状态管理与缓存方案，区分用户会话、计划查询缓存与多语言资源加载，完善 Mock 数据与单元测试基线。
