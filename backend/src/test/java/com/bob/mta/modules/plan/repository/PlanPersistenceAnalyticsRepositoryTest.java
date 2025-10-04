@@ -200,6 +200,12 @@ class PlanPersistenceAnalyticsRepositoryTest {
                 .isEqualTo(bucketTuples(inMemory.getTimeBuckets()));
         assertThat(planCardTuples(persistence.getCustomerGroups()))
                 .isEqualTo(planCardTuples(inMemory.getCustomerGroups()));
+        assertThat(persistence.getCustomerGroups())
+                .allSatisfy(group -> assertThat(group.getAtRiskPlans())
+                        .isEqualTo(group.getOverduePlans() + group.getDueSoonPlans()));
+        assertThat(persistence.getTimeBuckets())
+                .allSatisfy(bucket -> assertThat(bucket.getAtRiskPlans())
+                        .isEqualTo(bucket.getOverduePlans() + bucket.getDueSoonPlans()));
     }
 
     @Test

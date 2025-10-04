@@ -9,6 +9,7 @@ public record PlanBoardTimeBucketEntity(String bucketId,
                                         long activePlans,
                                         long completedPlans,
                                         long overduePlans,
-                                        long dueSoonPlans) {
+                                        long dueSoonPlans,
+                                        long atRiskPlans) {
 }
 
