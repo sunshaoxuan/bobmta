@@ -2,6 +2,7 @@ import type { ApiClient, ApiError } from './client';
 import type {
   ApiEnvelope,
   PageResponse,
+  PlanAnalyticsOverview,
   PlanDetailPayload,
   PlanSummary,
 } from './types';
@@ -28,6 +29,15 @@ export type PlanNodeActionRequest =
 export type PlanReminderUpdateRequest = {
   active: boolean;
   offsetMinutes?: number | null;
+};
+
+export type PlanAnalyticsQuery = {
+  ownerId?: string | null;
+  customerId?: string | null;
+  tenantId?: string | null;
+  from?: string | null;
+  to?: string | null;
+  signal?: AbortSignal;
 };
 
 export type PlanListQuery = {
@@ -83,6 +93,59 @@ export async function fetchPlans(
     }
     if ((error as ApiError)?.type === 'network' || (error as ApiError)?.type === 'status') {
       throw error;
+    }
+    throw { type: 'network' } as ApiError;
+  }
+}
+
+export async function fetchPlanAnalytics(
+  client: ApiClient,
+  token: string,
+  query: PlanAnalyticsQuery = {}
+): Promise<PlanAnalyticsOverview> {
+  const search = new URLSearchParams();
+  if (query.ownerId) {
+    search.set('ownerId', query.ownerId);
+  }
+  if (query.customerId) {
+    search.set('customerId', query.customerId);
+  }
+  if (query.tenantId) {
+    search.set('tenantId', query.tenantId);
+  }
+  if (query.from) {
+    search.set('from', query.from);
+  }
+  if (query.to) {
+    search.set('to', query.to);
+  }
+
+  const queryString = search.toString();
+  const endpoint = queryString
+    ? `/api/v1/plans/analytics?${queryString}`
+    : '/api/v1/plans/analytics';
+
+  try {
+    const response = await client.get<ApiEnvelope<PlanAnalyticsOverview | null>>(
+      endpoint,
+      {
+        authToken: token,
+        signal: query.signal,
+      }
+    );
+    if (!response || !response.data) {
+      throw { type: 'network' } as ApiError;
+    }
+    return response.data;
+  } catch (error) {
+    if (error instanceof DOMException && error.name === 'AbortError') {
+      throw error;
+    }
+    if (
+      (error as ApiError)?.type === 'network' ||
+      (error as ApiError)?.type === 'status'
+    ) {
+      throw error as ApiError;
     }
     throw { type: 'network' } as ApiError;
   }
