@@ -42,10 +42,12 @@ export function PlanNodeTree({
         const statusLabel = translate(PLAN_NODE_STATUS_LABEL[node.status]);
         const statusColor = PLAN_NODE_STATUS_COLOR[node.status];
         const isExecution = mode === 'execution';
+        const isDesign = mode === 'design';
         const isCurrent = isExecution && currentNodeId === node.id;
         const isCompleted = completedNodeIds.has(node.id);
         const isLocked = isExecution && isCompleted;
-        const isEditing = mode === 'design' && editingNodeId === node.id;
+        const isEditing = isDesign && editingNodeId === node.id;
+        const isEditable = isDesign && Boolean(onEditNode);
         const cardClassName = [
           'plan-preview-node-card',
           isCurrent ? 'plan-preview-node-card-current' : '',
@@ -73,6 +75,7 @@ export function PlanNodeTree({
               style={cardStyle}
               data-mode={mode}
               data-status={node.status}
+              data-editable={isEditable ? 'true' : undefined}
               data-locked={isLocked ? 'true' : undefined}
               data-current={isCurrent ? 'true' : undefined}
               data-completed={isCompleted ? 'true' : undefined}
@@ -91,12 +94,13 @@ export function PlanNodeTree({
                   <Tag color={statusColor}>{statusLabel}</Tag>
                 </Space>
               </div>
-              {mode === 'design' && onEditNode ? (
+              {isEditable ? (
                 <div className="plan-preview-node-toolbar">
                   <Button
                     size="small"
                     type={isEditing ? 'primary' : 'default'}
-                    onClick={() => onEditNode(node)}
+                    onClick={() => onEditNode?.(node)}
+                    disabled={isLocked}
                   >
                     {translate(isEditing ? 'planDetailNodeEditing' : 'planDetailNodeEdit')}
                   </Button>

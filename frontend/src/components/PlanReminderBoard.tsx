@@ -34,8 +34,10 @@ export function PlanReminderBoard({
     return null;
   }
 
+  const canEdit = allowEdit && mode === 'design';
+
   return (
-    <div className="plan-reminder-board" data-mode={mode}>
+    <div className="plan-reminder-board" data-mode={mode} data-editable={canEdit ? 'true' : undefined}>
       {reminders.map((reminder) => {
         const selected = reminder.id === selectedReminderId;
         const isPending = pendingReminderId === reminder.id && pendingStatus === 'loading';
@@ -61,7 +63,7 @@ export function PlanReminderBoard({
               </Text>
             ) : null}
             <Space size="small" className="plan-reminder-card-actions" wrap>
-              {allowEdit ? (
+              {canEdit ? (
                 <Button
                   type="primary"
                   size="small"
@@ -72,7 +74,7 @@ export function PlanReminderBoard({
                   {translate('planDetailReminderActionEdit')}
                 </Button>
               ) : null}
-              {allowEdit ? (
+              {canEdit ? (
                 <Button
                   type="default"
                   size="small"
