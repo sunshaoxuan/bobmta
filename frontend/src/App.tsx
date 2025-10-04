@@ -439,7 +439,7 @@ function AppView({ client, localization, session, planList, planDetail, router }
   );
 
   const navigationState = sessionState.navigation;
-  const navigationLoading = navigationState.loading;
+  const navigationLoading = navigationSummary.loading;
   const navigationError = useMemo(() => {
     if (!sessionState.session) {
       return null;

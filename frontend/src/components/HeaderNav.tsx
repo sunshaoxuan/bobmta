@@ -177,6 +177,17 @@ export function HeaderNav({
     : null;
   const safeUserInitial = (userInitial ?? '').trim() || '•';
   const safeUserDisplayName = (userDisplayName ?? '').trim() || loginLabel;
+  const navigationAriaLabel = useMemo(() => {
+    const trimmed = title.trim();
+    return trimmed.length > 0 ? `${trimmed} navigation` : 'Application navigation';
+  }, [title]);
+  const navWrapperClassName = useMemo(() => {
+    const classes = ['app-header-nav'];
+    if (!showMenu) {
+      classes.push('app-header-nav-empty');
+    }
+    return classes.join(' ');
+  }, [showMenu]);
 
   const handleBrandClick = useCallback(
     (event: Event) => {
@@ -226,39 +237,46 @@ export function HeaderNav({
             <Paragraph className="app-subtitle">{subtitle}</Paragraph>
           </div>
         </a>
-        {showMenu && (
-          <Menu
-            mode="horizontal"
-            className={menuClassName}
-            items={antMenuItems}
-            selectedKeys={selectedKeys}
-            onClick={handleMenuClick}
-          />
-        )}
-        <div className="app-header-status" aria-live="polite">
-          {navigationLoading && isAuthenticated && (
-            <Spin size="small" className="nav-status-spinner" aria-hidden="true" />
+        <div
+          className={navWrapperClassName}
+          role="navigation"
+          aria-label={navigationAriaLabel}
+          aria-busy={navigationLoading}
+        >
+          {showMenu && (
+            <Menu
+              mode="horizontal"
+              className={menuClassName}
+              items={antMenuItems}
+              selectedKeys={selectedKeys}
+              onClick={handleMenuClick}
+            />
           )}
-          {showForbiddenNotice && (
-            <Tag color="volcano" className="nav-status-tag nav-status-forbidden">
-              {forbiddenLabel}
-            </Tag>
-          )}
-          {!showForbiddenNotice && showUnauthorizedNotice && (
-            <Tag color="gold" className="nav-status-tag nav-status-unauthorized">
-              {unauthorizedLabel}
-            </Tag>
-          )}
-          {!showMenu && !showForbiddenNotice && showGuestNotice && (
-            <Tag color="geekblue" className="nav-status-tag nav-status-guest">
-              {guestNoticeLabel}
-            </Tag>
-          )}
-          {showNavigationError && (
-            <Tag color="volcano" className="nav-error-badge">
-              {navigationErrorLabel}
-            </Tag>
-          )}
+          <div className="app-header-status" aria-live="polite" aria-atomic="true">
+            {navigationLoading && isAuthenticated && (
+              <Spin size="small" className="nav-status-spinner" aria-hidden="true" />
+            )}
+            {showForbiddenNotice && (
+              <Tag color="volcano" className="nav-status-tag nav-status-forbidden">
+                {forbiddenLabel}
+              </Tag>
+            )}
+            {!showForbiddenNotice && showUnauthorizedNotice && (
+              <Tag color="gold" className="nav-status-tag nav-status-unauthorized">
+                {unauthorizedLabel}
+              </Tag>
+            )}
+            {!showMenu && !showForbiddenNotice && showGuestNotice && (
+              <Tag color="geekblue" className="nav-status-tag nav-status-guest">
+                {guestNoticeLabel}
+              </Tag>
+            )}
+            {showNavigationError && (
+              <Tag color="volcano" className="nav-error-badge">
+                {navigationErrorLabel}
+              </Tag>
+            )}
+          </div>
         </div>
       </div>
       <div className="app-header-right">
