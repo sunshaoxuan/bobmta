@@ -30,6 +30,7 @@
     "completedPlans": 0,
     "overduePlans": 1,
     "dueSoonPlans": 1,
+    "atRiskPlans": 2,
     "averageProgress": 45.5,
     "averageDurationHours": 2.5,
     "completionRate": 0.0
@@ -43,6 +44,7 @@
       "completedPlans": 0,
       "overduePlans": 0,
       "dueSoonPlans": 1,
+      "atRiskPlans": 1,
       "averageProgress": 30.0,
       "earliestStart": "2024-04-02T08:00:00+08:00",
       "latestEnd": "2024-04-02T10:30:00+08:00",
@@ -75,6 +77,7 @@
       "completedPlans": 0,
       "overduePlans": 0,
       "dueSoonPlans": 1,
+      "atRiskPlans": 1,
       "plans": [
         {
           "id": "PLAN-6001",
@@ -111,6 +114,7 @@
     "completedPlans": 0,
     "overduePlans": 0,
     "dueSoonPlans": 0,
+    "atRiskPlans": 0,
     "averageProgress": 0,
     "averageDurationHours": 0,
     "completionRate": 0
@@ -127,11 +131,13 @@
 - `metrics.averageProgress`：所有命中计划的平均执行进度，保留 1 位小数。
 - `metrics.averageDurationHours`：根据 `plannedStartTime` 与 `plannedEndTime` 计算的平均计划时长（小时）。
 - `metrics.dueSoonPlans`：在 24 小时内即将到期的活跃计划数量，结合 `overduePlans` 便于判定风险分布。
+- `metrics.atRiskPlans`：`overduePlans` 与 `dueSoonPlans` 的合计，便于前端快速展示风险总量。
 - `metrics.completionRate`：已完成计划的百分比（0-100），保留 1 位小数。
 - `customerGroups`：按 `customerId` 聚合的分组信息，包含活跃/完成数量、时间窗口范围以及计划卡片。
 - `customerGroups[].customerName`：预留客户名称字段，当前若后端无客户档案会返回 `null`，前端可选择性展示或回退至 `customerId`。
 - 当计划缺失客户编号时，`customerId` 会被折叠为 `UNKNOWN`，仍可通过分组下的卡片访问原始计划。
 - `timeBuckets`：按粒度拆分的时间桶，`bucketId` 作为前端 Tab/日历的 key，`plans` 用于快速渲染对应视图。
+- `customerGroups[].atRiskPlans` 与 `timeBuckets[].atRiskPlans`：对应分组内即将到期与已逾期计划的总数，排序或标注风险分段时可直接使用。
 - `plans[].overdue` / `plans[].dueSoon`：派生风险指标，分别表示计划已逾期或在默认阈值内即将到期。
 - `plans[].minutesUntilDue` / `plans[].minutesOverdue`：结合风险标识的分钟粒度倒计时，便于前端展示剩余时间或逾期时长。
 - `metrics.overduePlans` / `metrics.dueSoonPlans`：来自服务层的风险聚合统计，与上方计划卡片的 `overdue` / `dueSoon` 一致，可直接驱动告警提示或仪表盘。

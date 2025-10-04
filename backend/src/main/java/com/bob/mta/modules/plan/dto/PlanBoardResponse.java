@@ -7,7 +7,7 @@ import java.util.List;
 
 public class PlanBoardResponse {
 
-    private static final MetricsResponse ZERO_METRICS = new MetricsResponse(0, 0, 0, 0, 0, 0, 0, 0);
+    private static final MetricsResponse ZERO_METRICS = new MetricsResponse(0, 0, 0, 0, 0, 0, 0, 0, 0);
 
     private final List<CustomerGroupResponse> customerGroups;
     private final List<TimeBucketResponse> timeBuckets;
@@ -72,6 +72,7 @@ public class PlanBoardResponse {
         private final long completedPlans;
         private final long overduePlans;
         private final long dueSoonPlans;
+        private final long atRiskPlans;
         private final double averageProgress;
         private final OffsetDateTime earliestStart;
         private final OffsetDateTime latestEnd;
@@ -84,6 +85,7 @@ public class PlanBoardResponse {
                                      long completedPlans,
                                      long overduePlans,
                                      long dueSoonPlans,
+                                     long atRiskPlans,
                                      double averageProgress,
                                      OffsetDateTime earliestStart,
                                      OffsetDateTime latestEnd,
@@ -95,6 +97,7 @@ public class PlanBoardResponse {
             this.completedPlans = completedPlans;
             this.overduePlans = overduePlans;
             this.dueSoonPlans = dueSoonPlans;
+            this.atRiskPlans = atRiskPlans;
             this.averageProgress = averageProgress;
             this.earliestStart = earliestStart;
             this.latestEnd = latestEnd;
@@ -113,6 +116,7 @@ public class PlanBoardResponse {
                     group.getCompletedPlans(),
                     group.getOverduePlans(),
                     group.getDueSoonPlans(),
+                    group.getAtRiskPlans(),
                     group.getAverageProgress(),
                     group.getEarliestStart(),
                     group.getLatestEnd(),
@@ -148,6 +152,10 @@ public class PlanBoardResponse {
             return dueSoonPlans;
         }
 
+        public long getAtRiskPlans() {
+            return atRiskPlans;
+        }
+
         public double getAverageProgress() {
             return averageProgress;
         }
@@ -174,6 +182,7 @@ public class PlanBoardResponse {
         private final long completedPlans;
         private final long overduePlans;
         private final long dueSoonPlans;
+        private final long atRiskPlans;
         private final List<PlanCardResponse> plans;
 
         public TimeBucketResponse(String bucketId,
@@ -184,6 +193,7 @@ public class PlanBoardResponse {
                                   long completedPlans,
                                   long overduePlans,
                                   long dueSoonPlans,
+                                  long atRiskPlans,
                                   List<PlanCardResponse> plans) {
             this.bucketId = bucketId;
             this.start = start;
@@ -193,6 +203,7 @@ public class PlanBoardResponse {
             this.completedPlans = completedPlans;
             this.overduePlans = overduePlans;
             this.dueSoonPlans = dueSoonPlans;
+            this.atRiskPlans = atRiskPlans;
             this.plans = plans == null ? List.of() : List.copyOf(plans);
         }
 
@@ -209,6 +220,7 @@ public class PlanBoardResponse {
                     bucket.getCompletedPlans(),
                     bucket.getOverduePlans(),
                     bucket.getDueSoonPlans(),
+                    bucket.getAtRiskPlans(),
                     plans
             );
         }
@@ -243,6 +255,10 @@ public class PlanBoardResponse {
 
         public long getDueSoonPlans() {
             return dueSoonPlans;
+        }
+
+        public long getAtRiskPlans() {
+            return atRiskPlans;
         }
 
         public List<PlanCardResponse> getPlans() {
@@ -370,6 +386,7 @@ public class PlanBoardResponse {
         private final long completedPlans;
         private final long overduePlans;
         private final long dueSoonPlans;
+        private final long atRiskPlans;
         private final double averageProgress;
         private final double averageDurationHours;
         private final double completionRate;
@@ -379,6 +396,7 @@ public class PlanBoardResponse {
                                long completedPlans,
                                long overduePlans,
                                long dueSoonPlans,
+                               long atRiskPlans,
                                double averageProgress,
                                double averageDurationHours,
                                double completionRate) {
@@ -387,6 +405,7 @@ public class PlanBoardResponse {
             this.completedPlans = completedPlans;
             this.overduePlans = overduePlans;
             this.dueSoonPlans = dueSoonPlans;
+            this.atRiskPlans = atRiskPlans;
             this.averageProgress = averageProgress;
             this.averageDurationHours = averageDurationHours;
             this.completionRate = completionRate;
@@ -399,6 +418,7 @@ public class PlanBoardResponse {
                     metrics.getCompletedPlans(),
                     metrics.getOverduePlans(),
                     metrics.getDueSoonPlans(),
+                    metrics.getAtRiskPlans(),
                     metrics.getAverageProgress(),
                     metrics.getAverageDurationHours(),
                     metrics.getCompletionRate()
@@ -423,6 +443,10 @@ public class PlanBoardResponse {
 
         public long getDueSoonPlans() {
             return dueSoonPlans;
+        }
+
+        public long getAtRiskPlans() {
+            return atRiskPlans;
         }
 
         public double getAverageProgress() {
