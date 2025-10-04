@@ -709,9 +709,7 @@ public class InMemoryPlanService implements PlanService {
     @Override
     public PlanBoardView getPlanBoard(PlanSearchCriteria criteria, PlanBoardGrouping grouping) {
         PlanBoardGrouping effectiveGrouping = grouping == null ? PlanBoardGrouping.WEEK : grouping;
-        PlanSearchCriteria effectiveCriteria = criteria == null
-                ? PlanSearchCriteria.builder().build()
-                : sanitizeBoardCriteria(criteria);
+        PlanSearchCriteria effectiveCriteria = sanitizeBoardCriteria(criteria);
         return planAnalyticsRepository.getPlanBoard(effectiveCriteria, effectiveGrouping);
     }
 
@@ -734,8 +732,8 @@ public class InMemoryPlanService implements PlanService {
                 .owner(StringUtils.hasText(criteria.getOwner()) ? criteria.getOwner().trim() : null)
                 .keyword(criteria.getKeyword())
                 .status(criteria.getStatus())
-                .statuses(sanitizedStatuses.isEmpty() ? null : sanitizedStatuses)
-                .customerIds(sanitizedCustomerIds.isEmpty() ? null : sanitizedCustomerIds)
+                .statuses(sanitizedStatuses)
+                .customerIds(sanitizedCustomerIds)
                 .from(criteria.getFrom())
                 .to(criteria.getTo())
                 .limit(criteria.getLimit())
