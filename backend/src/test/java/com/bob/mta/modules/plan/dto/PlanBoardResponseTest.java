@@ -37,6 +37,7 @@ class PlanBoardResponseTest {
         assertThat(response.getMetrics().getTotalPlans()).isZero();
         assertThat(response.getMetrics().getCompletionRate()).isZero();
         assertThat(response.getMetrics().getAverageDurationHours()).isZero();
+        assertThat(response.getMetrics().getAtRiskPlans()).isZero();
         assertThat(response.getGranularity()).isEqualTo(PlanBoardGrouping.DAY.name());
         assertThat(response.getReferenceTime()).isEqualTo(reference);
         assertThat(response.getCustomerGroups()).isEmpty();
@@ -71,6 +72,7 @@ class PlanBoardResponseTest {
                 1,
                 1,
                 1,
+                2,
                 47.5,
                 start,
                 end,
@@ -85,6 +87,7 @@ class PlanBoardResponseTest {
                 1,
                 1,
                 1,
+                2,
                 List.of(planCard)
         );
         PlanBoardView.Metrics metrics = new PlanBoardView.Metrics(
@@ -93,6 +96,7 @@ class PlanBoardResponseTest {
                 1,
                 1,
                 1,
+                2,
                 47.5,
                 2.5,
                 50.0
@@ -109,6 +113,7 @@ class PlanBoardResponseTest {
         assertThat(response.getCustomerGroups()).hasSize(1);
         PlanBoardResponse.CustomerGroupResponse customer = response.getCustomerGroups().get(0);
         assertThat(customer.getCustomerId()).isEqualTo("cust-dto");
+        assertThat(customer.getAtRiskPlans()).isEqualTo(2);
         assertThat(customer.getPlans()).hasSize(1);
         PlanBoardResponse.PlanCardResponse dtoCard = customer.getPlans().get(0);
         assertThat(dtoCard.getStatus()).isEqualTo(PlanStatus.IN_PROGRESS.name());
@@ -116,5 +121,7 @@ class PlanBoardResponseTest {
         assertThat(response.getTimeBuckets()).hasSize(1);
         assertThat(response.getTimeBuckets().get(0).getPlans()).extracting(PlanBoardResponse.PlanCardResponse::getId)
                 .containsExactly("plan-dto-1");
+        assertThat(response.getTimeBuckets().get(0).getAtRiskPlans()).isEqualTo(2);
+        assertThat(response.getMetrics().getAtRiskPlans()).isEqualTo(2);
     }
 }

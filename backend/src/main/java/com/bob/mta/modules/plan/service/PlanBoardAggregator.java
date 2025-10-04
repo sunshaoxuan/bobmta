@@ -69,6 +69,7 @@ public final class PlanBoardAggregator {
         long dueSoon = plans.stream().map(plan -> PlanRiskEvaluator.evaluate(plan, reference, dueSoonMinutes))
                 .filter(PlanRiskSnapshot::dueSoon)
                 .count();
+        long atRisk = overdue + dueSoon;
         double avgProgress = roundAverage(plans.stream().mapToInt(Plan::getProgress).average().orElse(0));
         OffsetDateTime earliest = plans.stream()
                 .map(Plan::getPlannedStartTime)
@@ -85,7 +86,7 @@ public final class PlanBoardAggregator {
                 .sorted(PlanBoardViewHelper.PLAN_CARD_COMPARATOR)
                 .toList();
         return new PlanBoardView.CustomerGroup(customerId, null, total, active, completed,
-                overdue, dueSoon, avgProgress, earliest, latest, cards);
+                overdue, dueSoon, atRisk, avgProgress, earliest, latest, cards);
     }
 
     private static List<PlanBoardView.TimeBucket> aggregateBuckets(List<Plan> plans,
@@ -124,19 +125,20 @@ public final class PlanBoardAggregator {
                 .toList();
         long overdue = risks.stream().filter(PlanRiskSnapshot::overdue).count();
         long dueSoon = risks.stream().filter(PlanRiskSnapshot::dueSoon).count();
+        long atRisk = overdue + dueSoon;
         List<PlanBoardView.PlanCard> cards = plans.stream()
                 .map(plan -> toPlanCard(plan, reference, dueSoonMinutes))
                 .sorted(PlanBoardViewHelper.PLAN_CARD_COMPARATOR)
                 .toList();
         return new PlanBoardView.TimeBucket(bucketLabel, bucketStart, bucketEnd, total,
-                active, completed, overdue, dueSoon, cards);
+                active, completed, overdue, dueSoon, atRisk, cards);
     }
 
     private static PlanBoardView.Metrics computeMetrics(List<Plan> plans,
                                                         OffsetDateTime reference,
                                                         int dueSoonMinutes) {
         if (plans.isEmpty()) {
-            return new PlanBoardView.Metrics(0, 0, 0, 0, 0, 0, 0, 0);
+            return new PlanBoardView.Metrics(0, 0, 0, 0, 0, 0, 0, 0, 0);
         }
         long total = plans.size();
         long active = plans.stream().filter(PlanBoardAggregator::isActivePlan).count();
@@ -146,6 +148,7 @@ public final class PlanBoardAggregator {
                 .toList();
         long overdue = risks.stream().filter(PlanRiskSnapshot::overdue).count();
         long dueSoon = risks.stream().filter(PlanRiskSnapshot::dueSoon).count();
+        long atRisk = overdue + dueSoon;
         double avgProgress = roundAverage(plans.stream().mapToInt(Plan::getProgress).average().orElse(0));
         DoubleSummaryStatistics durations = plans.stream()
                 .map(plan -> PlanBoardViewHelper.durationHours(plan.getPlannedStartTime(), plan.getPlannedEndTime()))
@@ -154,7 +157,7 @@ public final class PlanBoardAggregator {
                 .summaryStatistics();
         double avgDuration = durations.getCount() == 0 ? 0 : roundAverage(durations.getAverage());
         double completionRate = total == 0 ? 0 : roundAverage((completed * 100.0) / total);
-        return new PlanBoardView.Metrics(total, active, completed, overdue, dueSoon,
+        return new PlanBoardView.Metrics(total, active, completed, overdue, dueSoon, atRisk,
                 avgProgress, avgDuration, completionRate);
     }
 

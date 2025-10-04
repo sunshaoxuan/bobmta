@@ -781,7 +781,7 @@ class InMemoryPlanServiceActionTest {
             OffsetDateTime reference = OffsetDateTime.parse("2024-07-15T00:00:00Z");
             PlanBoardGrouping effective = grouping == null ? PlanBoardGrouping.WEEK : grouping;
             return new PlanBoardView(List.of(), List.of(),
-                    new PlanBoardView.Metrics(0, 0, 0, 0, 0, 0, 0, 0), effective, reference);
+                    new PlanBoardView.Metrics(0, 0, 0, 0, 0, 0, 0, 0, 0), effective, reference);
         }
     }
 

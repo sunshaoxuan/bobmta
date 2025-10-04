@@ -145,6 +145,7 @@ public class PlanPersistenceAnalyticsRepository implements PlanAnalyticsReposito
                         entity.completedPlans(),
                         entity.overduePlans(),
                         entity.dueSoonPlans(),
+                        entity.overduePlans() + entity.dueSoonPlans(),
                         PlanBoardViewHelper.roundAverage(entity.averageProgress()),
                         entity.earliestStart(),
                         entity.latestEnd(),
@@ -175,6 +176,7 @@ public class PlanPersistenceAnalyticsRepository implements PlanAnalyticsReposito
                         bucket.completedPlans(),
                         bucket.overduePlans(),
                         bucket.dueSoonPlans(),
+                        bucket.overduePlans() + bucket.dueSoonPlans(),
                         plansByBucket.getOrDefault(bucket.bucketId(), List.of())
                 ))
                 .toList();
@@ -220,7 +222,7 @@ public class PlanPersistenceAnalyticsRepository implements PlanAnalyticsReposito
 
     private PlanBoardView.Metrics computeMetrics(List<PlanBoardPlanEntity> plans) {
         if (plans.isEmpty()) {
-            return new PlanBoardView.Metrics(0, 0, 0, 0, 0, 0, 0, 0);
+            return new PlanBoardView.Metrics(0, 0, 0, 0, 0, 0, 0, 0, 0);
         }
         long total = plans.size();
         long active = plans.stream()
@@ -243,7 +245,8 @@ public class PlanPersistenceAnalyticsRepository implements PlanAnalyticsReposito
                 .average()
                 .orElse(0));
         double completionRate = PlanBoardViewHelper.roundAverage(total == 0 ? 0 : (completed * 100.0) / total);
-        return new PlanBoardView.Metrics(total, active, completed, overdue, dueSoon,
+        long atRisk = overdue + dueSoon;
+        return new PlanBoardView.Metrics(total, active, completed, overdue, dueSoon, atRisk,
                 avgProgress, avgDuration, completionRate);
     }
 

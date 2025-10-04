@@ -342,6 +342,7 @@ class InMemoryPlanServiceTest {
         assertThat(metrics.getActivePlans()).isEqualTo(2);
         assertThat(metrics.getDueSoonPlans()).isEqualTo(1);
         assertThat(metrics.getOverduePlans()).isEqualTo(1);
+        assertThat(metrics.getAtRiskPlans()).isEqualTo(2);
 
         PlanBoardView.PlanCard dueSoonCard = board.getCustomerGroups().stream()
                 .filter(group -> group.getCustomerId().equals("cust-risk-due"))

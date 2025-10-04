@@ -268,6 +268,7 @@ class PlanControllerTest {
                 .extracting(PlanBoardResponse.PlanCardResponse::getCustomerId)
                 .containsAnyOf("cust-board-1", "cust-board-2");
         assertThat(board.getMetrics().getDueSoonPlans()).isGreaterThanOrEqualTo(0);
+        assertThat(board.getMetrics().getAtRiskPlans()).isGreaterThanOrEqualTo(0);
 
         List<AuditLog> logs = auditService.query(new AuditQuery(
                 "PlanBoard", "tenant-controller-board", "VIEW_PLAN_BOARD", null));
@@ -280,7 +281,7 @@ class PlanControllerTest {
         PlanService planServiceMock = Mockito.mock(PlanService.class);
         OffsetDateTime reference = OffsetDateTime.parse("2024-06-05T00:00:00Z");
         PlanBoardView emptyView = new PlanBoardView(List.of(), List.of(),
-                new PlanBoardView.Metrics(0, 0, 0, 0, 0, 0, 0, 0), PlanBoardGrouping.WEEK, reference);
+                new PlanBoardView.Metrics(0, 0, 0, 0, 0, 0, 0, 0, 0), PlanBoardGrouping.WEEK, reference);
         when(planServiceMock.getPlanBoard(any(), any())).thenReturn(emptyView);
         AuditRecorder recorder = new AuditRecorder(auditService, new ObjectMapper());
         PlanController sanitizedController = new PlanController(planServiceMock, recorder, fileService, messageResolver);
@@ -331,6 +332,7 @@ class PlanControllerTest {
         PlanBoardResponse board = response.getData();
         assertThat(board.getMetrics().getTotalPlans()).isZero();
         assertThat(board.getMetrics().getDueSoonPlans()).isZero();
+        assertThat(board.getMetrics().getAtRiskPlans()).isZero();
         assertThat(board.getReferenceTime()).isEqualTo(reference);
         verify(planServiceMock).getPlanBoard(any(), eq(PlanBoardGrouping.DAY));
     }
@@ -369,7 +371,7 @@ class PlanControllerTest {
         PlanService planServiceMock = Mockito.mock(PlanService.class);
         OffsetDateTime reference = OffsetDateTime.parse("2024-07-10T00:00:00Z");
         PlanBoardView boardView = new PlanBoardView(List.of(), List.of(),
-                new PlanBoardView.Metrics(0, 0, 0, 0, 0, 0, 0, 0), PlanBoardGrouping.MONTH, reference);
+                new PlanBoardView.Metrics(0, 0, 0, 0, 0, 0, 0, 0, 0), PlanBoardGrouping.MONTH, reference);
         when(planServiceMock.getPlanBoard(any(), any())).thenReturn(boardView);
 
         AuditRecorder recorder = new AuditRecorder(auditService, new ObjectMapper());

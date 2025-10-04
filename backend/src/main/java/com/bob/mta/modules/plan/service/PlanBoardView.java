@@ -56,6 +56,7 @@ public class PlanBoardView {
         private final long completedPlans;
         private final long overduePlans;
         private final long dueSoonPlans;
+        private final long atRiskPlans;
         private final double averageProgress;
         private final OffsetDateTime earliestStart;
         private final OffsetDateTime latestEnd;
@@ -68,6 +69,7 @@ public class PlanBoardView {
                              long completedPlans,
                              long overduePlans,
                              long dueSoonPlans,
+                             long atRiskPlans,
                              double averageProgress,
                              OffsetDateTime earliestStart,
                              OffsetDateTime latestEnd,
@@ -79,6 +81,7 @@ public class PlanBoardView {
             this.completedPlans = completedPlans;
             this.overduePlans = overduePlans;
             this.dueSoonPlans = dueSoonPlans;
+            this.atRiskPlans = atRiskPlans;
             this.averageProgress = averageProgress;
             this.earliestStart = earliestStart;
             this.latestEnd = latestEnd;
@@ -113,6 +116,10 @@ public class PlanBoardView {
             return dueSoonPlans;
         }
 
+        public long getAtRiskPlans() {
+            return atRiskPlans;
+        }
+
         public double getAverageProgress() {
             return averageProgress;
         }
@@ -139,6 +146,7 @@ public class PlanBoardView {
         private final long completedPlans;
         private final long overduePlans;
         private final long dueSoonPlans;
+        private final long atRiskPlans;
         private final List<PlanCard> plans;
 
         public TimeBucket(String bucketId,
@@ -149,6 +157,7 @@ public class PlanBoardView {
                           long completedPlans,
                           long overduePlans,
                           long dueSoonPlans,
+                          long atRiskPlans,
                           List<PlanCard> plans) {
             this.bucketId = bucketId;
             this.start = start;
@@ -158,6 +167,7 @@ public class PlanBoardView {
             this.completedPlans = completedPlans;
             this.overduePlans = overduePlans;
             this.dueSoonPlans = dueSoonPlans;
+            this.atRiskPlans = atRiskPlans;
             this.plans = plans == null ? List.of() : List.copyOf(plans);
         }
 
@@ -191,6 +201,10 @@ public class PlanBoardView {
 
         public long getDueSoonPlans() {
             return dueSoonPlans;
+        }
+
+        public long getAtRiskPlans() {
+            return atRiskPlans;
         }
 
         public List<PlanCard> getPlans() {
@@ -300,6 +314,7 @@ public class PlanBoardView {
         private final long completedPlans;
         private final long overduePlans;
         private final long dueSoonPlans;
+        private final long atRiskPlans;
         private final double averageProgress;
         private final double averageDurationHours;
         private final double completionRate;
@@ -309,6 +324,7 @@ public class PlanBoardView {
                        long completedPlans,
                        long overduePlans,
                        long dueSoonPlans,
+                       long atRiskPlans,
                        double averageProgress,
                        double averageDurationHours,
                        double completionRate) {
@@ -317,6 +333,7 @@ public class PlanBoardView {
             this.completedPlans = completedPlans;
             this.overduePlans = overduePlans;
             this.dueSoonPlans = dueSoonPlans;
+            this.atRiskPlans = atRiskPlans;
             this.averageProgress = averageProgress;
             this.averageDurationHours = averageDurationHours;
             this.completionRate = completionRate;
@@ -340,6 +357,10 @@ public class PlanBoardView {
 
         public long getDueSoonPlans() {
             return dueSoonPlans;
+        }
+
+        public long getAtRiskPlans() {
+            return atRiskPlans;
         }
 
         public double getAverageProgress() {

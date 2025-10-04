@@ -186,6 +186,7 @@ class PlanPersistenceAnalyticsRepositoryTest {
         assertThat(persistence.getMetrics().getCompletedPlans()).isEqualTo(inMemory.getMetrics().getCompletedPlans());
         assertThat(persistence.getMetrics().getOverduePlans()).isEqualTo(inMemory.getMetrics().getOverduePlans());
         assertThat(persistence.getMetrics().getDueSoonPlans()).isEqualTo(inMemory.getMetrics().getDueSoonPlans());
+        assertThat(persistence.getMetrics().getAtRiskPlans()).isEqualTo(inMemory.getMetrics().getAtRiskPlans());
         assertThat(persistence.getMetrics().getAverageProgress())
                 .isEqualTo(inMemory.getMetrics().getAverageProgress());
         assertThat(persistence.getMetrics().getAverageDurationHours())
@@ -328,14 +329,16 @@ class PlanPersistenceAnalyticsRepositoryTest {
         return groups.stream()
                 .map(group -> tuple(group.getCustomerId(), group.getTotalPlans(), group.getActivePlans(),
                         group.getCompletedPlans(), group.getOverduePlans(), group.getDueSoonPlans(),
-                        group.getAverageProgress(), group.getEarliestStart(), group.getLatestEnd()))
+                        group.getAtRiskPlans(), group.getAverageProgress(), group.getEarliestStart(),
+                        group.getLatestEnd()))
                 .toList();
     }
 
     private List<Tuple> bucketTuples(List<PlanBoardView.TimeBucket> buckets) {
         return buckets.stream()
                 .map(bucket -> tuple(bucket.getBucketId(), bucket.getTotalPlans(), bucket.getActivePlans(),
-                        bucket.getCompletedPlans(), bucket.getOverduePlans(), bucket.getDueSoonPlans()))
+                        bucket.getCompletedPlans(), bucket.getOverduePlans(), bucket.getDueSoonPlans(),
+                        bucket.getAtRiskPlans()))
                 .toList();
     }
 
