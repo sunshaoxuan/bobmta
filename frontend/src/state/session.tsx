@@ -35,6 +35,8 @@ export type SessionNavigationState = {
 export type SessionNavigationSummary = {
   menu: SessionNavigationMenuConfigItem[];
   roles: string[];
+  loading: boolean;
+  source: 'mock' | 'remote';
   unauthorized: boolean;
   forbidden: boolean;
 };
@@ -488,11 +490,15 @@ export function useSessionController(client: ApiClient): SessionController {
     () => ({
       menu: state.navigation.config,
       roles: state.permissions.normalizedRoles,
+      loading: state.navigation.loading,
+      source: state.navigation.source,
       unauthorized: state.navigation.unauthorized,
       forbidden: state.navigation.forbidden,
     }),
     [
       state.navigation.config,
+      state.navigation.loading,
+      state.navigation.source,
       state.navigation.unauthorized,
       state.navigation.forbidden,
       state.permissions.normalizedRoles,
