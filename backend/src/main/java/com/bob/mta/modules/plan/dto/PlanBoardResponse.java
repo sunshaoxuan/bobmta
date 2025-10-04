@@ -28,6 +28,9 @@ public class PlanBoardResponse {
     }
 
     public static PlanBoardResponse from(PlanBoardView view) {
+        if (view == null) {
+            return new PlanBoardResponse(List.of(), List.of(), ZERO_METRICS, null, null);
+        }
         List<CustomerGroupResponse> groups = view.getCustomerGroups().stream()
                 .map(CustomerGroupResponse::from)
                 .toList();

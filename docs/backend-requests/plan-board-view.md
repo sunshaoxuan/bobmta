@@ -97,6 +97,29 @@
 }
 ```
 
+### 空结果示例
+
+当没有计划命中筛选条件或服务层暂未返回聚合指标时，接口会回退为零值指标并维持空的分组数组：
+
+```jsonc
+{
+  "granularity": "WEEK",
+  "referenceTime": "2024-06-12T00:00:00Z",
+  "metrics": {
+    "totalPlans": 0,
+    "activePlans": 0,
+    "completedPlans": 0,
+    "overduePlans": 0,
+    "dueSoonPlans": 0,
+    "averageProgress": 0,
+    "averageDurationHours": 0,
+    "completionRate": 0
+  },
+  "customerGroups": [],
+  "timeBuckets": []
+}
+```
+
 ### 字段说明
 
 - `granularity`：表示当前响应采用的时间粒度，取值为 `DAY`/`WEEK`/`MONTH`/`YEAR`。
