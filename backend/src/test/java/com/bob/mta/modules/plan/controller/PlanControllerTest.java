@@ -529,6 +529,96 @@ class PlanControllerTest {
     }
 
     @Test
+    @DisplayName("board should order customer groups by totals and id when tied")
+    void boardShouldOrderCustomerGroupsByTotals() {
+        OffsetDateTime base = OffsetDateTime.parse("2024-10-12T02:00:00+08:00");
+
+        var alphaOne = planService.createPlan(boardPlan(
+                "tenant-board-order",
+                "客户A-计划1",
+                "cust-alpha",
+                "owner-order",
+                base.plusHours(1),
+                base.plusHours(3)));
+        var alphaTwo = planService.createPlan(boardPlan(
+                "tenant-board-order",
+                "客户A-计划2",
+                "cust-alpha",
+                "owner-order",
+                base.plusHours(6),
+                base.plusHours(8)));
+        var alphaThree = planService.createPlan(boardPlan(
+                "tenant-board-order",
+                "客户A-计划3",
+                "cust-alpha",
+                "owner-order",
+                base.plusDays(1),
+                base.plusDays(1).plusHours(2)));
+
+        var betaOne = planService.createPlan(boardPlan(
+                "tenant-board-order",
+                "客户B-计划1",
+                "cust-beta",
+                "owner-order",
+                base.plusDays(1).plusHours(4),
+                base.plusDays(1).plusHours(6)));
+        var betaTwo = planService.createPlan(boardPlan(
+                "tenant-board-order",
+                "客户B-计划2",
+                "cust-beta",
+                "owner-order",
+                base.plusDays(2),
+                base.plusDays(2).plusHours(2)));
+
+        var zetaOne = planService.createPlan(boardPlan(
+                "tenant-board-order",
+                "客户Z-计划1",
+                "cust-zeta",
+                "owner-order",
+                base.plusDays(2).plusHours(3),
+                base.plusDays(2).plusHours(5)));
+        var zetaTwo = planService.createPlan(boardPlan(
+                "tenant-board-order",
+                "客户Z-计划2",
+                "cust-zeta",
+                "owner-order",
+                base.plusDays(3),
+                base.plusDays(3).plusHours(2)));
+
+        var otherTenant = planService.createPlan(boardPlan(
+                "tenant-board-other",
+                "其他租户计划",
+                "cust-alpha",
+                "owner-order",
+                base.plusHours(2),
+                base.plusHours(4)));
+
+        List.of(alphaOne, alphaTwo, alphaThree, betaOne, betaTwo, zetaOne, zetaTwo, otherTenant)
+                .forEach(plan -> planService.publishPlan(plan.getId(), "owner-order"));
+
+        ApiResponse<PlanBoardResponse> response = controller.board(
+                "tenant-board-order",
+                null,
+                null,
+                null,
+                base.minusDays(1),
+                base.plusDays(5),
+                PlanBoardGrouping.DAY);
+
+        PlanBoardResponse board = response.getData();
+        assertThat(board.getMetrics().getTotalPlans()).isEqualTo(7);
+        assertThat(board.getCustomerGroups())
+                .extracting(PlanBoardResponse.CustomerGroupResponse::getCustomerId)
+                .containsExactly("cust-alpha", "cust-beta", "cust-zeta");
+        assertThat(board.getCustomerGroups())
+                .extracting(PlanBoardResponse.CustomerGroupResponse::getTotalPlans)
+                .containsExactly(3L, 2L, 2L);
+        assertThat(board.getTimeBuckets())
+                .extracting(PlanBoardResponse.TimeBucketResponse::getStart)
+                .isSorted();
+    }
+
+    @Test
     void boardShouldExposeUnknownCustomerGroup() {
         OffsetDateTime start = OffsetDateTime.now().plusDays(2);
         CreatePlanCommand command = new CreatePlanCommand(
@@ -1040,6 +1130,23 @@ class PlanControllerTest {
                 "UPDATE_REMINDER", "admin"));
         assertThat(logs).hasSize(1);
         assertThat(logs.get(0).getNewData()).contains("\"offsetMinutes\":999");
+    }
+
+    private CreatePlanCommand boardPlan(String tenantId, String title, String customerId, String owner,
+                                        OffsetDateTime start, OffsetDateTime end) {
+        return new CreatePlanCommand(
+                tenantId,
+                title,
+                "board ordering scenario",
+                customerId,
+                owner,
+                start,
+                end,
+                "Asia/Shanghai",
+                List.of(owner),
+                List.of(new PlanNodeCommand(null, "排序校验节点", "CHECKLIST", owner, 1, 30,
+                        PlanNodeActionType.NONE, 100, null, "", List.of()))
+        );
     }
 
     private void authenticate(String username) {

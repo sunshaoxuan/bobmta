@@ -125,5 +125,73 @@ class PlanBoardResponseTest {
         assertThat(cardResponse.getMinutesOverdue()).isEqualTo(30L);
         assertThat(cardResponse.isOverdue()).isTrue();
     }
+
+    @Test
+    @DisplayName("from(view) should fall back to zero metrics when aggregate missing")
+    void shouldFallbackToZeroMetricsWhenViewOmitsAggregates() {
+        OffsetDateTime reference = OffsetDateTime.of(2024, 8, 15, 0, 0, 0, 0, ZoneOffset.UTC);
+        PlanBoardView.PlanCard planCard = new PlanBoardView.PlanCard(
+                "PLAN-9100",
+                "缺省指标计划",
+                PlanStatus.IN_PROGRESS,
+                "owner-metrics",
+                "cust-metrics",
+                reference.plusHours(2),
+                reference.plusHours(5),
+                "Asia/Shanghai",
+                50,
+                false,
+                true,
+                120L,
+                null
+        );
+
+        PlanBoardView.CustomerGroup group = new PlanBoardView.CustomerGroup(
+                "cust-metrics",
+                null,
+                1,
+                1,
+                0,
+                0,
+                1,
+                1,
+                reference.plusHours(2),
+                reference.plusHours(5),
+                List.of(planCard)
+        );
+
+        PlanBoardView.TimeBucket bucket = new PlanBoardView.TimeBucket(
+                "2024-08-15",
+                reference,
+                reference.plusDays(1),
+                1,
+                1,
+                0,
+                0,
+                1,
+                1,
+                List.of(planCard)
+        );
+
+        PlanBoardView view = new PlanBoardView(
+                List.of(group),
+                List.of(bucket),
+                null,
+                PlanBoardGrouping.DAY,
+                reference
+        );
+
+        PlanBoardResponse response = PlanBoardResponse.from(view);
+
+        assertThat(response.getMetrics().getTotalPlans()).isZero();
+        assertThat(response.getMetrics().getAverageDurationHours()).isZero();
+        assertThat(response.getGranularity()).isEqualTo("DAY");
+        assertThat(response.getCustomerGroups()).singleElement()
+                .extracting(PlanBoardResponse.CustomerGroupResponse::getTotalPlans)
+                .isEqualTo(1L);
+        assertThat(response.getTimeBuckets()).singleElement()
+                .extracting(PlanBoardResponse.TimeBucketResponse::getBucketId)
+                .isEqualTo("2024-08-15");
+    }
 }
 
