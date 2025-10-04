@@ -365,6 +365,31 @@ class PlanControllerTest {
     }
 
     @Test
+    void boardShouldRecordGlobalAuditSnapshotWhenTenantMissing() {
+        PlanService planServiceMock = Mockito.mock(PlanService.class);
+        OffsetDateTime reference = OffsetDateTime.parse("2024-07-10T00:00:00Z");
+        PlanBoardView boardView = new PlanBoardView(List.of(), List.of(),
+                new PlanBoardView.Metrics(0, 0, 0, 0, 0, 0, 0, 0), PlanBoardGrouping.MONTH, reference);
+        when(planServiceMock.getPlanBoard(any(), any())).thenReturn(boardView);
+
+        AuditRecorder recorder = new AuditRecorder(auditService, new ObjectMapper());
+        PlanController globalScopeController = new PlanController(planServiceMock, recorder, fileService, messageResolver);
+
+        globalScopeController.board(
+                "   ",
+                null,
+                null,
+                null,
+                null,
+                null,
+                PlanBoardGrouping.MONTH);
+
+        List<AuditLog> logs = auditService.query(new AuditQuery("PlanBoard", "GLOBAL", "VIEW_PLAN_BOARD", null));
+        assertThat(logs).hasSize(1);
+        assertThat(logs.get(0).getNewData()).contains("\"granularity\":\"MONTH\"");
+    }
+
+    @Test
     void boardShouldDefaultGranularityToWeekWhenNull() {
         PlanService planServiceMock = Mockito.mock(PlanService.class);
         OffsetDateTime reference = OffsetDateTime.parse("2024-06-12T00:00:00Z");
