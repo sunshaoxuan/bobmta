@@ -12,7 +12,7 @@ import com.bob.mta.modules.tag.domain.TagEntityType;
 import com.bob.mta.modules.tag.domain.TagScope;
 import com.bob.mta.modules.tag.persistence.TagAssignmentEntity;
 import com.bob.mta.modules.tag.persistence.TagDefinitionEntity;
-import com.bob.mta.modules.tag.persistence.TagMapper;
+import com.bob.mta.modules.tag.repository.TagRepository;
 import com.bob.mta.modules.tag.service.TagService;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.stereotype.Service;
@@ -23,18 +23,18 @@ import java.util.Locale;
 import java.util.Map;
 
 @Service
-@ConditionalOnBean(TagMapper.class)
+@ConditionalOnBean(TagRepository.class)
 public class PersistenceTagService implements TagService {
 
-    private final TagMapper tagMapper;
+    private final TagRepository tagRepository;
     private final MultilingualTextService multilingualTextService;
     private final TenantContext tenantContext;
 
     public PersistenceTagService(
-            TagMapper tagMapper,
+            TagRepository tagRepository,
             MultilingualTextService multilingualTextService,
             TenantContext tenantContext) {
-        this.tagMapper = tagMapper;
+        this.tagRepository = tagRepository;
         this.multilingualTextService = multilingualTextService;
         this.tenantContext = tenantContext;
     }
@@ -42,7 +42,7 @@ public class PersistenceTagService implements TagService {
     @Override
     public List<TagDefinition> list(TagScope scope, Locale locale) {
         String tenantId = tenantContext.getCurrentTenantId();
-        return tagMapper.list(tenantId, scope).stream()
+        return tagRepository.list(tenantId, scope).stream()
                 .map(this::toDomain)
                 .sorted((a, b) -> a.getDisplayName(locale).compareToIgnoreCase(b.getDisplayName(locale)))
                 .toList();
@@ -51,7 +51,7 @@ public class PersistenceTagService implements TagService {
     @Override
     public TagDefinition getById(long id, Locale locale) {
         String tenantId = tenantContext.getCurrentTenantId();
-        TagDefinitionEntity entity = tagMapper.findById(tenantId, id);
+        TagDefinitionEntity entity = tagRepository.findById(tenantId, id);
         if (entity == null) {
             throw new BusinessException(ErrorCode.TAG_NOT_FOUND);
         }
@@ -71,7 +71,7 @@ public class PersistenceTagService implements TagService {
         entity.setApplyRule(applyRule);
         entity.setEnabled(enabled);
         entity.setCreatedAt(OffsetDateTime.now());
-        tagMapper.insert(entity);
+        tagRepository.insert(entity);
         persistName(entity.getId(), name);
         return toDomain(entity);
     }
@@ -79,7 +79,7 @@ public class PersistenceTagService implements TagService {
     @Override
     public TagDefinition update(long id, MultilingualText name, String color, String icon, TagScope scope, String applyRule, boolean enabled) {
         String tenantId = tenantContext.getCurrentTenantId();
-        TagDefinitionEntity existing = tagMapper.findById(tenantId, id);
+        TagDefinitionEntity existing = tagRepository.findById(tenantId, id);
         if (existing == null) {
             throw new BusinessException(ErrorCode.TAG_NOT_FOUND);
         }
@@ -94,7 +94,7 @@ public class PersistenceTagService implements TagService {
         updated.setApplyRule(applyRule);
         updated.setEnabled(enabled);
         updated.setCreatedAt(existing.getCreatedAt());
-        int affected = tagMapper.update(updated);
+        int affected = tagRepository.update(updated);
         if (affected == 0) {
             throw new BusinessException(ErrorCode.TAG_NOT_FOUND);
         }
@@ -105,12 +105,12 @@ public class PersistenceTagService implements TagService {
     @Override
     public void delete(long id) {
         String tenantId = tenantContext.getCurrentTenantId();
-        TagDefinitionEntity existing = tagMapper.findById(tenantId, id);
+        TagDefinitionEntity existing = tagRepository.findById(tenantId, id);
         if (existing == null) {
             throw new BusinessException(ErrorCode.TAG_NOT_FOUND);
         }
-        tagMapper.deleteAssignmentsForTag(tenantId, id);
-        tagMapper.delete(tenantId, id);
+        tagRepository.deleteAssignmentsForTag(tenantId, id);
+        tagRepository.delete(tenantId, id);
     }
 
     @Override
@@ -121,20 +121,20 @@ public class PersistenceTagService implements TagService {
             throw new BusinessException(ErrorCode.VALIDATION_ERROR, "tag.scope.unsupported");
         }
         TagAssignmentEntity entity = new TagAssignmentEntity(tagId, tenantId, entityType, entityId, OffsetDateTime.now());
-        tagMapper.insertAssignment(entity);
+        tagRepository.insertAssignment(entity);
         return new TagAssignment(tagId, entityType, entityId);
     }
 
     @Override
     public void removeAssignment(long tagId, TagEntityType entityType, String entityId) {
         String tenantId = tenantContext.getCurrentTenantId();
-        tagMapper.deleteAssignment(new TagAssignmentEntity(tagId, tenantId, entityType, entityId, null));
+        tagRepository.deleteAssignment(new TagAssignmentEntity(tagId, tenantId, entityType, entityId, null));
     }
 
     @Override
     public List<TagAssignment> listAssignments(long tagId) {
         String tenantId = tenantContext.getCurrentTenantId();
-        return tagMapper.listAssignments(tenantId, tagId).stream()
+        return tagRepository.listAssignments(tenantId, tagId).stream()
                 .map(entity -> new TagAssignment(entity.tagId(), entity.entityType(), entity.entityId()))
                 .toList();
     }
@@ -142,7 +142,7 @@ public class PersistenceTagService implements TagService {
     @Override
     public List<TagDefinition> findByEntity(TagEntityType entityType, String entityId, Locale locale) {
         String tenantId = tenantContext.getCurrentTenantId();
-        return tagMapper.findByEntity(tenantId, entityType, entityId).stream()
+        return tagRepository.findByEntity(tenantId, entityType, entityId).stream()
                 .map(this::toDomain)
                 .sorted((a, b) -> a.getDisplayName(locale).compareToIgnoreCase(b.getDisplayName(locale)))
                 .toList();

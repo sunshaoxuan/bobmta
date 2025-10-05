@@ -12,7 +12,8 @@ import com.bob.mta.modules.tag.domain.TagDefinition;
 import com.bob.mta.modules.tag.domain.TagEntityType;
 import com.bob.mta.modules.tag.domain.TagScope;
 import com.bob.mta.modules.tag.service.TagService;
-import com.bob.mta.modules.tag.persistence.TagMapper;
+import com.bob.mta.modules.tag.repository.TagRepository;
+
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.stereotype.Service;
 
@@ -28,7 +29,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicLong;
 
 @Service
-@ConditionalOnMissingBean(TagMapper.class)
+@ConditionalOnMissingBean(TagRepository.class)
 public class InMemoryTagService implements TagService {
 
     private final AtomicLong idGenerator = new AtomicLong(1000);

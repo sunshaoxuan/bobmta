@@ -8,7 +8,8 @@ import com.bob.mta.modules.customfield.domain.CustomFieldDefinition;
 import com.bob.mta.modules.customfield.domain.CustomFieldType;
 import com.bob.mta.modules.customfield.domain.CustomFieldValue;
 import com.bob.mta.modules.customfield.service.CustomFieldService;
-import com.bob.mta.modules.customfield.persistence.CustomFieldDefinitionMapper;
+import com.bob.mta.modules.customfield.repository.CustomFieldDefinitionRepository;
+
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
@@ -23,7 +24,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicLong;
 
 @Service
-@ConditionalOnMissingBean(CustomFieldDefinitionMapper.class)
+@ConditionalOnMissingBean(CustomFieldDefinitionRepository.class)
 public class InMemoryCustomFieldService implements CustomFieldService {
 
     private final AtomicLong idGenerator = new AtomicLong(200);

@@ -6,13 +6,13 @@ import com.bob.mta.common.exception.ErrorCode;
 import com.bob.mta.common.tenant.TenantContext;
 import com.bob.mta.modules.customfield.domain.CustomFieldType;
 import com.bob.mta.modules.customfield.persistence.CustomFieldDefinitionEntity;
-import com.bob.mta.modules.customfield.persistence.CustomFieldDefinitionMapper;
 import com.bob.mta.modules.customfield.persistence.CustomFieldValueEntity;
+import com.bob.mta.modules.customfield.repository.CustomFieldDefinitionRepository;
 import com.bob.mta.modules.customer.dto.CustomerDetailResponse;
 import com.bob.mta.modules.customer.dto.CustomerSummaryResponse;
 import com.bob.mta.modules.customer.persistence.CustomerDetailRecord;
-import com.bob.mta.modules.customer.persistence.CustomerMapper;
 import com.bob.mta.modules.customer.persistence.CustomerSummaryRecord;
+import com.bob.mta.modules.customer.repository.CustomerRepository;
 import com.bob.mta.modules.customer.service.CustomerService;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.stereotype.Service;
@@ -23,19 +23,19 @@ import java.util.Map;
 import java.util.stream.Collectors;
 
 @Service
-@ConditionalOnBean(CustomerMapper.class)
+@ConditionalOnBean(CustomerRepository.class)
 public class PersistenceCustomerService implements CustomerService {
 
-    private final CustomerMapper customerMapper;
-    private final CustomFieldDefinitionMapper customFieldMapper;
+    private final CustomerRepository customerRepository;
+    private final CustomFieldDefinitionRepository customFieldRepository;
     private final TenantContext tenantContext;
 
     public PersistenceCustomerService(
-            CustomerMapper customerMapper,
-            CustomFieldDefinitionMapper customFieldMapper,
+            CustomerRepository customerRepository,
+            CustomFieldDefinitionRepository customFieldRepository,
             TenantContext tenantContext) {
-        this.customerMapper = customerMapper;
-        this.customFieldMapper = customFieldMapper;
+        this.customerRepository = customerRepository;
+        this.customFieldRepository = customFieldRepository;
         this.tenantContext = tenantContext;
     }
 
@@ -45,8 +45,8 @@ public class PersistenceCustomerService implements CustomerService {
         int safePage = Math.max(page, 1);
         int safeSize = Math.max(pageSize, 1);
         int offset = (safePage - 1) * safeSize;
-        List<CustomerSummaryRecord> records = customerMapper.search(tenantId, keyword, region, offset, safeSize);
-        long total = customerMapper.count(tenantId, keyword, region);
+        List<CustomerSummaryRecord> records = customerRepository.search(tenantId, keyword, region, offset, safeSize);
+        long total = customerRepository.count(tenantId, keyword, region);
         List<CustomerSummaryResponse> summaries = records.stream()
                 .map(this::toSummary)
                 .toList();
@@ -56,7 +56,7 @@ public class PersistenceCustomerService implements CustomerService {
     @Override
     public CustomerDetailResponse getCustomer(String id) {
         String tenantId = tenantContext.getCurrentTenantId();
-        CustomerDetailRecord record = customerMapper.findDetail(tenantId, id);
+        CustomerDetailRecord record = customerRepository.findDetail(tenantId, id);
         if (record == null) {
             throw new BusinessException(ErrorCode.NOT_FOUND, "customer.not_found");
         }
@@ -87,10 +87,10 @@ public class PersistenceCustomerService implements CustomerService {
     }
 
     private Map<String, Object> buildFieldMap(String tenantId, String entityId) {
-        List<CustomFieldDefinitionEntity> definitions = customFieldMapper.list(tenantId);
+        List<CustomFieldDefinitionEntity> definitions = customFieldRepository.list(tenantId);
         Map<Long, CustomFieldDefinitionEntity> definitionIndex = definitions.stream()
                 .collect(Collectors.toMap(CustomFieldDefinitionEntity::getId, def -> def));
-        List<CustomFieldValueEntity> values = customFieldMapper.listValues(tenantId, entityId);
+        List<CustomFieldValueEntity> values = customFieldRepository.listValues(tenantId, entityId);
         Map<String, Object> fields = new LinkedHashMap<>();
         for (CustomFieldValueEntity value : values) {
             CustomFieldDefinitionEntity definition = definitionIndex.get(value.fieldId());
