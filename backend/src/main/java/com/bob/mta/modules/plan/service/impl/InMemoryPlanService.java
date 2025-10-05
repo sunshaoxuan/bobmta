@@ -73,6 +73,7 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 @Service
+@org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean(com.bob.mta.modules.plan.persistence.PlanAggregateMapper.class)
 @Transactional(readOnly = true)
 public class InMemoryPlanService implements PlanService {
 
