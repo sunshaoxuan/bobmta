@@ -13,6 +13,9 @@ import com.bob.mta.modules.user.service.model.CreateUserResult;
 import com.bob.mta.modules.user.service.model.UserAuthentication;
 import com.bob.mta.modules.user.service.model.UserView;
 import com.bob.mta.modules.user.service.query.UserQuery;
+import org.springframework.security.core.GrantedAuthority;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
+import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -153,7 +156,22 @@ public class UserServiceImpl implements UserService {
 
     @Override
     @Transactional(readOnly = true)
-    public UserView loadUserByUsername(String username) {
+    public UserDetails loadUserByUsername(String username) {
+        User user = repository.findByUsername(username)
+                .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
+        return org.springframework.security.core.userdetails.User.withUsername(user.getUsername())
+                .password(user.getPassword())
+                .authorities(toAuthorities(user))
+                .accountExpired(false)
+                .accountLocked(false)
+                .credentialsExpired(false)
+                .disabled(user.getStatus() != UserStatus.ACTIVE)
+                .build();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public UserView getUserByUsername(String username) {
         return repository.findByUsername(username)
                 .map(this::toView)
                 .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
@@ -186,6 +204,13 @@ public class UserServiceImpl implements UserService {
     private UserView toView(User user) {
         return new UserView(user.getId(), user.getUsername(), user.getDisplayName(), user.getEmail(),
                 user.getStatus(), user.getRoles().stream().toList());
+    }
+
+    private List<GrantedAuthority> toAuthorities(User user) {
+        return user.getRoles().stream()
+                .filter(StringUtils::hasText)
+                .map(role -> new SimpleGrantedAuthority(role.toUpperCase(Locale.ROOT)))
+                .collect(Collectors.toList());
     }
 
     private Set<String> normalizeRoles(List<String> roles) {
