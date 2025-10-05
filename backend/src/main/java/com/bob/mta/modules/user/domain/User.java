@@ -71,9 +71,17 @@ public class User {
         return activationToken;
     }
 
+    public String getPassword() {
+        return password;
+    }
+
     public void issueActivationToken(final ActivationToken token) {
         this.activationToken = Objects.requireNonNull(token, "token");
         markPendingActivation();
+    }
+
+    public void restoreActivationToken(final ActivationToken token) {
+        this.activationToken = Objects.requireNonNull(token, "token");
     }
 
     public boolean passwordMatches(final String rawPassword) {

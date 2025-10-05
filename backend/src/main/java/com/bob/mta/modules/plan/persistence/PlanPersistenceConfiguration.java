@@ -31,10 +31,7 @@ import javax.sql.DataSource;
         com.bob.mta.common.i18n.persistence.MultilingualTextMapper.class,
         com.bob.mta.i18n.persistence.LocaleSettingsMapper.class,
         com.bob.mta.modules.file.persistence.FileMetadataMapper.class,
-        com.bob.mta.modules.customer.persistence.CustomerMapper.class,
-        com.bob.mta.modules.tag.persistence.TagMapper.class,
-        com.bob.mta.modules.customfield.persistence.CustomFieldDefinitionMapper.class,
-        com.bob.mta.modules.audit.persistence.AuditLogMapper.class
+        com.bob.mta.modules.user.persistence.UserMapper.class
 })
 public class PlanPersistenceConfiguration {
 

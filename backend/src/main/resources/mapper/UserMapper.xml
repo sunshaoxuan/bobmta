@@ -1,0 +1,141 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.bob.mta.modules.user.persistence.UserMapper">
+
+    <resultMap id="UserResult" type="com.bob.mta.modules.user.persistence.UserEntity">
+        <id column="user_id" property="id"/>
+        <result column="username" property="username"/>
+        <result column="display_name" property="displayName"/>
+        <result column="email" property="email"/>
+        <result column="password_hash" property="passwordHash"/>
+        <result column="status" property="status" javaType="com.bob.mta.modules.user.domain.UserStatus"/>
+    </resultMap>
+
+    <resultMap id="UserRoleResult" type="com.bob.mta.modules.user.persistence.UserRoleEntity">
+        <result column="user_id" property="userId"/>
+        <result column="role" property="role"/>
+    </resultMap>
+
+    <resultMap id="ActivationTokenResult" type="com.bob.mta.modules.user.persistence.ActivationTokenEntity">
+        <result column="user_id" property="userId"/>
+        <result column="token" property="token"/>
+        <result column="expires_at" property="expiresAt"/>
+    </resultMap>
+
+    <sql id="UserColumns">
+        user_id,
+        username,
+        display_name,
+        email,
+        password_hash,
+        status
+    </sql>
+
+    <select id="findById" resultMap="UserResult">
+        SELECT <include refid="UserColumns"/>, created_at, updated_at
+        FROM mt_user
+        WHERE user_id = #{userId}
+    </select>
+
+    <select id="findByUsername" resultMap="UserResult">
+        SELECT <include refid="UserColumns"/>
+        FROM mt_user
+        WHERE LOWER(username) = LOWER(#{username})
+    </select>
+
+    <select id="findByEmail" resultMap="UserResult">
+        SELECT <include refid="UserColumns"/>
+        FROM mt_user
+        WHERE LOWER(email) = LOWER(#{email})
+    </select>
+
+    <select id="findUsers" resultMap="UserResult">
+        SELECT <include refid="UserColumns"/>
+        FROM mt_user
+        <if test="status != null">
+            WHERE status = #{status}
+        </if>
+        ORDER BY username
+    </select>
+
+    <select id="findRolesByUserId" resultMap="UserRoleResult">
+        SELECT user_id, role
+        FROM mt_user_role
+        WHERE user_id = #{userId}
+        ORDER BY role
+    </select>
+
+    <select id="findRolesByUserIds" resultMap="UserRoleResult">
+        SELECT user_id, role
+        FROM mt_user_role
+        WHERE user_id IN
+        <foreach collection="userIds" item="id" open="(" close=")" separator=",">
+            #{id}
+        </foreach>
+        ORDER BY user_id, role
+    </select>
+
+    <insert id="insertUser">
+        INSERT INTO mt_user (user_id, username, display_name, email, password_hash, status, created_at, updated_at)
+        VALUES (#{id}, #{username}, #{displayName}, #{email}, #{passwordHash}, #{status}, NOW(), NOW())
+    </insert>
+
+    <update id="updateUser">
+        UPDATE mt_user
+        SET display_name = #{displayName},
+            email = #{email},
+            password_hash = #{passwordHash},
+            status = #{status},
+            updated_at = NOW()
+        WHERE user_id = #{id}
+    </update>
+
+    <delete id="deleteUser">
+        DELETE FROM mt_user WHERE user_id = #{userId}
+    </delete>
+
+    <delete id="deleteRoles">
+        DELETE FROM mt_user_role WHERE user_id = #{userId}
+    </delete>
+
+    <insert id="insertRoles">
+        INSERT INTO mt_user_role (user_id, role)
+        VALUES
+        <foreach collection="roles" item="role" separator=",">
+            (#{role.userId}, #{role.role})
+        </foreach>
+    </insert>
+
+    <select id="findActivationTokenByUserId" resultMap="ActivationTokenResult">
+        SELECT user_id, token, expires_at
+        FROM mt_user_activation_token
+        WHERE user_id = #{userId}
+    </select>
+
+    <select id="findActivationTokensByUserIds" resultMap="ActivationTokenResult">
+        SELECT user_id, token, expires_at
+        FROM mt_user_activation_token
+        WHERE user_id IN
+        <foreach collection="userIds" item="id" open="(" close=")" separator=",">
+            #{id}
+        </foreach>
+    </select>
+
+    <select id="findActivationTokenByToken" resultMap="ActivationTokenResult">
+        SELECT user_id, token, expires_at
+        FROM mt_user_activation_token
+        WHERE token = #{token}
+    </select>
+
+    <delete id="deleteActivationToken">
+        DELETE FROM mt_user_activation_token WHERE user_id = #{userId}
+    </delete>
+
+    <insert id="insertActivationToken">
+        INSERT INTO mt_user_activation_token (user_id, token, expires_at, created_at)
+        VALUES (#{userId}, #{token}, #{expiresAt}, NOW())
+    </insert>
+
+</mapper>
