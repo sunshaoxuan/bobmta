@@ -61,7 +61,7 @@
                COALESCE(json_agg(t.default_name ORDER BY t.default_name)
                         FILTER (WHERE t.default_name IS NOT NULL), '[]') AS tags
         FROM mt_customer c
-                 LEFT JOIN mt_customer_tag ct ON c.customer_id = ct.customer_id AND c.tenant_id = ct.tenant_id
+                 LEFT JOIN mt_tag_assignment ct ON c.customer_id = ct.entity_id AND c.tenant_id = ct.tenant_id AND ct.entity_type = CUSTOMER
                  LEFT JOIN mt_tag_definition t ON ct.tag_id = t.tag_id AND ct.tenant_id = t.tenant_id
         <include refid="CustomerFilter"/>
         GROUP BY c.customer_id, c.code, c.name, c.group_name, c.region, c.updated_at
@@ -86,7 +86,7 @@
                COALESCE(json_agg(t.default_name ORDER BY t.default_name)
                         FILTER (WHERE t.default_name IS NOT NULL), '[]') AS tags
         FROM mt_customer c
-                 LEFT JOIN mt_customer_tag ct ON c.customer_id = ct.customer_id AND c.tenant_id = ct.tenant_id
+                 LEFT JOIN mt_tag_assignment ct ON c.customer_id = ct.entity_id AND c.tenant_id = ct.tenant_id AND ct.entity_type = CUSTOMER
                  LEFT JOIN mt_tag_definition t ON ct.tag_id = t.tag_id AND ct.tenant_id = t.tenant_id
         WHERE c.tenant_id = #{tenantId}
           AND c.customer_id = #{customerId}

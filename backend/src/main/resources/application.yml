@@ -58,3 +58,18 @@ app:
       access-key: minioadmin
       secret-key: minioadmin
       download-expiry-seconds: 900
+
+notification:
+  email:
+    enabled: false
+    from: no-reply@example.com
+    reply-to: support@example.com
+  instant-message:
+    enabled: false
+    webhook-url: https://hooks.example.com/notify
+    connect-timeout: 5s
+    read-timeout: 10s
+  api:
+    enabled: true
+    connect-timeout: 5s
+    read-timeout: 15s

@@ -2,6 +2,7 @@ package com.bob.mta.modules.plan.repository;
 
 import com.bob.mta.modules.plan.domain.PlanAnalytics;
 import com.bob.mta.modules.plan.domain.PlanRiskEvaluator;
+import com.bob.mta.modules.plan.domain.PlanStatus;
 import com.bob.mta.modules.plan.persistence.PlanAggregateMapper;
 import com.bob.mta.modules.plan.persistence.PlanAnalyticsQueryParameters;
 import com.bob.mta.modules.plan.persistence.PlanBoardCustomerAggregateEntity;

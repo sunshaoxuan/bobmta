@@ -22,7 +22,7 @@ public record PlanQueryParameters(
 ) {
 
     public static PlanQueryParameters empty() {
-        return new PlanQueryParameters(null, null, List.of(), null, null, List.of(), null, null, null, null, null);
+        return new PlanQueryParameters(null, null, List.of(), null, null, null, List.of(), null, null, null, null, null);
     }
 
     public static PlanQueryParameters fromCriteria(PlanSearchCriteria criteria) {

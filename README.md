@@ -26,6 +26,12 @@
 
 ## 后端阶段四迭代进度
 
+### ✅ 最新更新（2025-10-05）
+- 修复 `PlanQueryParameters.empty()` 与 `PlanPersistenceAnalyticsRepository` 的枚举引用，确保持久化仓储在阶段四基线编译无误。
+- 新增 `CustomerMapperIntegrationTest`（PostgreSQL Testcontainers）覆盖多租户检索与标签聚合，SQL 复核结论整理于 [docs/backend-requests/plan-persistence-review.md](docs/backend-requests/plan-persistence-review.md)。
+- `application.yml` 补齐 `notification.*` 示例配置，并附《[Notification Channel Runbook](docs/backend-requests/notification-runbook.md)》指导 HttpApi/Smtp/Webhook 适配器的启用与降级策略。
+
+
 ### 🌐 多语言策略
 - 产品默认语言为 **日文（ja-JP）**，并提供 **中文（zh-CN）** 可选语言包。
 - 全链路多语言设计（资源加载、数据存储、前端缓存、接口契约等）详见《[多语言架构规范](./MULTILINGUAL_GUIDE.md)》。
