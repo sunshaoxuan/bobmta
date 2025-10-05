@@ -1,0 +1,85 @@
+{
+  "totalPlans": 6,
+  "designCount": 1,
+  "scheduledCount": 2,
+  "inProgressCount": 2,
+  "completedCount": 1,
+  "canceledCount": 0,
+  "overdueCount": 1,
+  "upcomingPlans": [
+    {
+      "id": "plan-design",
+      "title": "Design Phase",
+      "status": "DESIGN",
+      "plannedStartTime": "2024-04-28T12:00:00Z",
+      "plannedEndTime": "2024-04-29T12:00:00Z",
+      "owner": "owner-alpha",
+      "customerId": "customer-1",
+      "progress": 0
+    },
+    {
+      "id": "plan-scheduled-east",
+      "title": "Scheduled Maintenance - East",
+      "status": "SCHEDULED",
+      "plannedStartTime": "2024-05-01T09:00:00Z",
+      "plannedEndTime": "2024-05-01T15:00:00Z",
+      "owner": "owner-beta",
+      "customerId": "customer-2",
+      "progress": 30
+    },
+    {
+      "id": "plan-scheduled-west",
+      "title": "Scheduled Maintenance - West",
+      "status": "SCHEDULED",
+      "plannedStartTime": "2024-05-02T02:00:00Z",
+      "plannedEndTime": "2024-05-02T08:00:00Z",
+      "owner": "owner-gamma",
+      "customerId": "customer-3",
+      "progress": 0
+    }
+  ],
+  "ownerLoads": [
+    {
+      "ownerId": "owner-alpha",
+      "totalPlans": 2,
+      "activePlans": 1,
+      "overduePlans": 0
+    },
+    {
+      "ownerId": "owner-beta",
+      "totalPlans": 2,
+      "activePlans": 2,
+      "overduePlans": 1
+    },
+    {
+      "ownerId": "owner-gamma",
+      "totalPlans": 2,
+      "activePlans": 2,
+      "overduePlans": 0
+    }
+  ],
+  "riskPlans": [
+    {
+      "id": "plan-in-progress-1",
+      "title": "Network Upgrade",
+      "status": "IN_PROGRESS",
+      "plannedEndTime": "2024-05-01T11:00:00Z",
+      "owner": "owner-beta",
+      "customerId": "customer-2",
+      "riskLevel": "OVERDUE",
+      "minutesUntilDue": 0,
+      "minutesOverdue": 90
+    },
+    {
+      "id": "plan-in-progress-2",
+      "title": "Database Failover Rehearsal",
+      "status": "IN_PROGRESS",
+      "plannedEndTime": "2024-05-01T23:30:00Z",
+      "owner": "owner-gamma",
+      "customerId": "customer-3",
+      "riskLevel": "DUE_SOON",
+      "minutesUntilDue": 120,
+      "minutesOverdue": 0
+    }
+  ]
+}

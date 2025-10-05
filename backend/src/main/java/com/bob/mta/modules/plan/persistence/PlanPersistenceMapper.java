@@ -2,7 +2,10 @@ package com.bob.mta.modules.plan.persistence;
 
 import com.bob.mta.modules.plan.domain.Plan;
 import com.bob.mta.modules.plan.domain.PlanActivity;
+import com.bob.mta.modules.plan.domain.PlanActionHistory;
+import com.bob.mta.modules.plan.domain.PlanActionStatus;
 import com.bob.mta.modules.plan.domain.PlanNode;
+import com.bob.mta.modules.plan.domain.PlanNodeActionType;
 import com.bob.mta.modules.plan.domain.PlanNodeExecution;
 import com.bob.mta.modules.plan.domain.PlanReminderPolicy;
 import com.bob.mta.modules.plan.domain.PlanReminderRule;
@@ -278,6 +281,46 @@ public final class PlanPersistenceMapper {
                         entry -> List.copyOf(entry.getValue()),
                         (left, right) -> left,
                         LinkedHashMap::new));
+    }
+
+    public static PlanActionHistoryEntity toActionHistoryEntity(PlanActionHistory history) {
+        if (history == null) {
+            return null;
+        }
+        return new PlanActionHistoryEntity(
+                history.getId(),
+                history.getPlanId(),
+                history.getNodeId(),
+                history.getActionType(),
+                history.getActionRef(),
+                history.getTriggeredAt(),
+                history.getTriggeredBy(),
+                history.getStatus(),
+                history.getMessage(),
+                history.getError(),
+                history.getContext(),
+                history.getMetadata()
+        );
+    }
+
+    public static PlanActionHistory toActionHistory(PlanActionHistoryEntity entity) {
+        if (entity == null) {
+            return null;
+        }
+        return new PlanActionHistory(
+                entity.actionId(),
+                entity.planId(),
+                entity.nodeId(),
+                entity.actionType() == null ? PlanNodeActionType.NONE : entity.actionType(),
+                entity.actionRef(),
+                entity.triggeredAt(),
+                entity.triggeredBy(),
+                entity.status() == null ? PlanActionStatus.SKIPPED : entity.status(),
+                entity.messageKey(),
+                entity.errorMessage(),
+                entity.context(),
+                entity.metadata()
+        );
     }
 
     public static List<PlanNodeAttachmentEntity> toAttachmentEntities(String planId,

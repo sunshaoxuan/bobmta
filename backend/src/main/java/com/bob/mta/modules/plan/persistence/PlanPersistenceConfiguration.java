@@ -28,6 +28,7 @@ import javax.sql.DataSource;
 @EnableTransactionManagement
 @MapperScan(basePackageClasses = {
         PlanAggregateMapper.class,
+        PlanActionHistoryMapper.class,
         com.bob.mta.common.i18n.persistence.MultilingualTextMapper.class,
         com.bob.mta.i18n.persistence.LocaleSettingsMapper.class,
         com.bob.mta.modules.file.persistence.FileMetadataMapper.class,

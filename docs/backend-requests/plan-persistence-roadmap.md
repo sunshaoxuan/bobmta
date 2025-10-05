@@ -1,39 +1,40 @@
-ï»¿# Plan Persistence Roadmap (Phase IV)
+# Plan Persistence Roadmap (Phase IV)
 
 ## Current State Snapshot
-- Domain servicesä»ä¸»è¦ä¾èµ– InMemoryPlanServiceï¼›æŒä¹…åŒ–ä»“å‚¨ï¼ˆPlanAggregateMapperã€PlanPersistenceAnalyticsRepository ç­‰ï¼‰ä»…åœ¨ç»Ÿè®¡å’ŒæŸ¥è¯¢å±‚è¢«ä½¿ç”¨ã€‚
-- PostgreSQL schema å·²é€šè¿‡ Flyway V1â€“V6 åˆ›å»ºï¼ŒPlan æ¨¡å—çš„ CRUD / Reminder / Timeline è¡¨ç»“æ„å…·å¤‡ç”Ÿäº§åŒ–åŸºç¡€ã€‚
-- Testcontainers é›†æˆæµ‹è¯•è¦†ç›– PlanAggregateMapper çš„ç­›é€‰ã€èŠ‚ç‚¹ã€æé†’ã€é™„ä»¶ã€æ´»åŠ¨ç­‰æ ¸å¿ƒ SQLï¼›ä½†ä¸šåŠ¡å±‚å°šæœªåˆ‡æ¢è‡³ä»“å‚¨å®ç°ã€‚
+- Domain servicesÈÔÖ÷ÒªÒÀÀµ InMemoryPlanService£»³Ö¾Ã»¯²Ö´¢£¨PlanAggregateMapper¡¢PlanPersistenceAnalyticsRepository µÈ£©½öÔÚÍ³¼ÆºÍ²éÑ¯²ã±»Ê¹ÓÃ¡£
+- Flyway V7 introduces `mt_plan_action_history` plus the MyBatis mapper/repository pair so action automation audits persist alongside existing plan aggregates.
+- PostgreSQL schema ÒÑÍ¨¹ı Flyway V1¨CV6 ´´½¨£¬Plan Ä£¿éµÄ CRUD / Reminder / Timeline ±í½á¹¹¾ß±¸Éú²ú»¯»ù´¡¡£
+- Testcontainers ¼¯³É²âÊÔ¸²¸Ç PlanAggregateMapper µÄÉ¸Ñ¡¡¢½Úµã¡¢ÌáĞÑ¡¢¸½¼ş¡¢»î¶¯µÈºËĞÄ SQL£»µ«ÒµÎñ²ãÉĞÎ´ÇĞ»»ÖÁ²Ö´¢ÊµÏÖ¡£
 
 ## Gap Assessment
-1. **æœåŠ¡å®ç°ç¼ºå¤±**ï¼šéœ€è¦å®ç° PersistencePlanServiceï¼Œä»¥ä»“å‚¨ä¸ºæ•°æ®æºï¼ŒåŒæ—¶å¤ç”¨ç°æœ‰é¢†åŸŸé€»è¾‘ï¼ˆå‘å¸ƒã€å–æ¶ˆã€èŠ‚ç‚¹æ‰§è¡Œã€å®¡è®¡ç­‰ï¼‰ã€‚
-2. **äº‹åŠ¡è¾¹ç•Œæ¢³ç†**ï¼šæŒä¹…åŒ–å®ç°éœ€å¯¹å¤æ‚æ“ä½œï¼ˆå‘å¸ƒã€æ‰§è¡Œã€æé†’æ›´æ–°ï¼‰å®šä¹‰ä¸€è‡´çš„äº‹åŠ¡æ¨¡æ¿ï¼Œå–ä»£å†…å­˜æ€çš„åŸå­æ“ä½œã€‚å¯å¤ç”¨ Spring @Transactional + MyBatis æ˜ å°„ã€‚
-3. **å®¡è®¡ä¸é€šçŸ¥é›†æˆ**ï¼šInMemory æœåŠ¡è´Ÿè´£å†™å…¥å®¡è®¡ã€è§¦å‘é€šçŸ¥ï¼Œè¿ç§»åéœ€ä¿è¯ PersistencePlanService èƒ½åœ¨æŒä¹…åŒ–æ“ä½œæˆåŠŸåè°ƒç”¨ç›¸åŒçš„å®¡è®¡è®°å½•ä¸é€šçŸ¥é€‚é…å™¨ã€‚
-4. **ç¼“å­˜ä¸å¹¶å‘**ï¼šç›®å‰çš„ç¼“å­˜ç­–ç•¥ç”± InMemory æœåŠ¡ç»´æŠ¤ã€‚è¿ç§»æ—¶éœ€è¯„ä¼°è®¡åˆ’è¯»å†™ç¼“å­˜æ˜¯å¦ç»§ç»­å­˜åœ¨æˆ–ç”±æ•°æ®åº“è§†å›¾/Redis æ›¿ä»£ã€‚
-5. **å›å½’æµ‹è¯•**ï¼šéœ€è¦æ„å»º API å±‚ / æœåŠ¡å±‚ç»„åˆæµ‹è¯•ï¼ŒéªŒè¯æŒä¹…åŒ–è¡Œä¸ºä¸åŸæœ‰å†…å­˜å®ç°çš„ä¸€è‡´æ€§ï¼ˆçŠ¶æ€æœºã€æé†’é¢„è§ˆã€æ—¶é—´çº¿ç­‰ï¼‰ã€‚
+1. **·şÎñÊµÏÖÈ±Ê§**£ºĞèÒªÊµÏÖ PersistencePlanService£¬ÒÔ²Ö´¢ÎªÊı¾İÔ´£¬Í¬Ê±¸´ÓÃÏÖÓĞÁìÓòÂß¼­£¨·¢²¼¡¢È¡Ïû¡¢½ÚµãÖ´ĞĞ¡¢Éó¼ÆµÈ£©¡£
+2. **ÊÂÎñ±ß½çÊáÀí**£º³Ö¾Ã»¯ÊµÏÖĞè¶Ô¸´ÔÓ²Ù×÷£¨·¢²¼¡¢Ö´ĞĞ¡¢ÌáĞÑ¸üĞÂ£©¶¨ÒåÒ»ÖÂµÄÊÂÎñÄ£°å£¬È¡´úÄÚ´æÌ¬µÄÔ­×Ó²Ù×÷¡£¿É¸´ÓÃ Spring @Transactional + MyBatis Ó³Éä¡£
+3. **Éó¼ÆÓëÍ¨Öª¼¯³É**£ºInMemory ·şÎñ¸ºÔğĞ´ÈëÉó¼Æ¡¢´¥·¢Í¨Öª£¬Ç¨ÒÆºóĞè±£Ö¤ PersistencePlanService ÄÜÔÚ³Ö¾Ã»¯²Ù×÷³É¹¦ºóµ÷ÓÃÏàÍ¬µÄÉó¼Æ¼ÇÂ¼ÓëÍ¨ÖªÊÊÅäÆ÷¡£
+4. **»º´æÓë²¢·¢**£ºÄ¿Ç°µÄ»º´æ²ßÂÔÓÉ InMemory ·şÎñÎ¬»¤¡£Ç¨ÒÆÊ±ĞèÆÀ¹À¼Æ»®¶ÁĞ´»º´æÊÇ·ñ¼ÌĞø´æÔÚ»òÓÉÊı¾İ¿âÊÓÍ¼/Redis Ìæ´ú¡£
+5. **»Ø¹é²âÊÔ**£ºĞèÒª¹¹½¨ API ²ã / ·şÎñ²ã×éºÏ²âÊÔ£¬ÑéÖ¤³Ö¾Ã»¯ĞĞÎªÓëÔ­ÓĞÄÚ´æÊµÏÖµÄÒ»ÖÂĞÔ£¨×´Ì¬»ú¡¢ÌáĞÑÔ¤ÀÀ¡¢Ê±¼äÏßµÈ£©¡£
 
 ## Implementation Steps
-1. **æŠ½å–å…±äº«é€»è¾‘**
-   - å°† InMemoryPlanService ä¸­çš„é¢†åŸŸè½¬æ¢ã€æé†’è®¡ç®—ã€æ—¶é—´çº¿ç”Ÿæˆç­‰çº¯å‡½æ•°æå–åˆ°å¯å¤ç”¨çš„ helperï¼ˆä¾‹å¦‚ PlanDomainSupportï¼‰ã€‚
-   - ä¸ºé€šçŸ¥è§¦å‘ã€å®¡è®¡è®°å½•å»ºç«‹æ¥å£æˆ–ç­–ç•¥ï¼Œä½¿å†…å­˜ä¸æŒä¹…åŒ–å®ç°å…±ç”¨ã€‚
-2. **åˆ›å»º PersistencePlanService**
-   - ä»¥ PlanRepositoryã€PlanAnalyticsRepositoryã€TagRepositoryã€CustomerRepository ç­‰ä½œä¸ºä¾èµ–ï¼Œé€šè¿‡ Spring @ConditionalOnBean(PlanAggregateMapper.class) æ¿€æ´»ã€‚
-   - å®ç° listPlans/getPlan ä½¿ç”¨ PlanAggregateMapper èšåˆç»“æœï¼›createPlan/updatePlan/publish/cancel ç­‰å†™æ“ä½œè°ƒç”¨ mapper çš„ insert/update/deleteã€‚
-   - ç»´æŠ¤èŠ‚ç‚¹ã€æé†’ã€é™„ä»¶çš„æŒä¹…åŒ–æ“ä½œï¼ˆå·²æœ‰ mapper æ–¹æ³• insertNodes, insertReminderRules ç­‰ï¼‰ã€‚
-3. **äº‹åŠ¡ä¸å®¡è®¡**
-   - åœ¨å†™æ“ä½œæ–¹æ³•ä¸Šä½¿ç”¨ @Transactionalï¼Œç¡®ä¿ Planã€Nodeã€Reminderã€Audit çš„è·¨è¡¨æ“ä½œè¦ä¹ˆå…¨éƒ¨æˆåŠŸè¦ä¹ˆå›æ»šã€‚
-   - å®¡è®¡å†™å…¥æ²¿ç”¨ç°æœ‰ AuditRecorderï¼Œåœ¨æŒä¹…åŒ–æ“ä½œæˆåŠŸåè®°å½•å¿«ç…§ã€‚
-4. **é€šçŸ¥è°ƒç”¨**
-   - å°†é€šçŸ¥è§¦å‘é€»è¾‘æå–ä¸º NotificationGateway æ¥å£ï¼›InMemoryPlanService å’Œæ–°çš„ PersistencePlanService å…±ç”¨å®ç°ï¼Œå†…éƒ¨æ ¹æ®é…ç½®è°ƒç”¨ ApiNotificationAdapter/EmailNotificationAdapter ç­‰ã€‚
-5. **è¿ç§»/é€‰æ‹©é€»è¾‘**
-   - åœ¨ Spring é…ç½®ä¸­æ ¹æ® PlanAggregateMapper Bean æ˜¯å¦å­˜åœ¨å†³å®šåŠ è½½ PersistencePlanService æˆ– InMemoryPlanServiceï¼ˆä¿ç•™ç°æœ‰è¡Œä¸ºç”¨äºæ— æ•°æ®åº“çš„å•å…ƒæµ‹è¯•ï¼‰ã€‚
-   - README ä¸éƒ¨ç½²æ–‡æ¡£åŒæ­¥æ›´æ–°ï¼Œè¯´æ˜å¦‚ä½•å¯ç”¨æŒä¹…åŒ–å®ç°ã€‚
-6. **å›å½’æµ‹è¯•**
-   - æ–°å¢æœåŠ¡çº§åˆ«é›†æˆæµ‹è¯•ï¼ˆä½¿ç”¨ Testcontainers + Mock é€šçŸ¥/å®¡è®¡ï¼‰éªŒè¯å…³é”®åœºæ™¯ï¼šåˆ›å»º/å‘å¸ƒ/å–æ¶ˆã€èŠ‚ç‚¹æ‰§è¡Œã€æé†’æ›´æ–°ã€PlanBoard/Analyticsã€‚
-   - API å±‚ï¼ˆMockMvcï¼‰é’ˆå¯¹ /plans ç³»åˆ—æ¥å£è¡¥å……æŒä¹…åŒ–ç»„åˆæµ‹è¯•ã€‚
+1. **³éÈ¡¹²ÏíÂß¼­**
+   - ½« InMemoryPlanService ÖĞµÄÁìÓò×ª»»¡¢ÌáĞÑ¼ÆËã¡¢Ê±¼äÏßÉú³ÉµÈ´¿º¯ÊıÌáÈ¡µ½¿É¸´ÓÃµÄ helper£¨ÀıÈç PlanDomainSupport£©¡£
+   - ÎªÍ¨Öª´¥·¢¡¢Éó¼Æ¼ÇÂ¼½¨Á¢½Ó¿Ú»ò²ßÂÔ£¬Ê¹ÄÚ´æÓë³Ö¾Ã»¯ÊµÏÖ¹²ÓÃ¡£
+2. **´´½¨ PersistencePlanService**
+   - ÒÔ PlanRepository¡¢PlanAnalyticsRepository¡¢TagRepository¡¢CustomerRepository µÈ×÷ÎªÒÀÀµ£¬Í¨¹ı Spring @ConditionalOnBean(PlanAggregateMapper.class) ¼¤»î¡£
+   - ÊµÏÖ listPlans/getPlan Ê¹ÓÃ PlanAggregateMapper ¾ÛºÏ½á¹û£»createPlan/updatePlan/publish/cancel µÈĞ´²Ù×÷µ÷ÓÃ mapper µÄ insert/update/delete¡£
+   - Î¬»¤½Úµã¡¢ÌáĞÑ¡¢¸½¼şµÄ³Ö¾Ã»¯²Ù×÷£¨ÒÑÓĞ mapper ·½·¨ insertNodes, insertReminderRules µÈ£©¡£
+3. **ÊÂÎñÓëÉó¼Æ**
+   - ÔÚĞ´²Ù×÷·½·¨ÉÏÊ¹ÓÃ @Transactional£¬È·±£ Plan¡¢Node¡¢Reminder¡¢Audit µÄ¿ç±í²Ù×÷ÒªÃ´È«²¿³É¹¦ÒªÃ´»Ø¹ö¡£
+   - Éó¼ÆĞ´ÈëÑØÓÃÏÖÓĞ AuditRecorder£¬ÔÚ³Ö¾Ã»¯²Ù×÷³É¹¦ºó¼ÇÂ¼¿ìÕÕ¡£
+4. **Í¨Öªµ÷ÓÃ**
+   - ½«Í¨Öª´¥·¢Âß¼­ÌáÈ¡Îª NotificationGateway ½Ó¿Ú£»InMemoryPlanService ºÍĞÂµÄ PersistencePlanService ¹²ÓÃÊµÏÖ£¬ÄÚ²¿¸ù¾İÅäÖÃµ÷ÓÃ ApiNotificationAdapter/EmailNotificationAdapter µÈ¡£
+5. **Ç¨ÒÆ/Ñ¡ÔñÂß¼­**
+   - ÔÚ Spring ÅäÖÃÖĞ¸ù¾İ PlanAggregateMapper Bean ÊÇ·ñ´æÔÚ¾ö¶¨¼ÓÔØ PersistencePlanService »ò InMemoryPlanService£¨±£ÁôÏÖÓĞĞĞÎªÓÃÓÚÎŞÊı¾İ¿âµÄµ¥Ôª²âÊÔ£©¡£
+   - README Óë²¿ÊğÎÄµµÍ¬²½¸üĞÂ£¬ËµÃ÷ÈçºÎÆôÓÃ³Ö¾Ã»¯ÊµÏÖ¡£
+6. **»Ø¹é²âÊÔ**
+   - ĞÂÔö·şÎñ¼¶±ğ¼¯³É²âÊÔ£¨Ê¹ÓÃ Testcontainers + Mock Í¨Öª/Éó¼Æ£©ÑéÖ¤¹Ø¼ü³¡¾°£º´´½¨/·¢²¼/È¡Ïû¡¢½ÚµãÖ´ĞĞ¡¢ÌáĞÑ¸üĞÂ¡¢PlanBoard/Analytics¡£
+   - API ²ã£¨MockMvc£©Õë¶Ô /plans ÏµÁĞ½Ó¿Ú²¹³ä³Ö¾Ã»¯×éºÏ²âÊÔ¡£
 
 ## Exit Criteria
-- æ‰€æœ‰ PlanService API å‡ç”±æŒä¹…åŒ–å®ç°æ”¯æ’‘ï¼ŒInMemory ç‰ˆæœ¬ä»…ä¿ç•™æµ‹è¯•/æ— æ•°æ®åº“æ¨¡å¼ã€‚
-- Testcontainers å¥—ä»¶è¦†ç›–ï¼šè®¡åˆ’ CRUD + èŠ‚ç‚¹æ‰§è¡Œ + Reminders + Analytics + Boardã€‚
-- README / Runbook æ›´æ–°ï¼Œè®°å½•å¯ç”¨æŒä¹…åŒ–ã€æ•°æ®åº“è¿ç§»ã€å›é€€ç­–ç•¥ã€‚
-- CI Pipeline æ‰§è¡Œ mvn verify æ—¶é»˜è®¤èµ°æŒä¹…åŒ–å®ç°ï¼ˆéœ€é…ç½® PostgreSQL Testcontainersï¼‰ã€‚
+- ËùÓĞ PlanService API ¾ùÓÉ³Ö¾Ã»¯ÊµÏÖÖ§³Å£¬InMemory °æ±¾½ö±£Áô²âÊÔ/ÎŞÊı¾İ¿âÄ£Ê½¡£
+- Testcontainers Ì×¼ş¸²¸Ç£º¼Æ»® CRUD + ½ÚµãÖ´ĞĞ + Reminders + Analytics + Board¡£
+- README / Runbook ¸üĞÂ£¬¼ÇÂ¼ÆôÓÃ³Ö¾Ã»¯¡¢Êı¾İ¿âÇ¨ÒÆ¡¢»ØÍË²ßÂÔ¡£
+- CI Pipeline Ö´ĞĞ mvn verify Ê±Ä¬ÈÏ×ß³Ö¾Ã»¯ÊµÏÖ£¨ĞèÅäÖÃ PostgreSQL Testcontainers£©¡£

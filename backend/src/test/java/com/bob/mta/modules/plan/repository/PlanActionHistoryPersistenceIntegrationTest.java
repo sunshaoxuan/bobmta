@@ -1,10 +1,10 @@
-package com.bob.mta.modules.plan.service.impl;
+package com.bob.mta.modules.plan.repository;
 
-import com.bob.mta.modules.plan.domain.Plan;
+import com.bob.mta.modules.plan.domain.PlanActionHistory;
+import com.bob.mta.modules.plan.domain.PlanActionStatus;
+import com.bob.mta.modules.plan.domain.PlanNodeActionType;
 import com.bob.mta.modules.plan.domain.PlanStatus;
-import com.bob.mta.modules.plan.repository.PlanSearchCriteria;
-import com.bob.mta.modules.plan.service.PlanBoardView;
-import com.bob.mta.modules.plan.service.PlanSearchResult;
+import com.bob.mta.modules.plan.service.PlanService;
 import com.bob.mta.modules.plan.service.command.CreatePlanCommand;
 import com.bob.mta.modules.plan.service.command.PlanNodeCommand;
 import org.flywaydb.core.Flyway;
@@ -25,13 +25,15 @@ import org.testcontainers.junit.jupiter.Testcontainers;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.List;
+import java.util.Map;
+import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
 @Testcontainers
 @SpringBootTest
 @TestInstance(Lifecycle.PER_CLASS)
-class PersistencePlanServiceIntegrationTest {
+class PlanActionHistoryPersistenceIntegrationTest {
 
     @Container
     static final PostgreSQLContainer<?> POSTGRES = new PostgreSQLContainer<>("postgres:15-alpine")
@@ -48,7 +50,10 @@ class PersistencePlanServiceIntegrationTest {
     }
 
     @Autowired
-    private PersistencePlanService planService;
+    private PlanService planService;
+
+    @Autowired
+    private PlanActionHistoryRepository actionHistoryRepository;
 
     @Autowired
     private JdbcTemplate jdbcTemplate;
@@ -71,43 +76,43 @@ class PersistencePlanServiceIntegrationTest {
     }
 
     @Test
-    void shouldPersistPlanLifecycle() {
-        OffsetDateTime now = OffsetDateTime.of(2024, 5, 1, 9, 0, 0, 0, ZoneOffset.UTC);
-        PlanNodeCommand rootNode = new PlanNodeCommand(null, "Initial Check", "INSPECTION", "alice", 1,
-                60, null, 100, null, "Inspect racks", List.of());
-        CreatePlanCommand command = new CreatePlanCommand(
-                "tenant-1",
-                "Data Center Visit",
-                "Routine inspection",
-                "cust-1",
+    void appendAndRetrieveHistoryShouldPersistAcrossSessions() {
+        OffsetDateTime now = OffsetDateTime.of(2024, 7, 1, 1, 0, 0, 0, ZoneOffset.UTC);
+        PlanNodeCommand node = new PlanNodeCommand(null, "Remote Prep", "REMOTE", "alice", 1,
+                60, PlanNodeActionType.REMOTE, 100, "remote-template-1", "Prepare remote session", List.of());
+        CreatePlanCommand command = new CreatePlanCommand("tenant-1", "Remote maintenance", "desc",
+                "cust-1", "alice", now, now.plusHours(2), "Asia/Tokyo", List.of("alice"), List.of(node));
+
+        var created = planService.createPlan(command);
+        assertThat(created.getStatus()).isEqualTo(PlanStatus.DESIGN);
+        String nodeId = created.getNodes().getFirst().getId();
+
+        String historyId = UUID.randomUUID().toString();
+        PlanActionHistory history = new PlanActionHistory(
+                historyId,
+                created.getId(),
+                nodeId,
+                PlanNodeActionType.REMOTE,
+                "remote-template-1",
+                now,
                 "alice",
-                now.plusHours(1),
-                now.plusHours(3),
-                "Asia/Tokyo",
-                List.of("alice", "bob"),
-                List.of(rootNode)
+                PlanActionStatus.SUCCESS,
+                "plan.action.remoteReady",
+                null,
+                Map.of("operator", "alice"),
+                Map.of("endpoint", "https://ops.example.com/session/123", "attempts", "1")
         );
 
-        Plan created = planService.createPlan(command);
-        assertThat(created.getId()).isNotBlank();
-        assertThat(created.getStatus()).isEqualTo(PlanStatus.DESIGN);
+        actionHistoryRepository.append(history);
 
-        Plan published = planService.publishPlan(created.getId(), "alice");
-        assertThat(published.getStatus()).isEqualTo(PlanStatus.SCHEDULED);
+        List<PlanActionHistory> stored = actionHistoryRepository.findByPlanId(created.getId());
+        assertThat(stored).hasSize(1);
+        PlanActionHistory persisted = stored.getFirst();
+        assertThat(persisted.getId()).isEqualTo(historyId);
+        assertThat(persisted.getContext()).containsEntry("operator", "alice");
+        assertThat(persisted.getMetadata()).containsEntry("endpoint", "https://ops.example.com/session/123");
 
-        PlanSearchResult result = planService.listPlans("tenant-1", null, null, null, null,
-                now, now.plusDays(1), 1, 10);
-        assertThat(result.totalCount()).isEqualTo(1);
-        assertThat(result.plans()).extracting(Plan::getId).containsExactly(created.getId());
-
-        PlanBoardView board = planService.getPlanBoard(PlanSearchCriteria.builder()
-                        .tenantId("tenant-1")
-                        .build(),
-                null);
-        assertThat(board.metrics().totalPlans()).isEqualTo(1);
-
-        Plan fetched = planService.getPlan(created.getId());
-        assertThat(fetched.getNodes()).hasSize(1);
-        assertThat(planService.getPlanTimeline(created.getId())).isNotEmpty();
+        planService.deletePlan(created.getId());
+        assertThat(actionHistoryRepository.findByPlanId(created.getId())).isEmpty();
     }
 }

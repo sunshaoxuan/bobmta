@@ -74,7 +74,7 @@ class PlanAggregateMapperIntegrationTest {
 
     @BeforeEach
     void resetDatabase() {
-        jdbcTemplate.execute("TRUNCATE TABLE mt_plan_activity, mt_plan_node_attachment, mt_plan_node_execution, mt_plan_node, mt_plan_participant, mt_plan_reminder_rule, mt_plan CASCADE");
+        jdbcTemplate.execute("TRUNCATE TABLE mt_plan_action_history, mt_plan_activity, mt_plan_node_attachment, mt_plan_node_execution, mt_plan_node, mt_plan_participant, mt_plan_reminder_rule, mt_plan CASCADE");
         jdbcTemplate.execute("ALTER SEQUENCE mt_plan_id_seq RESTART WITH 1");
         jdbcTemplate.execute("ALTER SEQUENCE mt_plan_node_id_seq RESTART WITH 1");
         jdbcTemplate.execute("ALTER SEQUENCE mt_plan_reminder_id_seq RESTART WITH 1");
@@ -85,13 +85,13 @@ class PlanAggregateMapperIntegrationTest {
     void shouldFilterPlansByMultipleCriteriaAndPaginate() {
         OffsetDateTime now = OffsetDateTime.of(2024, 5, 1, 12, 0, 0, 0, ZoneOffset.UTC);
         insertPlan("PLAN-0001", "tenant-1", "customer-a", "owner-a", "Alpha Maintenance Window",
-                "确认维护窗口与审批进度。", PlanStatus.SCHEDULED, now.plusHours(2), now.plusHours(5), now, "Asia/Tokyo");
+                "确认维护窗口与审批进度�?, PlanStatus.SCHEDULED, now.plusHours(2), now.plusHours(5), now, "Asia/Tokyo");
         insertPlan("PLAN-0002", "tenant-1", "customer-a", "owner-b", "Beta Maintenance Review",
-                "联合检查维护脚本。", PlanStatus.IN_PROGRESS, now.plusHours(4), now.plusHours(8), now, "Asia/Tokyo");
+                "联合检查维护脚本�?, PlanStatus.IN_PROGRESS, now.plusHours(4), now.plusHours(8), now, "Asia/Tokyo");
         insertPlan("PLAN-0003", "tenant-1", "customer-b", "owner-a", "Gamma Audit",
-                "离线审计流程。", PlanStatus.CANCELED, now.plusHours(6), now.plusHours(10), now, "Asia/Tokyo");
+                "离线审计流程�?, PlanStatus.CANCELED, now.plusHours(6), now.plusHours(10), now, "Asia/Tokyo");
         insertPlan("PLAN-0004", "tenant-2", "customer-a", "owner-a", "Delta Maintenance",
-                "其他租户计划。", PlanStatus.SCHEDULED, now.plusHours(1), now.plusHours(3), now, "Asia/Tokyo");
+                "其他租户计划�?, PlanStatus.SCHEDULED, now.plusHours(1), now.plusHours(3), now, "Asia/Tokyo");
 
         PlanQueryParameters firstPageFilter = new PlanQueryParameters(
                 "tenant-1",
@@ -149,16 +149,16 @@ class PlanAggregateMapperIntegrationTest {
     @Test
     void shouldApplyKeywordStatusWindowAndExclusionFilters() {
         OffsetDateTime baseline = OffsetDateTime.of(2024, 5, 10, 6, 0, 0, 0, ZoneOffset.UTC);
-        insertPlan("PLAN-KEY-1", "tenant-key", "customer-a", "owner-a", "巡检准备会",
-                "围绕巡检流程的前置确认。", PlanStatus.SCHEDULED, baseline.plusHours(2), baseline.plusHours(4), baseline, "Asia/Shanghai");
+        insertPlan("PLAN-KEY-1", "tenant-key", "customer-a", "owner-a", "巡检准备�?,
+                "围绕巡检流程的前置确认�?, PlanStatus.SCHEDULED, baseline.plusHours(2), baseline.plusHours(4), baseline, "Asia/Shanghai");
         insertPlan("PLAN-KEY-EXCLUDE", "tenant-key", "customer-a", "owner-b", "应急巡检演练",
-                "模拟巡检应急场景。", PlanStatus.IN_PROGRESS, baseline.plusHours(3), baseline.plusHours(6), baseline, "Asia/Shanghai");
+                "模拟巡检应急场景�?, PlanStatus.IN_PROGRESS, baseline.plusHours(3), baseline.plusHours(6), baseline, "Asia/Shanghai");
         insertPlan("PLAN-KEY-IGNORED", "tenant-key", "customer-a", "owner-a", "巡检取消案例",
-                "演示取消状态。", PlanStatus.CANCELED, baseline.plusHours(2), baseline.plusHours(5), baseline, "Asia/Shanghai");
+                "演示取消状态�?, PlanStatus.CANCELED, baseline.plusHours(2), baseline.plusHours(5), baseline, "Asia/Shanghai");
         insertPlan("PLAN-KEY-OUTSIDE", "tenant-key", "customer-a", "owner-a", "巡检远期任务",
-                "超出时间窗口的巡检。", PlanStatus.SCHEDULED, baseline.plusHours(12), baseline.plusHours(15), baseline, "Asia/Shanghai");
+                "超出时间窗口的巡检�?, PlanStatus.SCHEDULED, baseline.plusHours(12), baseline.plusHours(15), baseline, "Asia/Shanghai");
         insertPlan("PLAN-KEY-OTHER", "tenant-other", "customer-a", "owner-a", "其他租户巡检",
-                "验证租户隔离。", PlanStatus.SCHEDULED, baseline.plusHours(3), baseline.plusHours(5), baseline, "Asia/Shanghai");
+                "验证租户隔离�?, PlanStatus.SCHEDULED, baseline.plusHours(3), baseline.plusHours(5), baseline, "Asia/Shanghai");
 
         PlanQueryParameters parameters = new PlanQueryParameters(
                 "tenant-key",
@@ -184,13 +184,13 @@ class PlanAggregateMapperIntegrationTest {
     void shouldAggregateStatusAndOverdueMetrics() {
         OffsetDateTime now = OffsetDateTime.of(2024, 6, 1, 9, 0, 0, 0, ZoneOffset.UTC);
         insertPlan("PLAN-1001", "tenant-analytics", "customer-a", "owner-a", "巡检准备",
-                "准备巡检资料。", PlanStatus.SCHEDULED, now.minusHours(3), now.minusHours(1), now.minusHours(4), "Asia/Shanghai");
+                "准备巡检资料�?, PlanStatus.SCHEDULED, now.minusHours(3), now.minusHours(1), now.minusHours(4), "Asia/Shanghai");
         insertPlan("PLAN-1002", "tenant-analytics", "customer-a", "owner-b", "系统维护",
-                "维护中。", PlanStatus.IN_PROGRESS, now.minusHours(5), now.minusMinutes(30), now.minusHours(6), "Asia/Shanghai");
+                "维护中�?, PlanStatus.IN_PROGRESS, now.minusHours(5), now.minusMinutes(30), now.minusHours(6), "Asia/Shanghai");
         insertPlan("PLAN-1003", "tenant-analytics", "customer-a", "owner-c", "总结复盘",
-                "复盘结论。", PlanStatus.COMPLETED, now.minusDays(1), now.minusHours(12), now.minusDays(1), "Asia/Shanghai");
+                "复盘结论�?, PlanStatus.COMPLETED, now.minusDays(1), now.minusHours(12), now.minusDays(1), "Asia/Shanghai");
         insertPlan("PLAN-1004", "tenant-analytics", "customer-b", "owner-d", "其他客户计划",
-                "不在统计范围。", PlanStatus.SCHEDULED, now, now.plusHours(2), now, "Asia/Shanghai");
+                "不在统计范围�?, PlanStatus.SCHEDULED, now, now.plusHours(2), now, "Asia/Shanghai");
 
         PlanAnalyticsQueryParameters analyticsParameters = new PlanAnalyticsQueryParameters(
                 "tenant-analytics",
@@ -223,13 +223,13 @@ class PlanAggregateMapperIntegrationTest {
     void shouldReturnUpcomingRiskAndOwnerWorkloads() {
         OffsetDateTime reference = OffsetDateTime.of(2024, 7, 1, 8, 0, 0, 0, ZoneOffset.UTC);
         insertPlan("PLAN-UPCOMING", "tenant-metrics", "customer-x", "owner-1", "未来巡检窗口",
-                "规划即将到来的巡检。", PlanStatus.SCHEDULED, reference.plusMinutes(30), reference.plusHours(3), reference.minusDays(1), "Asia/Shanghai");
-        insertPlan("PLAN-DUE-SOON", "tenant-metrics", "customer-x", "owner-2", "待结束维护",
-                "确认维护收尾。", PlanStatus.IN_PROGRESS, reference.plusMinutes(60), reference.plusMinutes(90), reference.minusDays(2), "Asia/Shanghai");
+                "规划即将到来的巡检�?, PlanStatus.SCHEDULED, reference.plusMinutes(30), reference.plusHours(3), reference.minusDays(1), "Asia/Shanghai");
+        insertPlan("PLAN-DUE-SOON", "tenant-metrics", "customer-x", "owner-2", "待结束维�?,
+                "确认维护收尾�?, PlanStatus.IN_PROGRESS, reference.plusMinutes(60), reference.plusMinutes(90), reference.minusDays(2), "Asia/Shanghai");
         insertPlan("PLAN-OVERDUE", "tenant-metrics", "customer-x", "owner-2", "超时处理",
-                "跟进延迟任务。", PlanStatus.IN_PROGRESS, reference.minusHours(4), reference.minusMinutes(30), reference.minusDays(2), "Asia/Shanghai");
+                "跟进延迟任务�?, PlanStatus.IN_PROGRESS, reference.minusHours(4), reference.minusMinutes(30), reference.minusDays(2), "Asia/Shanghai");
         insertPlan("PLAN-IGNORED", "tenant-metrics", "customer-y", "owner-3", "其他客户计划",
-                "不在当前客户范围。", PlanStatus.SCHEDULED, reference.plusMinutes(45), reference.plusHours(2), reference, "Asia/Shanghai");
+                "不在当前客户范围�?, PlanStatus.SCHEDULED, reference.plusMinutes(45), reference.plusHours(2), reference, "Asia/Shanghai");
 
         insertNodeExecution("PLAN-DUE-SOON", "NODE-1001", PlanNodeStatus.DONE, reference.minusHours(1), reference.minusMinutes(30), "user-a", "收尾完成", "log-done");
         insertNodeExecution("PLAN-DUE-SOON", "NODE-1002", PlanNodeStatus.IN_PROGRESS, reference.minusMinutes(20), null, "user-b", "继续执行", "log-progress");
@@ -279,13 +279,13 @@ class PlanAggregateMapperIntegrationTest {
     void shouldLoadPlanAggregateGraph() {
         OffsetDateTime now = OffsetDateTime.of(2024, 8, 10, 10, 0, 0, 0, ZoneOffset.UTC);
         insertPlan("PLAN-GRAPH", "tenant-graph", "customer-a", "owner-z", "图谱计划",
-                "验证聚合查询。", PlanStatus.IN_PROGRESS, now.minusHours(1), now.plusHours(5), now.minusDays(1), "Asia/Shanghai");
+                "验证聚合查询�?, PlanStatus.IN_PROGRESS, now.minusHours(1), now.plusHours(5), now.minusDays(1), "Asia/Shanghai");
 
         insertParticipant("PLAN-GRAPH", "user-1001");
         insertParticipant("PLAN-GRAPH", "user-1002");
 
         insertNode("PLAN-GRAPH", "NODE-A", null, "准备阶段", "TASK", "user-1001", 0, 60, PlanNodeActionType.MANUAL, 100, "checklist-a", "确认预检项目");
-        insertNode("PLAN-GRAPH", "NODE-B", "NODE-A", "执行阶段", "TASK", "user-1002", 1, 45, PlanNodeActionType.API_CALL, 80, "workflow-b", "调用自动化脚本");
+        insertNode("PLAN-GRAPH", "NODE-B", "NODE-A", "执行阶段", "TASK", "user-1002", 1, 45, PlanNodeActionType.API_CALL, 80, "workflow-b", "调用自动化脚�?);
 
         insertNodeExecution("PLAN-GRAPH", "NODE-A", PlanNodeStatus.DONE, now.minusHours(2), now.minusHours(1), "user-1001", "完成预检", "log-node-a");
         insertNodeExecution("PLAN-GRAPH", "NODE-B", PlanNodeStatus.IN_PROGRESS, now.minusMinutes(30), null, "user-1002", "正在执行", "log-node-b");
@@ -296,7 +296,7 @@ class PlanAggregateMapperIntegrationTest {
         insertActivity("PLAN-GRAPH", "ACT-1", PlanActivityType.PLAN_UPDATED, now.minusMinutes(40), "user-1001", "plan.activity.updated", "NODE-A", "{\"field\":\"value\"}");
         insertActivity("PLAN-GRAPH", "ACT-2", PlanActivityType.NODE_COMPLETED, now.minusMinutes(20), "user-1001", "plan.activity.nodeCompleted", "NODE-A", "{\"result\":\"ok\"}");
 
-        insertReminderRule("PLAN-GRAPH", "REM-1", PlanReminderTrigger.BEFORE_PLAN_START, 30, "[\"EMAIL\",\"IM\"]", "tmpl-plan", "[\"owner-z\"]", "开工提醒", true);
+        insertReminderRule("PLAN-GRAPH", "REM-1", PlanReminderTrigger.BEFORE_PLAN_START, 30, "[\"EMAIL\",\"IM\"]", "tmpl-plan", "[\"owner-z\"]", "开工提�?, true);
 
         PlanEntity plan = mapper.findPlanById("PLAN-GRAPH");
         assertThat(plan).isNotNull();
@@ -347,7 +347,7 @@ class PlanAggregateMapperIntegrationTest {
                 "customer-z",
                 "owner-zeta",
                 "事务回滚验证",
-                "当事务失败时不应残留部分写入。",
+                "当事务失败时不应残留部分写入�?,
                 PlanStatus.SCHEDULED,
                 now.plusHours(2),
                 now.plusHours(5),
@@ -365,9 +365,9 @@ class PlanAggregateMapperIntegrationTest {
 
         PlanParticipantEntity participant = new PlanParticipantEntity(planId, "user-rollback");
         PlanNodeEntity node = new PlanNodeEntity(planId, "NODE-TX-1", null, "校验节点", "TASK", "user-rollback", 0,
-                30, PlanNodeActionType.MANUAL, 100, "tx-check", "确保步骤具备幂等性");
+                30, PlanNodeActionType.MANUAL, 100, "tx-check", "确保步骤具备幂等�?);
         PlanNodeExecutionEntity execution = new PlanNodeExecutionEntity(planId, "NODE-TX-1", PlanNodeStatus.IN_PROGRESS,
-                now.minusHours(1), null, "user-rollback", "开始执行", "log-tx");
+                now.minusHours(1), null, "user-rollback", "开始执�?, "log-tx");
         PlanNodeAttachmentEntity attachment = new PlanNodeAttachmentEntity(planId, "NODE-TX-1", "file-tx-proof");
         PlanActivityEntity activity = new PlanActivityEntity(planId, "ACT-TX-1", PlanActivityType.PLAN_UPDATED,
                 now.minusMinutes(30), "owner-zeta", "plan.activity.planUpdated", "NODE-TX-1", Map.of("field", "value"));

@@ -70,7 +70,7 @@ class PlanControllerPersistenceIntegrationTest {
 
     @BeforeEach
     void resetData() {
-        jdbcTemplate.execute("TRUNCATE TABLE mt_plan_activity, mt_plan_node_attachment, mt_plan_node_execution, mt_plan_node, mt_plan_participant, mt_plan_reminder_rule, mt_plan CASCADE");
+        jdbcTemplate.execute("TRUNCATE TABLE mt_plan_action_history, mt_plan_activity, mt_plan_node_attachment, mt_plan_node_execution, mt_plan_node, mt_plan_participant, mt_plan_reminder_rule, mt_plan CASCADE");
         jdbcTemplate.execute("ALTER SEQUENCE mt_plan_id_seq RESTART WITH 1");
         jdbcTemplate.execute("ALTER SEQUENCE mt_plan_node_id_seq RESTART WITH 1");
         jdbcTemplate.execute("ALTER SEQUENCE mt_plan_reminder_id_seq RESTART WITH 1");

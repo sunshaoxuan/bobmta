@@ -26,6 +26,10 @@ import org.springframework.test.context.DynamicPropertySource;
 import org.testcontainers.containers.PostgreSQLContainer;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.SerializationFeature;
+import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
+import org.springframework.core.io.ClassPathResource;
 
 import javax.sql.DataSource;
 import java.time.OffsetDateTime;
@@ -68,6 +72,14 @@ class PlanPersistenceAnalyticsRepositoryIntegrationTest {
             "DROP SEQUENCE IF EXISTS mt_plan_node_id_seq",
             "DROP SEQUENCE IF EXISTS mt_plan_reminder_id_seq"
     };
+
+    private static final ObjectMapper MAPPER;
+
+    static {
+        MAPPER = new ObjectMapper();
+        MAPPER.registerModule(new JavaTimeModule());
+        MAPPER.disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);
+    }
 
     private static final String[] CREATE_STATEMENTS = {
             "CREATE SEQUENCE IF NOT EXISTS mt_plan_id_seq START WITH 1",
@@ -187,7 +199,7 @@ class PlanPersistenceAnalyticsRepositoryIntegrationTest {
     }
 
     @Test
-    void shouldAlignWithInMemoryAnalytics() {
+    void shouldAlignWithInMemoryAnalytics() throws Exception {
         OffsetDateTime reference = OffsetDateTime.of(2024, 5, 1, 12, 0, 0, 0, ZoneOffset.UTC);
         InMemoryPlanRepository memoryRepository = new InMemoryPlanRepository();
 
@@ -444,6 +456,14 @@ class PlanPersistenceAnalyticsRepositoryIntegrationTest {
         assertUpcomingPlansAligned(expected.getUpcomingPlans(), actual.getUpcomingPlans());
         assertOwnerLoadsAligned(expected.getOwnerLoads(), actual.getOwnerLoads());
         assertRiskPlansAligned(expected.getRiskPlans(), actual.getRiskPlans());
+
+        Map<String, Object> baseline = toBaseline(actual);
+        if (Boolean.getBoolean("plan.analytics.printBaseline")) {
+            System.out.println(MAPPER.writerWithDefaultPrettyPrinter().writeValueAsString(baseline));
+        }
+        Map<String, Object> fixture = MAPPER.readValue(
+                new ClassPathResource("fixtures/plan-analytics-baseline.json").getInputStream(), Map.class);
+        assertThat(baseline).isEqualTo(fixture);
     }
 
     private void assertUpcomingPlansAligned(List<PlanAnalytics.UpcomingPlan> expected,
@@ -492,6 +512,57 @@ class PlanPersistenceAnalyticsRepositoryIntegrationTest {
             assertThat(actualRisk.getMinutesUntilDue()).isEqualTo(expectedRisk.getMinutesUntilDue());
             assertThat(actualRisk.getMinutesOverdue()).isEqualTo(expectedRisk.getMinutesOverdue());
         }
+    }
+
+    private Map<String, Object> toBaseline(PlanAnalytics analytics) {
+        Map<String, Object> root = new LinkedHashMap<>();
+        root.put("totalPlans", analytics.getTotalPlans());
+        root.put("designCount", analytics.getDesignCount());
+        root.put("scheduledCount", analytics.getScheduledCount());
+        root.put("inProgressCount", analytics.getInProgressCount());
+        root.put("completedCount", analytics.getCompletedCount());
+        root.put("canceledCount", analytics.getCanceledCount());
+        root.put("overdueCount", analytics.getOverdueCount());
+        root.put("upcomingPlans", analytics.getUpcomingPlans().stream()
+                .map(plan -> {
+                    Map<String, Object> item = new LinkedHashMap<>();
+                    item.put("id", plan.getId());
+                    item.put("title", plan.getTitle());
+                    item.put("status", plan.getStatus() == null ? null : plan.getStatus().name());
+                    item.put("plannedStartTime", plan.getPlannedStartTime() == null ? null : plan.getPlannedStartTime().toString());
+                    item.put("plannedEndTime", plan.getPlannedEndTime() == null ? null : plan.getPlannedEndTime().toString());
+                    item.put("owner", plan.getOwner());
+                    item.put("customerId", plan.getCustomerId());
+                    item.put("progress", plan.getProgress());
+                    return item;
+                })
+                .toList());
+        root.put("ownerLoads", analytics.getOwnerLoads().stream()
+                .map(load -> {
+                    Map<String, Object> item = new LinkedHashMap<>();
+                    item.put("ownerId", load.getOwnerId());
+                    item.put("totalPlans", load.getTotalPlans());
+                    item.put("activePlans", load.getActivePlans());
+                    item.put("overduePlans", load.getOverduePlans());
+                    return item;
+                })
+                .toList());
+        root.put("riskPlans", analytics.getRiskPlans().stream()
+                .map(plan -> {
+                    Map<String, Object> item = new LinkedHashMap<>();
+                    item.put("id", plan.getId());
+                    item.put("title", plan.getTitle());
+                    item.put("status", plan.getStatus() == null ? null : plan.getStatus().name());
+                    item.put("plannedEndTime", plan.getPlannedEndTime() == null ? null : plan.getPlannedEndTime().toString());
+                    item.put("owner", plan.getOwner());
+                    item.put("customerId", plan.getCustomerId());
+                    item.put("riskLevel", plan.getRiskLevel() == null ? null : plan.getRiskLevel().name());
+                    item.put("minutesUntilDue", plan.getMinutesUntilDue());
+                    item.put("minutesOverdue", plan.getMinutesOverdue());
+                    return item;
+                })
+                .toList());
+        return root;
     }
 
     private void persistPlan(Plan plan, InMemoryPlanRepository memoryRepository) {

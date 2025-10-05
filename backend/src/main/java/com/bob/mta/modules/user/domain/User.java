@@ -1,4 +1,4 @@
-﻿package com.bob.mta.modules.user.domain;
+package com.bob.mta.modules.user.domain;
 
 import java.util.Collections;
 import java.util.LinkedHashSet;
