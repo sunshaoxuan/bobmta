@@ -1,0 +1,107 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.bob.mta.modules.customfield.persistence.CustomFieldDefinitionMapper">
+
+    <resultMap id="DefinitionMap" type="com.bob.mta.modules.customfield.persistence.CustomFieldDefinitionEntity">
+        <id property="id" column="field_id"/>
+        <result property="tenantId" column="tenant_id"/>
+        <result property="code" column="code"/>
+        <result property="label" column="label"/>
+        <result property="type" column="type" javaType="com.bob.mta.modules.customfield.domain.CustomFieldType"/>
+        <result property="required" column="required"/>
+        <result property="options" column="options" typeHandler="com.bob.mta.common.mybatis.StringListJsonTypeHandler"/>
+        <result property="description" column="description"/>
+        <result property="createdAt" column="created_at"/>
+    </resultMap>
+
+    <resultMap id="ValueMap" type="com.bob.mta.modules.customfield.persistence.CustomFieldValueEntity">
+        <id property="fieldId" column="field_id"/>
+        <result property="tenantId" column="tenant_id"/>
+        <result property="entityId" column="entity_id"/>
+        <result property="value" column="value"/>
+        <result property="updatedAt" column="updated_at"/>
+    </resultMap>
+
+    <sql id="DefinitionSelect">
+        SELECT field_id,
+               tenant_id,
+               code,
+               label,
+               type,
+               required,
+               options,
+               description,
+               created_at
+        FROM mt_custom_field_definition
+    </sql>
+
+    <select id="list" resultMap="DefinitionMap">
+        <include refid="DefinitionSelect"/>
+        WHERE tenant_id = #{tenantId}
+        ORDER BY lower(label)
+    </select>
+
+    <select id="findById" resultMap="DefinitionMap">
+        <include refid="DefinitionSelect"/>
+        WHERE tenant_id = #{tenantId}
+          AND field_id = #{id}
+    </select>
+
+    <select id="findByCode" resultMap="DefinitionMap">
+        <include refid="DefinitionSelect"/>
+        WHERE tenant_id = #{tenantId}
+          AND lower(code) = lower(#{code})
+    </select>
+
+    <insert id="insert" parameterType="com.bob.mta.modules.customfield.persistence.CustomFieldDefinitionEntity"
+            useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO mt_custom_field_definition (tenant_id, code, label, type, required, options, description)
+        VALUES (#{tenantId}, #{code}, #{label}, #{type}, #{required},
+                #{options, typeHandler=com.bob.mta.common.mybatis.StringListJsonTypeHandler}, #{description})
+    </insert>
+
+    <update id="update" parameterType="com.bob.mta.modules.customfield.persistence.CustomFieldDefinitionEntity">
+        UPDATE mt_custom_field_definition
+        SET label       = #{label},
+            type        = #{type},
+            required    = #{required},
+            options     = #{options, typeHandler=com.bob.mta.common.mybatis.StringListJsonTypeHandler},
+            description = #{description}
+        WHERE tenant_id = #{tenantId}
+          AND field_id = #{id}
+    </update>
+
+    <delete id="delete">
+        DELETE
+        FROM mt_custom_field_definition
+        WHERE tenant_id = #{tenantId}
+          AND field_id = #{id}
+    </delete>
+
+    <select id="listValues" resultMap="ValueMap">
+        SELECT field_id,
+               tenant_id,
+               entity_id,
+               value,
+               updated_at
+        FROM mt_custom_field_value
+        WHERE tenant_id = #{tenantId}
+          AND entity_id = #{entityId}
+    </select>
+
+    <insert id="upsertValue" parameterType="com.bob.mta.modules.customfield.persistence.CustomFieldValueEntity">
+        INSERT INTO mt_custom_field_value (field_id, tenant_id, entity_id, value, updated_at)
+        VALUES (#{fieldId}, #{tenantId}, #{entityId}, #{value}, #{updatedAt})
+        ON CONFLICT (tenant_id, field_id, entity_id)
+            DO UPDATE SET value = EXCLUDED.value, updated_at = EXCLUDED.updated_at
+    </insert>
+
+    <delete id="deleteValuesForField">
+        DELETE
+        FROM mt_custom_field_value
+        WHERE tenant_id = #{tenantId}
+          AND field_id = #{fieldId}
+    </delete>
+</mapper>

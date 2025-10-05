@@ -1,0 +1,130 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.bob.mta.modules.tag.persistence.TagMapper">
+
+    <resultMap id="TagDefinitionMap" type="com.bob.mta.modules.tag.persistence.TagDefinitionEntity">
+        <id property="id" column="tag_id"/>
+        <result property="tenantId" column="tenant_id"/>
+        <result property="defaultLocale" column="default_locale"/>
+        <result property="defaultName" column="default_name"/>
+        <result property="color" column="color"/>
+        <result property="icon" column="icon"/>
+        <result property="scope" column="scope" javaType="com.bob.mta.modules.tag.domain.TagScope"/>
+        <result property="applyRule" column="apply_rule"/>
+        <result property="enabled" column="enabled"/>
+        <result property="createdAt" column="created_at"/>
+    </resultMap>
+
+    <resultMap id="TagAssignmentMap" type="com.bob.mta.modules.tag.persistence.TagAssignmentEntity">
+        <id property="tagId" column="tag_id"/>
+        <result property="tenantId" column="tenant_id"/>
+        <result property="entityType" column="entity_type" javaType="com.bob.mta.modules.tag.domain.TagEntityType"/>
+        <result property="entityId" column="entity_id"/>
+        <result property="createdAt" column="created_at"/>
+    </resultMap>
+
+    <sql id="TagSelection">
+        SELECT tag_id,
+               tenant_id,
+               default_locale,
+               default_name,
+               color,
+               icon,
+               scope,
+               apply_rule,
+               enabled,
+               created_at
+        FROM mt_tag_definition
+    </sql>
+
+    <select id="list" resultMap="TagDefinitionMap">
+        <include refid="TagSelection"/>
+        WHERE tenant_id = #{tenantId}
+        <if test="scope != null">
+            AND (scope = #{scope} OR scope = 'BOTH')
+        </if>
+        ORDER BY lower(default_name)
+    </select>
+
+    <select id="findById" resultMap="TagDefinitionMap">
+        <include refid="TagSelection"/>
+        WHERE tenant_id = #{tenantId}
+          AND tag_id = #{id}
+    </select>
+
+    <insert id="insert" parameterType="com.bob.mta.modules.tag.persistence.TagDefinitionEntity" useGeneratedKeys="true"
+            keyProperty="id">
+        INSERT INTO mt_tag_definition (tenant_id, default_locale, default_name, color, icon, scope, apply_rule, enabled)
+        VALUES (#{tenantId}, #{defaultLocale}, #{defaultName}, #{color}, #{icon}, #{scope}, #{applyRule}, #{enabled})
+    </insert>
+
+    <update id="update" parameterType="com.bob.mta.modules.tag.persistence.TagDefinitionEntity">
+        UPDATE mt_tag_definition
+        SET default_locale = #{defaultLocale},
+            default_name  = #{defaultName},
+            color         = #{color},
+            icon          = #{icon},
+            scope         = #{scope},
+            apply_rule    = #{applyRule},
+            enabled       = #{enabled}
+        WHERE tenant_id = #{tenantId}
+          AND tag_id = #{id}
+    </update>
+
+    <delete id="delete">
+        DELETE
+        FROM mt_tag_definition
+        WHERE tenant_id = #{tenantId}
+          AND tag_id = #{id}
+    </delete>
+
+    <delete id="deleteAssignmentsForTag">
+        DELETE
+        FROM mt_tag_assignment
+        WHERE tenant_id = #{tenantId}
+          AND tag_id = #{tagId}
+    </delete>
+
+    <insert id="insertAssignment" parameterType="com.bob.mta.modules.tag.persistence.TagAssignmentEntity">
+        INSERT INTO mt_tag_assignment (tag_id, tenant_id, entity_type, entity_id, created_at)
+        VALUES (#{tagId}, #{tenantId}, #{entityType}, #{entityId}, #{createdAt})
+        ON CONFLICT (tenant_id, tag_id, entity_type, entity_id)
+            DO UPDATE SET created_at = EXCLUDED.created_at
+    </insert>
+
+    <delete id="deleteAssignment" parameterType="com.bob.mta.modules.tag.persistence.TagAssignmentEntity">
+        DELETE
+        FROM mt_tag_assignment
+        WHERE tenant_id = #{tenantId}
+          AND tag_id = #{tagId}
+          AND entity_type = #{entityType}
+          AND entity_id = #{entityId}
+    </delete>
+
+    <select id="listAssignments" resultMap="TagAssignmentMap">
+        SELECT tag_id,
+               tenant_id,
+               entity_type,
+               entity_id,
+               created_at
+        FROM mt_tag_assignment
+        WHERE tenant_id = #{tenantId}
+          AND tag_id = #{tagId}
+        ORDER BY created_at DESC
+    </select>
+
+    <select id="findByEntity" resultMap="TagDefinitionMap">
+        <include refid="TagSelection"/>
+        WHERE tenant_id = #{tenantId}
+          AND tag_id IN (
+            SELECT tag_id
+            FROM mt_tag_assignment
+            WHERE tenant_id = #{tenantId}
+              AND entity_type = #{entityType}
+              AND entity_id = #{entityId}
+        )
+        ORDER BY lower(default_name)
+    </select>
+</mapper>
