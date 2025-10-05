@@ -30,6 +30,18 @@ class PlanBoardResponseTest {
     }
 
     @Test
+    @DisplayName("constructor should normalize null collections and default granularity")
+    void constructorShouldNormalizeNullValues() {
+        PlanBoardResponse response = new PlanBoardResponse(null, null, null, null, null);
+
+        assertThat(response.getCustomerGroups()).isEmpty();
+        assertThat(response.getTimeBuckets()).isEmpty();
+        assertThat(response.getMetrics().getTotalPlans()).isZero();
+        assertThat(response.getGranularity()).isEqualTo(PlanBoardGrouping.WEEK.name());
+        assertThat(response.getReferenceTime()).isNull();
+    }
+
+    @Test
     @DisplayName("from(view) should copy customer groups, time buckets and metrics")
     void shouldMapNestedStructures() {
         OffsetDateTime reference = OffsetDateTime.of(2024, 7, 1, 0, 0, 0, 0, ZoneOffset.UTC);

@@ -25,7 +25,7 @@ public class PlanBoardResponse {
         this.customerGroups = customerGroups == null ? List.of() : List.copyOf(customerGroups);
         this.timeBuckets = timeBuckets == null ? List.of() : List.copyOf(timeBuckets);
         this.metrics = metrics == null ? ZERO_METRICS : metrics;
-        this.granularity = granularity;
+        this.granularity = granularity == null ? DEFAULT_GRANULARITY : granularity;
         this.referenceTime = referenceTime;
     }
 
