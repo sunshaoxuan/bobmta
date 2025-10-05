@@ -1,8 +1,6 @@
 package com.bob.mta.modules.template.service.impl;
 
-import com.bob.mta.common.i18n.InMemoryMultilingualTextRepository;
 import com.bob.mta.common.i18n.MultilingualText;
-import com.bob.mta.common.i18n.MultilingualTextService;
 import com.bob.mta.modules.template.domain.TemplateType;
 import com.bob.mta.modules.template.repository.InMemoryTemplateRepository;
 import org.junit.jupiter.api.Test;
@@ -15,8 +13,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 class TemplateServiceImplTest {
 
-    private final TemplateServiceImpl service = new TemplateServiceImpl(new InMemoryTemplateRepository(),
-            new MultilingualTextService(new InMemoryMultilingualTextRepository()));
+    private final TemplateServiceImpl service = new TemplateServiceImpl(new InMemoryTemplateRepository());
 
     @Test
     void shouldRenderTemplate() {

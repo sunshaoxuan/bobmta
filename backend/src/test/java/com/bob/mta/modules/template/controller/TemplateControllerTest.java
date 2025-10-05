@@ -3,10 +3,8 @@ package com.bob.mta.modules.template.controller;
 import com.bob.mta.common.api.ApiResponse;
 import com.bob.mta.common.exception.BusinessException;
 import com.bob.mta.common.exception.ErrorCode;
-import com.bob.mta.common.i18n.InMemoryMultilingualTextRepository;
 import com.bob.mta.common.i18n.MultilingualTextPayload;
 import com.bob.mta.common.i18n.MessageResolver;
-import com.bob.mta.common.i18n.MultilingualTextService;
 import com.bob.mta.common.i18n.TestMessageResolverFactory;
 import com.bob.mta.modules.audit.service.AuditRecorder;
 import com.bob.mta.modules.audit.service.impl.InMemoryAuditService;
@@ -45,8 +43,7 @@ class TemplateControllerTest {
     @BeforeEach
     void setUp() {
         LocaleContextHolder.setLocale(Locale.SIMPLIFIED_CHINESE);
-        templateService = new TemplateServiceImpl(new InMemoryTemplateRepository(),
-                new MultilingualTextService(new InMemoryMultilingualTextRepository()));
+        templateService = new TemplateServiceImpl(new InMemoryTemplateRepository());
         localePreferenceService = new LocalePreferenceService(new LocaleSettingsRepository() {
             private String defaultLocale = Localization.getDefaultLocale().toLanguageTag();
 

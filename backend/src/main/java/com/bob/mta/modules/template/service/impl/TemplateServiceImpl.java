@@ -3,8 +3,6 @@ package com.bob.mta.modules.template.service.impl;
 import com.bob.mta.common.exception.BusinessException;
 import com.bob.mta.common.exception.ErrorCode;
 import com.bob.mta.common.i18n.MultilingualText;
-import com.bob.mta.common.i18n.MultilingualTextScope;
-import com.bob.mta.common.i18n.MultilingualTextService;
 import com.bob.mta.i18n.Localization;
 import com.bob.mta.i18n.LocalizationKeys;
 import com.bob.mta.modules.template.domain.RenderedTemplate;
@@ -26,17 +24,16 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.function.Consumer;
 
 @Service
 public class TemplateServiceImpl implements TemplateService {
 
     private final TemplateRepository repository;
-    private final MultilingualTextService multilingualTextService;
     private final Map<Long, TemplateDefinition> cache = new ConcurrentHashMap<>();
 
-    public TemplateServiceImpl(TemplateRepository repository, MultilingualTextService multilingualTextService) {
+    public TemplateServiceImpl(TemplateRepository repository) {
         this.repository = repository;
-        this.multilingualTextService = multilingualTextService;
     }
 
     @Override
@@ -58,6 +55,9 @@ public class TemplateServiceImpl implements TemplateService {
     public TemplateDefinition create(TemplateType type, MultilingualText name, MultilingualText subject,
                                      MultilingualText content, List<String> to, List<String> cc,
                                      String endpoint, boolean enabled, MultilingualText description) {
+        if (name == null) {
+            throw new IllegalArgumentException("Template name is required");
+        }
         OffsetDateTime now = OffsetDateTime.now();
         TemplateEntity entity = new TemplateEntity();
         entity.setType(type);
@@ -65,16 +65,14 @@ public class TemplateServiceImpl implements TemplateService {
         entity.setCcRecipients(normalizeRecipients(cc));
         entity.setEndpoint(trimToNull(endpoint));
         entity.setEnabled(enabled);
+        applyText(name, entity::setNameDefaultLocale, entity::setNameTranslations);
+        applyText(subject, entity::setSubjectDefaultLocale, entity::setSubjectTranslations);
+        applyText(content, entity::setContentDefaultLocale, entity::setContentTranslations);
+        applyText(description, entity::setDescriptionDefaultLocale, entity::setDescriptionTranslations);
         entity.setCreatedAt(now);
         entity.setUpdatedAt(now);
         TemplateEntity inserted = repository.insert(entity);
-        long id = inserted.getId();
-        storeText(id, "name", name);
-        storeText(id, "subject", subject);
-        storeText(id, "content", content);
-        storeText(id, "description", description);
-        cache.remove(id);
-        return require(id);
+        return toDefinition(inserted);
     }
 
     @Override
@@ -82,6 +80,9 @@ public class TemplateServiceImpl implements TemplateService {
                                      List<String> to, List<String> cc, String endpoint, boolean enabled,
                                      MultilingualText description) {
         TemplateDefinition existing = require(id);
+        if (name == null) {
+            throw new IllegalArgumentException("Template name is required");
+        }
         TemplateEntity entity = new TemplateEntity();
         entity.setId(id);
         entity.setType(existing.getType());
@@ -89,15 +90,15 @@ public class TemplateServiceImpl implements TemplateService {
         entity.setCcRecipients(normalizeRecipients(cc));
         entity.setEndpoint(trimToNull(endpoint));
         entity.setEnabled(enabled);
+        applyText(name, entity::setNameDefaultLocale, entity::setNameTranslations);
+        applyText(subject, entity::setSubjectDefaultLocale, entity::setSubjectTranslations);
+        applyText(content, entity::setContentDefaultLocale, entity::setContentTranslations);
+        applyText(description, entity::setDescriptionDefaultLocale, entity::setDescriptionTranslations);
         entity.setCreatedAt(existing.getCreatedAt());
         entity.setUpdatedAt(OffsetDateTime.now());
-        repository.update(entity);
-        storeText(id, "name", name);
-        storeText(id, "subject", subject);
-        storeText(id, "content", content);
-        storeText(id, "description", description);
+        TemplateEntity updated = repository.update(entity);
         cache.remove(id);
-        return require(id);
+        return toDefinition(updated);
     }
 
     @Override
@@ -139,36 +140,15 @@ public class TemplateServiceImpl implements TemplateService {
     private TemplateDefinition toDefinition(TemplateEntity entity) {
         long id = Optional.ofNullable(entity.getId()).orElseThrow(() ->
                 new IllegalStateException("Template entity missing id"));
-        return cache.computeIfAbsent(id, ignored -> {
-            MultilingualText name = loadText(id, "name")
-                    .orElseThrow(() -> new IllegalStateException("Template name missing for id=" + id));
-            MultilingualText subject = loadText(id, "subject").orElse(null);
-            MultilingualText content = loadText(id, "content").orElse(null);
-            MultilingualText description = loadText(id, "description").orElse(null);
-            List<String> toRecipients = entity.getToRecipients() == null ? List.of()
-                    : List.copyOf(entity.getToRecipients());
-            List<String> ccRecipients = entity.getCcRecipients() == null ? List.of()
-                    : List.copyOf(entity.getCcRecipients());
-            return new TemplateDefinition(id, entity.getType(), name, subject, content, toRecipients, ccRecipients,
-                    entity.getEndpoint(), entity.isEnabled(), description, entity.getCreatedAt(), entity.getUpdatedAt());
-        });
+        TemplateDefinition definition = buildDefinition(entity, id);
+        cache.put(id, definition);
+        return definition;
     }
 
     private TemplateDefinition require(long id) {
-        return repository.findById(id)
-                .map(this::toDefinition)
-                .orElseThrow(() -> new BusinessException(ErrorCode.TEMPLATE_NOT_FOUND));
-    }
-
-    private void storeText(long id, String field, MultilingualText text) {
-        if (text == null) {
-            return;
-        }
-        multilingualTextService.upsert(MultilingualTextScope.TEMPLATE_DEFINITION, String.valueOf(id), field, text);
-    }
-
-    private Optional<MultilingualText> loadText(long id, String field) {
-        return multilingualTextService.find(MultilingualTextScope.TEMPLATE_DEFINITION, String.valueOf(id), field);
+        return cache.computeIfAbsent(id, key -> repository.findById(key)
+                .map(entity -> buildDefinition(entity, key))
+                .orElseThrow(() -> new BusinessException(ErrorCode.TEMPLATE_NOT_FOUND)));
     }
 
     private List<String> normalizeRecipients(List<String> recipients) {
@@ -179,6 +159,39 @@ public class TemplateServiceImpl implements TemplateService {
                 .filter(StringUtils::hasText)
                 .map(String::trim)
                 .toList();
+    }
+
+    private void applyText(MultilingualText text,
+                           Consumer<String> defaultLocaleSetter,
+                           Consumer<Map<String, String>> translationsSetter) {
+        if (text == null) {
+            defaultLocaleSetter.accept(null);
+            translationsSetter.accept(Map.of());
+        } else {
+            defaultLocaleSetter.accept(text.getDefaultLocale());
+            translationsSetter.accept(text.getTranslations());
+        }
+    }
+
+    private TemplateDefinition buildDefinition(TemplateEntity entity, long id) {
+        MultilingualText name = toText(entity.getNameDefaultLocale(), entity.getNameTranslations())
+                .orElseThrow(() -> new IllegalStateException("Template name missing for id=" + id));
+        MultilingualText subject = toText(entity.getSubjectDefaultLocale(), entity.getSubjectTranslations()).orElse(null);
+        MultilingualText content = toText(entity.getContentDefaultLocale(), entity.getContentTranslations()).orElse(null);
+        MultilingualText description = toText(entity.getDescriptionDefaultLocale(), entity.getDescriptionTranslations()).orElse(null);
+        List<String> toRecipients = entity.getToRecipients() == null ? List.of()
+                : List.copyOf(entity.getToRecipients());
+        List<String> ccRecipients = entity.getCcRecipients() == null ? List.of()
+                : List.copyOf(entity.getCcRecipients());
+        return new TemplateDefinition(id, entity.getType(), name, subject, content, toRecipients, ccRecipients,
+                entity.getEndpoint(), entity.isEnabled(), description, entity.getCreatedAt(), entity.getUpdatedAt());
+    }
+
+    private Optional<MultilingualText> toText(String defaultLocale, Map<String, String> translations) {
+        if (!StringUtils.hasText(defaultLocale) || translations == null || translations.isEmpty()) {
+            return Optional.empty();
+        }
+        return Optional.of(MultilingualText.of(defaultLocale, translations));
     }
 
     private String trimToNull(String value) {

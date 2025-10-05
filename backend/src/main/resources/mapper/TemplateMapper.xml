@@ -14,6 +14,18 @@
                 typeHandler="com.bob.mta.common.mybatis.StringListJsonTypeHandler"/>
         <result column="endpoint" property="endpoint"/>
         <result column="enabled" property="enabled"/>
+        <result column="name_default_locale" property="nameDefaultLocale"/>
+        <result column="name_translations" property="nameTranslations"
+                typeHandler="com.bob.mta.common.mybatis.StringMapJsonTypeHandler"/>
+        <result column="subject_default_locale" property="subjectDefaultLocale"/>
+        <result column="subject_translations" property="subjectTranslations"
+                typeHandler="com.bob.mta.common.mybatis.StringMapJsonTypeHandler"/>
+        <result column="content_default_locale" property="contentDefaultLocale"/>
+        <result column="content_translations" property="contentTranslations"
+                typeHandler="com.bob.mta.common.mybatis.StringMapJsonTypeHandler"/>
+        <result column="description_default_locale" property="descriptionDefaultLocale"/>
+        <result column="description_translations" property="descriptionTranslations"
+                typeHandler="com.bob.mta.common.mybatis.StringMapJsonTypeHandler"/>
         <result column="created_at" property="createdAt"/>
         <result column="updated_at" property="updatedAt"/>
     </resultMap>
@@ -26,6 +38,14 @@
                cc_recipients,
                endpoint,
                enabled,
+               name_default_locale,
+               name_translations,
+               subject_default_locale,
+               subject_translations,
+               content_default_locale,
+               content_translations,
+               description_default_locale,
+               description_translations,
                created_at,
                updated_at
         FROM mt_template_definition
@@ -44,6 +64,14 @@
                cc_recipients,
                endpoint,
                enabled,
+               name_default_locale,
+               name_translations,
+               subject_default_locale,
+               subject_translations,
+               content_default_locale,
+               content_translations,
+               description_default_locale,
+               description_translations,
                created_at,
                updated_at
         FROM mt_template_definition
@@ -58,6 +86,14 @@
             cc_recipients,
             endpoint,
             enabled,
+            name_default_locale,
+            name_translations,
+            subject_default_locale,
+            subject_translations,
+            content_default_locale,
+            content_translations,
+            description_default_locale,
+            description_translations,
             created_at,
             updated_at
         ) VALUES (
@@ -66,6 +102,14 @@
             #{ccRecipients, typeHandler=com.bob.mta.common.mybatis.StringListJsonTypeHandler},
             #{endpoint},
             #{enabled},
+            #{nameDefaultLocale},
+            #{nameTranslations, typeHandler=com.bob.mta.common.mybatis.StringMapJsonTypeHandler},
+            #{subjectDefaultLocale},
+            #{subjectTranslations, typeHandler=com.bob.mta.common.mybatis.StringMapJsonTypeHandler},
+            #{contentDefaultLocale},
+            #{contentTranslations, typeHandler=com.bob.mta.common.mybatis.StringMapJsonTypeHandler},
+            #{descriptionDefaultLocale},
+            #{descriptionTranslations, typeHandler=com.bob.mta.common.mybatis.StringMapJsonTypeHandler},
             #{createdAt},
             #{updatedAt}
         )
@@ -78,6 +122,14 @@
             cc_recipients = #{ccRecipients, typeHandler=com.bob.mta.common.mybatis.StringListJsonTypeHandler},
             endpoint = #{endpoint},
             enabled = #{enabled},
+            name_default_locale = #{nameDefaultLocale},
+            name_translations = #{nameTranslations, typeHandler=com.bob.mta.common.mybatis.StringMapJsonTypeHandler},
+            subject_default_locale = #{subjectDefaultLocale},
+            subject_translations = #{subjectTranslations, typeHandler=com.bob.mta.common.mybatis.StringMapJsonTypeHandler},
+            content_default_locale = #{contentDefaultLocale},
+            content_translations = #{contentTranslations, typeHandler=com.bob.mta.common.mybatis.StringMapJsonTypeHandler},
+            description_default_locale = #{descriptionDefaultLocale},
+            description_translations = #{descriptionTranslations, typeHandler=com.bob.mta.common.mybatis.StringMapJsonTypeHandler},
             updated_at = #{updatedAt}
         WHERE template_id = #{id}
     </update>
