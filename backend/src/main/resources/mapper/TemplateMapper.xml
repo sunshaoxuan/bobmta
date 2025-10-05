@@ -1,0 +1,88 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.bob.mta.modules.template.persistence.TemplateMapper">
+
+    <resultMap id="TemplateEntityResult" type="com.bob.mta.modules.template.persistence.TemplateEntity">
+        <id column="template_id" property="id"/>
+        <result column="template_type" property="type"
+                javaType="com.bob.mta.modules.template.domain.TemplateType"/>
+        <result column="to_recipients" property="toRecipients"
+                typeHandler="com.bob.mta.common.mybatis.StringListJsonTypeHandler"/>
+        <result column="cc_recipients" property="ccRecipients"
+                typeHandler="com.bob.mta.common.mybatis.StringListJsonTypeHandler"/>
+        <result column="endpoint" property="endpoint"/>
+        <result column="enabled" property="enabled"/>
+        <result column="created_at" property="createdAt"/>
+        <result column="updated_at" property="updatedAt"/>
+    </resultMap>
+
+    <select id="findAll" parameterType="com.bob.mta.modules.template.domain.TemplateType"
+            resultMap="TemplateEntityResult">
+        SELECT template_id,
+               template_type,
+               to_recipients,
+               cc_recipients,
+               endpoint,
+               enabled,
+               created_at,
+               updated_at
+        FROM mt_template_definition
+        <where>
+            <if test="type != null">
+                template_type = #{type}
+            </if>
+        </where>
+        ORDER BY template_id
+    </select>
+
+    <select id="findById" parameterType="long" resultMap="TemplateEntityResult">
+        SELECT template_id,
+               template_type,
+               to_recipients,
+               cc_recipients,
+               endpoint,
+               enabled,
+               created_at,
+               updated_at
+        FROM mt_template_definition
+        WHERE template_id = #{id}
+    </select>
+
+    <insert id="insert" parameterType="com.bob.mta.modules.template.persistence.TemplateEntity"
+            useGeneratedKeys="true" keyProperty="id" keyColumn="template_id">
+        INSERT INTO mt_template_definition (
+            template_type,
+            to_recipients,
+            cc_recipients,
+            endpoint,
+            enabled,
+            created_at,
+            updated_at
+        ) VALUES (
+            #{type},
+            #{toRecipients, typeHandler=com.bob.mta.common.mybatis.StringListJsonTypeHandler},
+            #{ccRecipients, typeHandler=com.bob.mta.common.mybatis.StringListJsonTypeHandler},
+            #{endpoint},
+            #{enabled},
+            #{createdAt},
+            #{updatedAt}
+        )
+    </insert>
+
+    <update id="update" parameterType="com.bob.mta.modules.template.persistence.TemplateEntity">
+        UPDATE mt_template_definition
+        SET template_type = #{type},
+            to_recipients = #{toRecipients, typeHandler=com.bob.mta.common.mybatis.StringListJsonTypeHandler},
+            cc_recipients = #{ccRecipients, typeHandler=com.bob.mta.common.mybatis.StringListJsonTypeHandler},
+            endpoint = #{endpoint},
+            enabled = #{enabled},
+            updated_at = #{updatedAt}
+        WHERE template_id = #{id}
+    </update>
+
+    <delete id="delete" parameterType="long">
+        DELETE FROM mt_template_definition WHERE template_id = #{id}
+    </delete>
+</mapper>

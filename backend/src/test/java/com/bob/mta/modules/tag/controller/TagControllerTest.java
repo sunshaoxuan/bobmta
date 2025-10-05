@@ -48,7 +48,7 @@ class TagControllerTest {
         RecordingNotificationGateway notificationGateway = new RecordingNotificationGateway();
         planService = new InMemoryPlanService(new InMemoryFileService(), planRepository,
                 new InMemoryPlanAnalyticsRepository(planRepository), actionHistoryRepository,
-                templateService, notificationGateway, messageResolver);
+                templateService, notificationGateway, notificationGateway, notificationGateway, messageResolver);
         AuditRecorder recorder = new AuditRecorder(new InMemoryAuditService(), new ObjectMapper());
         controller = new TagController(tagService, customerService, planService, recorder, messageResolver);
         SecurityContextHolder.getContext().setAuthentication(new TestingAuthenticationToken("admin", "pass", "ROLE_ADMIN"));

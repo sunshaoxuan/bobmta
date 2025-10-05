@@ -6,9 +6,11 @@ import com.bob.mta.common.i18n.MessageResolver;
 import com.bob.mta.i18n.LocalizationKeys;
 import com.bob.mta.modules.file.service.FileService;
 import com.bob.mta.modules.notification.ApiCallRequest;
+import com.bob.mta.modules.notification.ApiNotificationAdapter;
 import com.bob.mta.modules.notification.EmailMessage;
+import com.bob.mta.modules.notification.EmailNotificationAdapter;
 import com.bob.mta.modules.notification.InstantMessage;
-import com.bob.mta.modules.notification.NotificationGateway;
+import com.bob.mta.modules.notification.InstantMessageNotificationAdapter;
 import com.bob.mta.modules.notification.NotificationResult;
 import com.bob.mta.modules.plan.domain.Plan;
 import com.bob.mta.modules.plan.domain.PlanActionHistory;
@@ -171,7 +173,9 @@ public class InMemoryPlanService implements PlanService {
     private final PlanAnalyticsRepository planAnalyticsRepository;
     private final PlanActionHistoryRepository actionHistoryRepository;
     private final TemplateService templateService;
-    private final NotificationGateway notificationGateway;
+    private final EmailNotificationAdapter emailNotificationAdapter;
+    private final InstantMessageNotificationAdapter instantMessageNotificationAdapter;
+    private final ApiNotificationAdapter apiNotificationAdapter;
     private final MessageResolver messageResolver;
 
     public InMemoryPlanService(FileService fileService,
@@ -179,14 +183,18 @@ public class InMemoryPlanService implements PlanService {
                                PlanAnalyticsRepository planAnalyticsRepository,
                                PlanActionHistoryRepository actionHistoryRepository,
                                TemplateService templateService,
-                               NotificationGateway notificationGateway,
+                               EmailNotificationAdapter emailNotificationAdapter,
+                               InstantMessageNotificationAdapter instantMessageNotificationAdapter,
+                               ApiNotificationAdapter apiNotificationAdapter,
                                MessageResolver messageResolver) {
         this.fileService = fileService;
         this.planRepository = planRepository;
         this.planAnalyticsRepository = planAnalyticsRepository;
         this.actionHistoryRepository = actionHistoryRepository;
         this.templateService = templateService;
-        this.notificationGateway = notificationGateway;
+        this.emailNotificationAdapter = emailNotificationAdapter;
+        this.instantMessageNotificationAdapter = instantMessageNotificationAdapter;
+        this.apiNotificationAdapter = apiNotificationAdapter;
         this.messageResolver = messageResolver;
     }
 
@@ -1280,7 +1288,7 @@ public class InMemoryPlanService implements PlanService {
     private ActionDispatchResult dispatchEmail(String actionRef, Map<String, String> context) {
         long templateId = parseTemplateId(actionRef);
         RenderedTemplate template = templateService.render(templateId, context, LocaleContextHolder.getLocale());
-        NotificationDispatchAttempt attempt = sendWithRetry("EMAIL", () -> notificationGateway.sendEmail(new EmailMessage(
+        NotificationDispatchAttempt attempt = sendWithRetry("EMAIL", () -> emailNotificationAdapter.send(new EmailMessage(
                 template.getTo(), template.getCc(), template.getSubject(), template.getContent())));
         NotificationResult result = attempt.result();
         Map<String, String> metadata = new LinkedHashMap<>();
@@ -1298,7 +1306,7 @@ public class InMemoryPlanService implements PlanService {
     private ActionDispatchResult dispatchInstantMessage(String actionRef, Map<String, String> context) {
         long templateId = parseTemplateId(actionRef);
         RenderedTemplate template = templateService.render(templateId, context, LocaleContextHolder.getLocale());
-        NotificationDispatchAttempt attempt = sendWithRetry("IM", () -> notificationGateway.sendInstantMessage(new InstantMessage(
+        NotificationDispatchAttempt attempt = sendWithRetry("IM", () -> instantMessageNotificationAdapter.send(new InstantMessage(
                 template.getTo(), template.getContent())));
         NotificationResult result = attempt.result();
         Map<String, String> metadata = new LinkedHashMap<>();
@@ -1370,7 +1378,7 @@ public class InMemoryPlanService implements PlanService {
         }
         Map<String, String> headers = extractHeaders(templateMetadata);
         ApiCallRequest request = new ApiCallRequest(endpoint, method, template.getContent(), headers);
-        NotificationDispatchAttempt attempt = sendWithRetry("API", () -> notificationGateway.invokeApiCall(request));
+        NotificationDispatchAttempt attempt = sendWithRetry("API", () -> apiNotificationAdapter.invoke(request));
         NotificationResult result = attempt.result();
         metadata.putAll(result.getMetadata());
         metadata.put("attempts", String.valueOf(attempt.attempts()));
