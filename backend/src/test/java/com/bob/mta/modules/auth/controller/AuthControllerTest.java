@@ -31,6 +31,8 @@ class AuthControllerTest {
     private DefaultAuthService authService;
     private FakeUserRepository repository;
     private PasswordEncoder passwordEncoder;
+    private JwtProperties properties;
+    private JwtTokenProvider tokenProvider;
 
     @BeforeEach
     void setUp() {
@@ -39,10 +41,10 @@ class AuthControllerTest {
         UserServiceImpl userService = new UserServiceImpl(repository, passwordEncoder, ClockFixed.fixed(), Duration.ofHours(24));
         seedUser("admin", "系统管理员", "admin@example.com", "admin123", List.of("ROLE_ADMIN"));
         seedUser("operator", "运维专员", "operator@example.com", "operator123", List.of("ROLE_OPERATOR"));
-        JwtProperties properties = new JwtProperties();
+        properties = new JwtProperties();
         properties.getAccessToken().setSecret("a-very-long-secret-key-for-tests-1234567890");
-        JwtTokenProvider provider = new JwtTokenProvider(properties);
-        authService = new DefaultAuthService(provider, properties, userService, repository);
+        tokenProvider = new JwtTokenProvider(properties);
+        authService = new DefaultAuthService(tokenProvider, userService, repository);
         controller = new AuthController(authService);
     }
 
@@ -55,6 +57,10 @@ class AuthControllerTest {
         ApiResponse<LoginResponse> response = controller.login(request);
 
         assertThat(response.getData().getToken()).isNotBlank();
+        JwtTokenProvider.TokenPayload payload = tokenProvider.parseToken(response.getData().getToken())
+                .orElseThrow();
+        assertThat(payload.username()).isEqualTo("admin");
+        assertThat(payload.roles()).containsExactly("ROLE_ADMIN");
     }
 
     @Test

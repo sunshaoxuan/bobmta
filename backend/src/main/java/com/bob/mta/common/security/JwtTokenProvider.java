@@ -62,12 +62,17 @@ public class JwtTokenProvider {
                     .parseClaimsJws(token);
             final Claims claims = jws.getBody();
             final Instant expiresAt = claims.getExpiration().toInstant();
+            final String issuer = claims.getIssuer();
+            final String expectedIssuer = properties.getIssuer();
+            if (expectedIssuer != null && !expectedIssuer.equals(issuer)) {
+                return Optional.empty();
+            }
             if (expiresAt.isBefore(Instant.now())) {
                 return Optional.empty();
             }
             final List<String> roles = extractRoles(claims);
             return Optional.of(new TokenPayload(
-                    claims.getIssuer(),
+                    issuer,
                     claims.get(CLAIM_USER_ID, String.class),
                     claims.getSubject(),
                     roles,

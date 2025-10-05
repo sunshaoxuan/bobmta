@@ -5,8 +5,6 @@ import com.bob.mta.common.exception.ErrorCode;
 import com.bob.mta.common.security.JwtProperties;
 import com.bob.mta.common.security.JwtTokenProvider;
 import com.bob.mta.modules.auth.dto.CurrentUserResponse;
-import com.bob.mta.modules.auth.dto.LoginRequest;
-import com.bob.mta.modules.auth.dto.LoginResponse;
 import com.bob.mta.modules.user.domain.User;
 import com.bob.mta.modules.user.domain.UserStatus;
 import com.bob.mta.modules.user.dto.CreateUserRequest;
@@ -33,6 +31,7 @@ class DefaultAuthServiceTest {
     private FakeUserRepository repository;
     private PasswordEncoder passwordEncoder;
     private UserServiceImpl userService;
+    private JwtTokenProvider tokenProvider;
 
     @BeforeEach
     void setUp() {
@@ -42,21 +41,21 @@ class DefaultAuthServiceTest {
         seedUser("admin", "系统管理员", "admin@example.com", "admin123", List.of("ROLE_ADMIN"));
         JwtProperties properties = new JwtProperties();
         properties.getAccessToken().setSecret("a-very-long-secret-key-for-tests-1234567890");
-        JwtTokenProvider provider = new JwtTokenProvider(properties);
-        authService = new DefaultAuthService(provider, properties, userService, repository);
+        tokenProvider = new JwtTokenProvider(properties);
+        authService = new DefaultAuthService(tokenProvider, userService, repository);
     }
 
     @Test
     void loginShouldReturnTokenForValidUser() {
-        LoginRequest request = new LoginRequest();
-        request.setUsername("admin");
-        request.setPassword("admin123");
-
-        LoginResponse response = authService.login(request);
+        var response = authService.login("admin", "admin123");
 
         assertThat(response.getToken()).isNotBlank();
-        assertThat(response.getUsername()).isEqualTo("admin");
-        assertThat(response.getRoles()).contains("ROLE_ADMIN");
+        assertThat(response.getDisplayName()).isEqualTo("系统管理员");
+        assertThat(response.getRoles()).containsExactly("ROLE_ADMIN");
+        JwtTokenProvider.TokenPayload payload = tokenProvider.parseToken(response.getToken()).orElseThrow();
+        assertThat(payload.username()).isEqualTo("admin");
+        assertThat(payload.roles()).containsExactly("ROLE_ADMIN");
+        assertThat(payload.expiresAt()).isAfter(Instant.now());
     }
 
     @Test
@@ -68,11 +67,7 @@ class DefaultAuthServiceTest {
         request.setPassword("password123");
         userService.createUser(request);
 
-        LoginRequest login = new LoginRequest();
-        login.setUsername("inactive");
-        login.setPassword("password123");
-
-        assertThatThrownBy(() -> authService.login(login))
+        assertThatThrownBy(() -> authService.login("inactive", "password123"))
                 .isInstanceOf(BusinessException.class)
                 .extracting(ex -> ((BusinessException) ex).getErrorCode())
                 .isEqualTo(ErrorCode.USER_INACTIVE);
@@ -83,6 +78,8 @@ class DefaultAuthServiceTest {
         UserDetails userDetails = authService.loadUserByUsername("admin");
         assertThat(userDetails.getUsername()).isEqualTo("admin");
         assertThat(userDetails.getAuthorities()).extracting("authority").contains("ROLE_ADMIN");
+        assertThat(passwordEncoder.matches("admin123", userDetails.getPassword())).isTrue();
+        assertThat(userDetails.getPassword()).isNotEqualTo("admin123");
     }
 
     @Test
