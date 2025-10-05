@@ -1,6 +1,7 @@
 package com.bob.mta.modules.customfield.service.impl;
 
 import com.bob.mta.common.exception.BusinessException;
+import com.bob.mta.common.exception.ErrorCode;
 import com.bob.mta.modules.customfield.domain.CustomFieldType;
 import org.junit.jupiter.api.Test;
 
@@ -30,6 +31,16 @@ class InMemoryCustomFieldServiceTest {
     void shouldRejectInvalidNumber() {
         var numberField = service.createDefinition("sla", "SLA Hours", CustomFieldType.NUMBER, false, null, null);
         assertThatThrownBy(() -> service.updateValues("cust", Map.of(numberField.getId(), "abc")))
-                .isInstanceOf(BusinessException.class);
+                .isInstanceOf(BusinessException.class)
+                .extracting(ex -> ((BusinessException) ex).getErrorCode())
+                .isEqualTo(ErrorCode.CUSTOM_FIELD_VALUE_INVALID);
+    }
+
+    @Test
+    void shouldFailWhenDefinitionMissing() {
+        assertThatThrownBy(() -> service.getDefinition(9_999))
+                .isInstanceOf(BusinessException.class)
+                .extracting(ex -> ((BusinessException) ex).getErrorCode())
+                .isEqualTo(ErrorCode.CUSTOM_FIELD_NOT_FOUND);
     }
 }
