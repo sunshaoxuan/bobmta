@@ -37,7 +37,7 @@ class JwtAuthenticationFilterTest {
     @Test
     @DisplayName("filter populates SecurityContext for valid bearer token")
     void shouldAuthenticateRequestWhenTokenPresent() throws ServletException, IOException {
-        final String token = tokenProvider.generateToken("1", "admin", "ADMIN");
+        final String token = tokenProvider.generateToken("1", "admin", java.util.List.of("ROLE_ADMIN")).token();
         final MockHttpServletRequest request = new MockHttpServletRequest();
         request.addHeader(HttpHeaders.AUTHORIZATION, "Bearer " + token);
 

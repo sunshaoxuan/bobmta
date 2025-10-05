@@ -2,7 +2,6 @@ package com.bob.mta.modules.auth.service.impl;
 
 import com.bob.mta.common.exception.BusinessException;
 import com.bob.mta.common.exception.ErrorCode;
-import com.bob.mta.common.security.JwtProperties;
 import com.bob.mta.common.security.JwtTokenProvider;
 import com.bob.mta.modules.auth.dto.CurrentUserResponse;
 import com.bob.mta.modules.auth.dto.LoginResponse;
@@ -18,8 +17,6 @@ import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.stereotype.Service;
 
-import java.time.Instant;
-import java.time.temporal.ChronoUnit;
 import java.util.Collection;
 import java.util.List;
 import java.util.Locale;
@@ -30,16 +27,13 @@ import java.util.stream.Collectors;
 public class DefaultAuthService implements AuthService {
 
     private final JwtTokenProvider tokenProvider;
-    private final JwtProperties properties;
     private final UserService userService;
     private final UserRepository userRepository;
 
     public DefaultAuthService(JwtTokenProvider tokenProvider,
-                              JwtProperties properties,
                               UserService userService,
                               UserRepository userRepository) {
         this.tokenProvider = Objects.requireNonNull(tokenProvider, "tokenProvider");
-        this.properties = Objects.requireNonNull(properties, "properties");
         this.userService = Objects.requireNonNull(userService, "userService");
         this.userRepository = Objects.requireNonNull(userRepository, "userRepository");
     }
@@ -47,11 +41,10 @@ public class DefaultAuthService implements AuthService {
     @Override
     public LoginResponse login(String username, String password) {
         UserAuthentication user = userService.authenticate(username, password);
-        Instant expiresAt = Instant.now()
-                .plus(properties.getAccessToken().getExpirationMinutes(), ChronoUnit.MINUTES);
-        String primaryRole = user.roles().isEmpty() ? "USER" : user.roles().get(0);
-        String token = tokenProvider.generateToken(user.id(), user.username(), primaryRole);
-        return new LoginResponse(token, expiresAt, user.displayName(), user.roles());
+        JwtTokenProvider.GeneratedToken generatedToken =
+                tokenProvider.generateToken(user.id(), user.username(), user.roles());
+        return new LoginResponse(generatedToken.token(), generatedToken.expiresAt(),
+                user.displayName(), user.roles());
     }
 
     @Override
