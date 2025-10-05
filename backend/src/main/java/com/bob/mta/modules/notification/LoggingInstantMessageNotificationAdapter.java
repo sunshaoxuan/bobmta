@@ -2,12 +2,14 @@ package com.bob.mta.modules.notification;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.stereotype.Component;
 
 import java.util.Map;
 import java.util.stream.Collectors;
 
 @Component
+@ConditionalOnMissingBean(InstantMessageNotificationAdapter.class)
 public class LoggingInstantMessageNotificationAdapter implements InstantMessageNotificationAdapter {
 
     private static final Logger log = LoggerFactory.getLogger(LoggingInstantMessageNotificationAdapter.class);

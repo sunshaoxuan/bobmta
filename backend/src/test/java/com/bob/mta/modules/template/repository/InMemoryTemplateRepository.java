@@ -63,10 +63,25 @@ public class InMemoryTemplateRepository implements TemplateRepository {
                 : new ArrayList<>(source.getCcRecipients()));
         target.setEndpoint(source.getEndpoint());
         target.setEnabled(source.isEnabled());
+        target.setNameDefaultLocale(source.getNameDefaultLocale());
+        target.setNameTranslations(copyMap(source.getNameTranslations()));
+        target.setSubjectDefaultLocale(source.getSubjectDefaultLocale());
+        target.setSubjectTranslations(copyMap(source.getSubjectTranslations()));
+        target.setContentDefaultLocale(source.getContentDefaultLocale());
+        target.setContentTranslations(copyMap(source.getContentTranslations()));
+        target.setDescriptionDefaultLocale(source.getDescriptionDefaultLocale());
+        target.setDescriptionTranslations(copyMap(source.getDescriptionTranslations()));
         OffsetDateTime createdAt = source.getCreatedAt();
         OffsetDateTime updatedAt = source.getUpdatedAt();
         target.setCreatedAt(createdAt);
         target.setUpdatedAt(updatedAt);
         return target;
+    }
+
+    private Map<String, String> copyMap(Map<String, String> source) {
+        if (source == null || source.isEmpty()) {
+            return Map.of();
+        }
+        return Map.copyOf(source);
     }
 }

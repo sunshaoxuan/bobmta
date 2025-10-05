@@ -2,6 +2,7 @@ package com.bob.mta.modules.notification;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.stereotype.Component;
 
 import java.util.LinkedHashMap;
@@ -9,6 +10,7 @@ import java.util.Map;
 import java.util.stream.Collectors;
 
 @Component
+@ConditionalOnMissingBean(ApiNotificationAdapter.class)
 public class LoggingApiNotificationAdapter implements ApiNotificationAdapter {
 
     private static final Logger log = LoggerFactory.getLogger(LoggingApiNotificationAdapter.class);
