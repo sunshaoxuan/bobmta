@@ -1,5 +1,6 @@
 package com.bob.mta.modules.plan.dto;
 
+import com.bob.mta.modules.plan.repository.PlanBoardGrouping;
 import com.bob.mta.modules.plan.service.PlanBoardView;
 
 import java.time.OffsetDateTime;
@@ -8,6 +9,7 @@ import java.util.List;
 public class PlanBoardResponse {
 
     private static final MetricsResponse ZERO_METRICS = new MetricsResponse(0, 0, 0, 0, 0, 0, 0, 0, 0);
+    private static final String DEFAULT_GRANULARITY = PlanBoardGrouping.WEEK.name();
 
     private final List<CustomerGroupResponse> customerGroups;
     private final List<TimeBucketResponse> timeBuckets;
@@ -29,7 +31,7 @@ public class PlanBoardResponse {
 
     public static PlanBoardResponse from(PlanBoardView view) {
         if (view == null) {
-            return new PlanBoardResponse(List.of(), List.of(), ZERO_METRICS, null, null);
+            return new PlanBoardResponse(List.of(), List.of(), ZERO_METRICS, DEFAULT_GRANULARITY, null);
         }
         List<CustomerGroupResponse> groups = view.getCustomerGroups().stream()
                 .map(CustomerGroupResponse::from)
@@ -40,7 +42,9 @@ public class PlanBoardResponse {
         MetricsResponse metricsResponse = view.getMetrics() == null
                 ? ZERO_METRICS
                 : MetricsResponse.from(view.getMetrics());
-        String granularity = view.getGranularity() == null ? null : view.getGranularity().name();
+        String granularity = view.getGranularity() == null
+                ? DEFAULT_GRANULARITY
+                : view.getGranularity().name();
         return new PlanBoardResponse(groups, buckets, metricsResponse, granularity, view.getReferenceTime());
     }
 

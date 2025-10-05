@@ -25,7 +25,7 @@ class PlanBoardResponseTest {
         assertThat(response.getMetrics().getTotalPlans()).isZero();
         assertThat(response.getMetrics().getActivePlans()).isZero();
         assertThat(response.getMetrics().getAtRiskPlans()).isZero();
-        assertThat(response.getGranularity()).isNull();
+        assertThat(response.getGranularity()).isEqualTo(PlanBoardGrouping.WEEK.name());
         assertThat(response.getReferenceTime()).isNull();
     }
 
