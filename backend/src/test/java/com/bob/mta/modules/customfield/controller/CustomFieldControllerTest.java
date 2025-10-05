@@ -1,71 +1,105 @@
 package com.bob.mta.modules.customfield.controller;
 
-import com.bob.mta.common.api.ApiResponse;
-import com.bob.mta.common.i18n.MessageResolver;
-import com.bob.mta.common.i18n.TestMessageResolverFactory;
-import com.bob.mta.modules.audit.service.AuditRecorder;
-import com.bob.mta.modules.audit.service.impl.InMemoryAuditService;
-import com.bob.mta.modules.customfield.domain.CustomFieldType;
-import com.bob.mta.modules.customfield.dto.CreateCustomFieldRequest;
-import com.bob.mta.modules.customfield.dto.CustomFieldDefinitionResponse;
-import com.bob.mta.modules.customfield.dto.CustomFieldValueRequest;
-import com.bob.mta.modules.customfield.service.impl.InMemoryCustomFieldService;
-import com.bob.mta.modules.customer.service.impl.InMemoryCustomerService;
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import org.junit.jupiter.api.AfterEach;
-import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
-import org.springframework.context.i18n.LocaleContextHolder;
-import org.springframework.security.authentication.TestingAuthenticationToken;
-import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
+import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.http.MediaType;
+import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.MvcResult;
 
+import java.nio.charset.StandardCharsets;
 import java.util.List;
-import java.util.Locale;
+import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+@SpringBootTest
+@AutoConfigureMockMvc
 class CustomFieldControllerTest {
 
-    private CustomFieldController controller;
-    private InMemoryCustomFieldService customFieldService;
-    private MessageResolver messageResolver;
+    @Autowired
+    private MockMvc mockMvc;
 
-    @BeforeEach
-    void setUp() {
-        LocaleContextHolder.setLocale(Locale.SIMPLIFIED_CHINESE);
-        customFieldService = new InMemoryCustomFieldService();
-        InMemoryCustomerService customerService = new InMemoryCustomerService();
-        AuditRecorder recorder = new AuditRecorder(new InMemoryAuditService(), new ObjectMapper());
-        messageResolver = TestMessageResolverFactory.create();
-        controller = new CustomFieldController(customFieldService, customerService, recorder, messageResolver);
-        SecurityContextHolder.getContext().setAuthentication(new TestingAuthenticationToken("admin", "pass", "ROLE_ADMIN"));
-    }
-
-    @AfterEach
-    void tearDown() {
-        SecurityContextHolder.clearContext();
-        LocaleContextHolder.resetLocaleContext();
-    }
+    @Autowired
+    private ObjectMapper objectMapper;
 
     @Test
-    void shouldCreateCustomField() {
-        CreateCustomFieldRequest request = new CreateCustomFieldRequest();
-        request.setCode("ticket_url");
-        request.setLabel("Ticket URL");
-        request.setType(CustomFieldType.TEXT);
+    @DisplayName("custom field definitions and values are persisted with audit logs")
+    void shouldManageCustomFields() throws Exception {
+        String token = authenticate();
 
-        ApiResponse<CustomFieldDefinitionResponse> response = controller.createDefinition(request);
-        assertThat(response.getData().getCode()).isEqualTo("ticket_url");
+        String definitionRequest = objectMapper.writeValueAsString(Map.of(
+                "code", "ticket_url",
+                "label", "チケットURL",
+                "type", "TEXT",
+                "required", false,
+                "options", List.of(),
+                "description", "サポートチケットのURL"));
+
+        MvcResult createResult = mockMvc.perform(post("/api/v1/custom-fields")
+                        .header("Authorization", "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(definitionRequest))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.code").value("ticket_url"))
+                .andReturn();
+
+        JsonNode created = objectMapper.readTree(createResult.getResponse().getContentAsString(StandardCharsets.UTF_8));
+        long fieldId = created.path("data").path("id").asLong();
+        assertThat(fieldId).isPositive();
+
+        String updateRequest = objectMapper.writeValueAsString(Map.of(
+                "label", "サポートチケットURL",
+                "type", "TEXT",
+                "required", true,
+                "options", List.of(),
+                "description", "サポート窓口のチケットURL"));
+
+        mockMvc.perform(put("/api/v1/custom-fields/" + fieldId)
+                        .header("Authorization", "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(updateRequest))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.label").value("サポートチケットURL"));
+
+        String valueRequest = objectMapper.writeValueAsString(List.of(Map.of(
+                "fieldId", fieldId,
+                "value", "https://support.example.com/tickets/12345")));
+
+        mockMvc.perform(put("/api/v1/custom-fields/customers/101")
+                        .header("Authorization", "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(valueRequest))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data[0].value").value("https://support.example.com/tickets/12345"));
+
+        mockMvc.perform(get("/api/v1/audit-logs")
+                        .header("Authorization", "Bearer " + token)
+                        .param("entityType", "CustomField"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data[0].action").value("CREATE_CUSTOM_FIELD"));
     }
 
-    @Test
-    void shouldUpdateCustomerValues() {
-        var definition = customFieldService.createDefinition("priority", "Priority", CustomFieldType.TEXT, false, null, null);
-        CustomFieldValueRequest valueRequest = new CustomFieldValueRequest();
-        valueRequest.setFieldId(definition.getId());
-        valueRequest.setValue("A");
-
-        ApiResponse<?> response = controller.updateCustomerValues("cust-001", List.of(valueRequest));
-        assertThat(response.getData()).isInstanceOf(List.class);
+    private String authenticate() throws Exception {
+        MvcResult result = mockMvc.perform(post("/api/v1/auth/login")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsBytes(Map.of(
+                                "username", "admin",
+                                "password", "admin123"))))
+                .andExpect(status().isOk())
+                .andReturn();
+        JsonNode body = objectMapper.readTree(result.getResponse().getContentAsString(StandardCharsets.UTF_8));
+        String token = body.path("data").path("token").asText();
+        assertThat(token).isNotBlank();
+        return token;
     }
 }

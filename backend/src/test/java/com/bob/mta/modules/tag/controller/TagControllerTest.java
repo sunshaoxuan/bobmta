@@ -1,103 +1,103 @@
 package com.bob.mta.modules.tag.controller;
 
-import com.bob.mta.common.api.ApiResponse;
-import com.bob.mta.common.i18n.MessageResolver;
-import com.bob.mta.common.i18n.TestMessageResolverFactory;
-import com.bob.mta.modules.audit.service.AuditRecorder;
-import com.bob.mta.modules.audit.service.impl.InMemoryAuditService;
-import com.bob.mta.modules.customer.service.impl.InMemoryCustomerService;
-import com.bob.mta.modules.file.service.impl.InMemoryFileService;
-import com.bob.mta.modules.plan.repository.InMemoryPlanActionHistoryRepository;
-import com.bob.mta.modules.plan.repository.InMemoryPlanAnalyticsRepository;
-import com.bob.mta.modules.plan.repository.InMemoryPlanRepository;
-import com.bob.mta.modules.plan.service.impl.InMemoryPlanService;
-import com.bob.mta.modules.plan.service.impl.RecordingNotificationGateway;
-import com.bob.mta.modules.plan.service.impl.TestTemplateService;
-import com.bob.mta.modules.tag.domain.TagEntityType;
-import com.bob.mta.modules.tag.dto.AssignTagRequest;
-import com.bob.mta.modules.tag.dto.CreateTagRequest;
-import com.bob.mta.modules.tag.dto.TagResponse;
-import com.bob.mta.modules.tag.service.impl.InMemoryTagService;
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import org.junit.jupiter.api.AfterEach;
-import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
-import org.springframework.context.i18n.LocaleContextHolder;
-import org.springframework.security.authentication.TestingAuthenticationToken;
-import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
+import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.http.MediaType;
+import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.MvcResult;
 
-import java.util.Locale;
+import java.nio.charset.StandardCharsets;
+import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+@SpringBootTest
+@AutoConfigureMockMvc
 class TagControllerTest {
 
-    private TagController controller;
-    private InMemoryPlanService planService;
-    private MessageResolver messageResolver;
+    @Autowired
+    private MockMvc mockMvc;
 
-    @BeforeEach
-    void setUp() {
-        LocaleContextHolder.setLocale(Locale.SIMPLIFIED_CHINESE);
-        InMemoryTagService tagService = new InMemoryTagService();
-        InMemoryCustomerService customerService = new InMemoryCustomerService();
-        messageResolver = TestMessageResolverFactory.create();
-        InMemoryPlanRepository planRepository = new InMemoryPlanRepository();
-        InMemoryPlanActionHistoryRepository actionHistoryRepository = new InMemoryPlanActionHistoryRepository();
-        TestTemplateService templateService = new TestTemplateService();
-        RecordingNotificationGateway notificationGateway = new RecordingNotificationGateway();
-        planService = new InMemoryPlanService(new InMemoryFileService(), planRepository,
-                new InMemoryPlanAnalyticsRepository(planRepository), actionHistoryRepository,
-                templateService, notificationGateway, notificationGateway, notificationGateway, messageResolver);
-        AuditRecorder recorder = new AuditRecorder(new InMemoryAuditService(), new ObjectMapper());
-        controller = new TagController(tagService, customerService, planService, recorder, messageResolver);
-        SecurityContextHolder.getContext().setAuthentication(new TestingAuthenticationToken("admin", "pass", "ROLE_ADMIN"));
-    }
-
-    @AfterEach
-    void tearDown() {
-        SecurityContextHolder.clearContext();
-        LocaleContextHolder.resetLocaleContext();
-    }
+    @Autowired
+    private ObjectMapper objectMapper;
 
     @Test
-    void shouldCreateTag() {
-        CreateTagRequest request = new CreateTagRequest();
-        request.setName(new MultilingualTextPayload("ja-JP", Map.of(
-                "ja-JP", "urgent",
-                "zh-CN", "紧急"
-        )));
-        request.setColor("#F5222D");
-        request.setIcon("AlertOutlined");
-        request.setScope(com.bob.mta.modules.tag.domain.TagScope.CUSTOMER);
-        request.setEnabled(true);
+    @DisplayName("tag lifecycle persists assignments and audit records")
+    void shouldCreateAssignAndAuditTag() throws Exception {
+        String token = authenticate();
 
-        ApiResponse<TagResponse> response = controller.create(request, "ja-JP");
-        assertThat(response.getData().getName().getTranslations().get("ja-jp")).isEqualTo("urgent");
+        String requestBody = objectMapper.writeValueAsString(Map.of(
+                "name", Map.of(
+                        "defaultLocale", "ja-JP",
+                        "translations", Map.of(
+                                "ja-JP", "緊急対応",
+                                "zh-CN", "紧急处理")),
+                "color", "#F5222D",
+                "icon", "AlertOutlined",
+                "scope", "CUSTOMER",
+                "applyRule", null,
+                "enabled", true));
+
+        MvcResult createResult = mockMvc.perform(post("/api/v1/tags")
+                        .header("Authorization", "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(requestBody))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.name.translations.ja-jp").value("緊急対応"))
+                .andReturn();
+
+        JsonNode created = objectMapper.readTree(createResult.getResponse().getContentAsString(StandardCharsets.UTF_8));
+        long tagId = created.path("data").path("id").asLong();
+        assertThat(tagId).isPositive();
+
+        String assignmentBody = objectMapper.writeValueAsString(Map.of(
+                "entityType", "CUSTOMER",
+                "entityId", "101"));
+
+        mockMvc.perform(post("/api/v1/tags/" + tagId + "/assignments")
+                        .header("Authorization", "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(assignmentBody))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.entityId").value("101"));
+
+        mockMvc.perform(get("/api/v1/tags/" + tagId + "/assignments")
+                        .header("Authorization", "Bearer " + token))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data[0].entityId").value("101"));
+
+        mockMvc.perform(delete("/api/v1/tags/" + tagId + "/assignments/CUSTOMER/101")
+                        .header("Authorization", "Bearer " + token))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(get("/api/v1/audit-logs")
+                        .header("Authorization", "Bearer " + token)
+                        .param("entityType", "Tag"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data[0].action").value("CREATE_TAG"));
     }
 
-    @Test
-    void shouldAssignTagToPlan() {
-        var created = controller.create(buildRequest("plan", com.bob.mta.modules.tag.domain.TagScope.PLAN), "ja-JP");
-        AssignTagRequest assign = new AssignTagRequest();
-        assign.setEntityType(TagEntityType.PLAN);
-        assign.setEntityId(planService.listPlans(null, null, null, null, null, null, null, 0, 10).plans().get(0).getId());
-
-        controller.assign(created.getData().getId(), assign);
-
-        assertThat(controller.listAssignments(created.getData().getId()).getData()).hasSize(1);
-    }
-
-    private CreateTagRequest buildRequest(String name, com.bob.mta.modules.tag.domain.TagScope scope) {
-        CreateTagRequest request = new CreateTagRequest();
-        request.setName(new MultilingualTextPayload("ja-JP", Map.of(
-                "ja-JP", name,
-                "zh-CN", name
-        )));
-        request.setColor("#000000");
-        request.setIcon("TagOutlined");
-        request.setScope(scope);
-        request.setEnabled(true);
-        return request;
+    private String authenticate() throws Exception {
+        MvcResult result = mockMvc.perform(post("/api/v1/auth/login")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsBytes(Map.of(
+                                "username", "admin",
+                                "password", "admin123"))))
+                .andExpect(status().isOk())
+                .andReturn();
+        JsonNode body = objectMapper.readTree(result.getResponse().getContentAsString(StandardCharsets.UTF_8));
+        String token = body.path("data").path("token").asText();
+        assertThat(token).isNotBlank();
+        return token;
     }
 }

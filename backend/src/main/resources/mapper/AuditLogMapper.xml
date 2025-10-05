@@ -1,0 +1,64 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.bob.mta.modules.audit.persistence.AuditLogMapper">
+
+    <resultMap id="AuditLogMap" type="com.bob.mta.modules.audit.persistence.AuditLogEntity">
+        <id property="id" column="audit_id"/>
+        <result property="tenantId" column="tenant_id"/>
+        <result property="timestamp" column="timestamp"/>
+        <result property="userId" column="user_id"/>
+        <result property="username" column="username"/>
+        <result property="entityType" column="entity_type"/>
+        <result property="entityId" column="entity_id"/>
+        <result property="action" column="action"/>
+        <result property="detail" column="detail"/>
+        <result property="oldData" column="old_data"/>
+        <result property="newData" column="new_data"/>
+        <result property="requestId" column="request_id"/>
+        <result property="ipAddress" column="ip_address"/>
+        <result property="userAgent" column="user_agent"/>
+    </resultMap>
+
+    <insert id="insert" parameterType="com.bob.mta.modules.audit.persistence.AuditLogEntity" useGeneratedKeys="true"
+            keyProperty="id">
+        INSERT INTO mt_audit_log (tenant_id, timestamp, user_id, username, entity_type, entity_id, action, detail,
+                                  old_data, new_data, request_id, ip_address, user_agent)
+        VALUES (#{tenantId}, #{timestamp}, #{userId}, #{username}, #{entityType}, #{entityId},
+                #{action}, #{detail}, #{oldData}, #{newData}, #{requestId}, #{ipAddress}, #{userAgent})
+    </insert>
+
+    <select id="query" resultMap="AuditLogMap">
+        SELECT audit_id,
+               tenant_id,
+               timestamp,
+               user_id,
+               username,
+               entity_type,
+               entity_id,
+               action,
+               detail,
+               old_data,
+               new_data,
+               request_id,
+               ip_address,
+               user_agent
+        FROM mt_audit_log
+        WHERE tenant_id = #{tenantId}
+        <if test="entityType != null and entityType != ''">
+            AND entity_type = #{entityType}
+        </if>
+        <if test="entityId != null and entityId != ''">
+            AND entity_id = #{entityId}
+        </if>
+        <if test="action != null and action != ''">
+            AND action = #{action}
+        </if>
+        <if test="userId != null and userId != ''">
+            AND user_id = #{userId}
+        </if>
+        ORDER BY timestamp DESC
+        LIMIT 200
+    </select>
+</mapper>
