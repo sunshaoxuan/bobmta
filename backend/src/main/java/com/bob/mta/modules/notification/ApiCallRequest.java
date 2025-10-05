@@ -5,8 +5,8 @@ import java.util.Objects;
 
 /**
  * Encapsulates an outbound API invocation that can be executed by the
- * {@link NotificationGateway}. The request keeps the HTTP method, target
- * endpoint, optional payload and headers so concrete gateway implementations
+ * {@link ApiNotificationAdapter}. The request keeps the HTTP method, target
+ * endpoint, optional payload and headers so concrete adapter implementations
  * can decide how to execute the call (REST, webhook, workflow engine, etc.).
  */
 public class ApiCallRequest {

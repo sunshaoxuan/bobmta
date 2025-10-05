@@ -1,7 +1,9 @@
 package com.bob.mta.modules.template.controller;
 
 import com.bob.mta.common.api.ApiResponse;
+import com.bob.mta.common.i18n.InMemoryMultilingualTextRepository;
 import com.bob.mta.common.i18n.MessageResolver;
+import com.bob.mta.common.i18n.MultilingualTextService;
 import com.bob.mta.common.i18n.TestMessageResolverFactory;
 import com.bob.mta.modules.audit.service.AuditRecorder;
 import com.bob.mta.modules.audit.service.impl.InMemoryAuditService;
@@ -10,7 +12,12 @@ import com.bob.mta.modules.template.dto.CreateTemplateRequest;
 import com.bob.mta.modules.template.dto.RenderedTemplateResponse;
 import com.bob.mta.modules.template.dto.TemplateResponse;
 import com.bob.mta.modules.template.dto.UpdateTemplateRequest;
-import com.bob.mta.modules.template.service.impl.InMemoryTemplateService;
+import com.bob.mta.modules.template.repository.InMemoryTemplateRepository;
+import com.bob.mta.modules.template.service.TemplateService;
+import com.bob.mta.modules.template.service.impl.TemplateServiceImpl;
+import com.bob.mta.i18n.Localization;
+import com.bob.mta.i18n.LocalePreferenceService;
+import com.bob.mta.i18n.LocaleSettingsRepository;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -20,22 +27,38 @@ import org.springframework.security.authentication.TestingAuthenticationToken;
 import org.springframework.security.core.context.SecurityContextHolder;
 
 import java.util.Locale;
+import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
 class TemplateControllerTest {
 
     private TemplateController controller;
-    private InMemoryTemplateService templateService;
+    private TemplateService templateService;
     private MessageResolver messageResolver;
+    private LocalePreferenceService localePreferenceService;
 
     @BeforeEach
     void setUp() {
         LocaleContextHolder.setLocale(Locale.SIMPLIFIED_CHINESE);
-        templateService = new InMemoryTemplateService();
+        templateService = new TemplateServiceImpl(new InMemoryTemplateRepository(),
+                new MultilingualTextService(new InMemoryMultilingualTextRepository()));
+        localePreferenceService = new LocalePreferenceService(new LocaleSettingsRepository() {
+            private String defaultLocale = Localization.getDefaultLocale().toLanguageTag();
+
+            @Override
+            public String getDefaultLocale() {
+                return defaultLocale;
+            }
+
+            @Override
+            public void updateDefaultLocale(String locale) {
+                this.defaultLocale = locale;
+            }
+        });
         AuditRecorder recorder = new AuditRecorder(new InMemoryAuditService(), new ObjectMapper());
         messageResolver = TestMessageResolverFactory.create();
-        controller = new TemplateController(templateService, recorder, messageResolver);
+        controller = new TemplateController(templateService, recorder, messageResolver, localePreferenceService);
         SecurityContextHolder.getContext().setAuthentication(new TestingAuthenticationToken("admin", "pass", "ROLE_ADMIN"));
     }
 
