@@ -1,5 +1,6 @@
 package com.bob.mta.modules.tag.controller;
 
+import com.bob.mta.common.exception.ErrorCode;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.DisplayName;
@@ -85,6 +86,17 @@ class TagControllerTest {
                         .param("entityType", "Tag"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data[0].action").value("CREATE_TAG"));
+    }
+
+    @Test
+    void shouldReturnTagNotFoundError() throws Exception {
+        String token = authenticate();
+
+        mockMvc.perform(get("/api/v1/tags/{id}", 9_999)
+                        .header("Authorization", "Bearer " + token))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.code").value(ErrorCode.TAG_NOT_FOUND.getCode()))
+                .andExpect(jsonPath("$.message").value(ErrorCode.TAG_NOT_FOUND.getDefaultMessage()));
     }
 
     private String authenticate() throws Exception {

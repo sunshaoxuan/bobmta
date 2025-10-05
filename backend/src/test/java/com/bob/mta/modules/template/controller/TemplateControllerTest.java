@@ -1,7 +1,10 @@
 package com.bob.mta.modules.template.controller;
 
 import com.bob.mta.common.api.ApiResponse;
+import com.bob.mta.common.exception.BusinessException;
+import com.bob.mta.common.exception.ErrorCode;
 import com.bob.mta.common.i18n.InMemoryMultilingualTextRepository;
+import com.bob.mta.common.i18n.MultilingualTextPayload;
 import com.bob.mta.common.i18n.MessageResolver;
 import com.bob.mta.common.i18n.MultilingualTextService;
 import com.bob.mta.common.i18n.TestMessageResolverFactory;
@@ -30,6 +33,7 @@ import java.util.Locale;
 import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class TemplateControllerTest {
 
@@ -114,6 +118,14 @@ class TemplateControllerTest {
         assertThat(rendered.getData().getMetadata().get("protocol")).isEqualTo("RDP");
         assertThat(rendered.getData().getMetadata().get("host")).isEqualTo("192.168.1.10");
         assertThat(rendered.getData().getMetadata().get("username")).isEqualTo("ops");
+    }
+
+    @Test
+    void shouldReturnTemplateNotFoundError() {
+        assertThatThrownBy(() -> controller.get(9_999, "ja-JP"))
+                .isInstanceOf(BusinessException.class)
+                .extracting(ex -> ((BusinessException) ex).getErrorCode())
+                .isEqualTo(ErrorCode.TEMPLATE_NOT_FOUND);
     }
 
     private CreateTemplateRequest buildRequest() {
