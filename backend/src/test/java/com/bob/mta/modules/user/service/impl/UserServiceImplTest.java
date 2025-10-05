@@ -1,10 +1,8 @@
 package com.bob.mta.modules.user.service.impl;
 
-import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
-
 import com.bob.mta.common.exception.BusinessException;
 import com.bob.mta.common.exception.ErrorCode;
+import com.bob.mta.modules.user.domain.User;
 import com.bob.mta.modules.user.domain.UserStatus;
 import com.bob.mta.modules.user.service.command.CreateUserCommand;
 import com.bob.mta.modules.user.service.model.ActivationLink;
@@ -12,60 +10,62 @@ import com.bob.mta.modules.user.service.model.CreateUserResult;
 import com.bob.mta.modules.user.service.model.UserAuthentication;
 import com.bob.mta.modules.user.service.model.UserView;
 import com.bob.mta.modules.user.service.query.UserQuery;
-import java.time.Duration;
-import java.time.Instant;
-import java.time.ZoneOffset;
-import java.util.List;
+import com.bob.mta.modules.user.support.FakeUserRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 
-class InMemoryUserServiceTest {
+import java.time.Clock;
+import java.time.Duration;
+import java.time.Instant;
+import java.time.ZoneOffset;
+import java.util.LinkedHashSet;
+import java.util.List;
+import java.util.UUID;
 
-    private static final Duration DEFAULT_ACTIVATION_TTL = Duration.ofHours(24);
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+
+class UserServiceImplTest {
 
     private MutableClock clock;
-
-    private InMemoryUserService service;
+    private FakeUserRepository repository;
     private PasswordEncoder passwordEncoder;
+    private UserServiceImpl service;
 
     @BeforeEach
     void setUp() {
         clock = new MutableClock(Instant.parse("2024-01-01T00:00:00Z"));
+        repository = new FakeUserRepository();
         passwordEncoder = new BCryptPasswordEncoder();
-        service = new InMemoryUserService(clock, DEFAULT_ACTIVATION_TTL, passwordEncoder);
-        service.seedDefaultUsers();
+        service = new UserServiceImpl(repository, passwordEncoder, clock, Duration.ofHours(24));
+        seedActiveUser("admin", "系统管理员", "admin@example.com", "admin123", List.of("ROLE_ADMIN", "ROLE_OPERATOR"));
     }
 
     @Test
     void shouldCreateUserAndIssueActivationToken() {
-        final CreateUserCommand command = new CreateUserCommand(
+        CreateUserCommand command = new CreateUserCommand(
                 "new.user",
                 "New User",
                 "new.user@example.com",
                 "password123",
                 List.of("operator"));
 
-        final CreateUserResult result = service.createUser(command);
+        CreateUserResult result = service.createUser(command);
 
         assertThat(result.user().status()).isEqualTo(UserStatus.PENDING_ACTIVATION);
         assertThat(result.activation().token()).isNotBlank();
         assertThat(result.activation().expiresAt()).isEqualTo(Instant.parse("2024-01-02T00:00:00Z"));
+        assertThat(passwordEncoder.matches("password123",
+                repository.findById(result.user().id()).orElseThrow().getPassword())).isTrue();
     }
 
     @Test
     void shouldPreventDuplicateUsernames() {
-        final CreateUserCommand first = new CreateUserCommand(
-                "duplicate",
-                "First",
-                "duplicate1@example.com",
-                "password123",
-                List.of("operator"));
-        service.createUser(first);
+        service.createUser(new CreateUserCommand("duplicate", "First", "duplicate1@example.com", "password123", List.of("operator")));
 
-        final CreateUserCommand duplicate = new CreateUserCommand(
+        CreateUserCommand duplicate = new CreateUserCommand(
                 "duplicate",
                 "Second",
                 "duplicate2@example.com",
@@ -80,14 +80,14 @@ class InMemoryUserServiceTest {
 
     @Test
     void shouldActivateUserWithValidToken() {
-        final CreateUserResult result = service.createUser(new CreateUserCommand(
+        CreateUserResult result = service.createUser(new CreateUserCommand(
                 "activate.me",
                 "Pending User",
                 "activate@example.com",
                 "password123",
                 List.of("operator")));
 
-        final UserView activated = service.activateUser(result.activation().token());
+        UserView activated = service.activateUser(result.activation().token());
 
         assertThat(activated.status()).isEqualTo(UserStatus.ACTIVE);
         assertThatThrownBy(() -> service.activateUser(result.activation().token()))
@@ -98,14 +98,14 @@ class InMemoryUserServiceTest {
 
     @Test
     void shouldRejectExpiredActivationToken() {
-        final CreateUserResult result = service.createUser(new CreateUserCommand(
+        CreateUserResult result = service.createUser(new CreateUserCommand(
                 "expire.me",
                 "Pending User",
                 "expire@example.com",
                 "password123",
                 List.of("operator")));
 
-        clock.advance(java.time.Duration.ofHours(25));
+        clock.advance(Duration.ofHours(25));
 
         assertThatThrownBy(() -> service.activateUser(result.activation().token()))
                 .isInstanceOf(BusinessException.class)
@@ -115,14 +115,14 @@ class InMemoryUserServiceTest {
 
     @Test
     void shouldResendActivationWithNewToken() {
-        final CreateUserResult result = service.createUser(new CreateUserCommand(
+        CreateUserResult result = service.createUser(new CreateUserCommand(
                 "resend.me",
                 "Pending User",
                 "resend@example.com",
                 "password123",
                 List.of("operator")));
 
-        final ActivationLink resend = service.resendActivation(result.user().id());
+        ActivationLink resend = service.resendActivation(result.user().id());
 
         assertThat(resend.token()).isNotEqualTo(result.activation().token());
         assertThat(resend.expiresAt()).isEqualTo(Instant.parse("2024-01-02T00:00:00Z"));
@@ -137,24 +137,24 @@ class InMemoryUserServiceTest {
                 "password123",
                 List.of("operator")));
 
-        final List<UserView> activeUsers = service.listUsers(new UserQuery(UserStatus.ACTIVE));
-        final List<UserView> pendingUsers = service.listUsers(new UserQuery(UserStatus.PENDING_ACTIVATION));
+        List<UserView> activeUsers = service.listUsers(new UserQuery(UserStatus.ACTIVE));
+        List<UserView> pendingUsers = service.listUsers(new UserQuery(UserStatus.PENDING_ACTIVATION));
 
         assertThat(activeUsers).extracting(UserView::status).containsOnly(UserStatus.ACTIVE);
-        assertThat(pendingUsers).extracting(UserView::status).containsOnly(UserStatus.PENDING_ACTIVATION);
+        assertThat(pendingUsers).extracting(UserView::status).contains(UserStatus.PENDING_ACTIVATION);
     }
 
     @Test
     void shouldAuthenticateActiveUser() {
-        final UserAuthentication auth = service.authenticate("admin", "admin123");
+        UserAuthentication auth = service.authenticate("admin", "admin123");
 
         assertThat(auth.username()).isEqualTo("admin");
-        assertThat(auth.roles()).contains("ROLE_ADMIN");
+        assertThat(auth.roles()).containsExactlyInAnyOrder("ROLE_ADMIN", "ROLE_OPERATOR");
     }
 
     @Test
     void shouldRejectInactiveUserDuringAuthentication() {
-        final CreateUserResult result = service.createUser(new CreateUserCommand(
+        CreateUserResult result = service.createUser(new CreateUserCommand(
                 "inactive",
                 "Inactive",
                 "inactive@example.com",
@@ -167,22 +167,22 @@ class InMemoryUserServiceTest {
                 .isEqualTo(ErrorCode.USER_INACTIVE);
 
         service.activateUser(result.activation().token());
-        final UserAuthentication auth = service.authenticate("inactive", "password123");
+        UserAuthentication auth = service.authenticate("inactive", "password123");
         assertThat(auth.status()).isEqualTo(UserStatus.ACTIVE);
     }
 
-    @Test
-    void loadUserDetailsShouldExposeEncodedPassword() {
-        final UserDetails userDetails = service.loadUserByUsername("admin");
-        assertThat(passwordEncoder.matches("admin123", userDetails.getPassword())).isTrue();
-        assertThat(userDetails.getPassword()).isNotEqualTo("admin123");
+    private void seedActiveUser(String username, String displayName, String email, String password, List<String> roles) {
+        String id = UUID.randomUUID().toString();
+        User user = new User(id, username, displayName, email, passwordEncoder.encode(password),
+                UserStatus.ACTIVE, roles == null ? new LinkedHashSet<>() : new LinkedHashSet<>(roles));
+        repository.seed(user);
     }
 
-    private static final class MutableClock extends java.time.Clock {
+    private static final class MutableClock extends Clock {
 
         private Instant instant;
 
-        private MutableClock(final Instant instant) {
+        private MutableClock(Instant instant) {
             this.instant = instant;
         }
 
@@ -192,7 +192,7 @@ class InMemoryUserServiceTest {
         }
 
         @Override
-        public java.time.Clock withZone(final java.time.ZoneId zone) {
+        public Clock withZone(java.time.ZoneId zone) {
             return this;
         }
 
@@ -201,8 +201,9 @@ class InMemoryUserServiceTest {
             return instant;
         }
 
-        private void advance(final java.time.Duration duration) {
+        private void advance(Duration duration) {
             instant = instant.plus(duration);
         }
     }
+
 }

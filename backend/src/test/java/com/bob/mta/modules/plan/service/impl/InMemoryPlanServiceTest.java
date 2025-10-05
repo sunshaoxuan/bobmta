@@ -53,7 +53,8 @@ class InMemoryPlanServiceTest {
     private final RecordingNotificationGateway notificationGateway = new RecordingNotificationGateway();
     private final MessageResolver messageResolver = TestMessageResolverFactory.create();
     private final InMemoryPlanService service = new InMemoryPlanService(new InMemoryFileService(), repository,
-            analyticsRepository, actionHistoryRepository, templateService, notificationGateway, messageResolver);
+            analyticsRepository, actionHistoryRepository, templateService,
+            notificationGateway, notificationGateway, notificationGateway, messageResolver);
 
     @BeforeEach
     void setUpLocale() {

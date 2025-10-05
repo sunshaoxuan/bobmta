@@ -39,12 +39,14 @@ public class TemplateController {
     private final TemplateService templateService;
     private final AuditRecorder auditRecorder;
     private final MessageResolver messageResolver;
+    private final LocalePreferenceService localePreferenceService;
 
     public TemplateController(TemplateService templateService, AuditRecorder auditRecorder,
-                              MessageResolver messageResolver) {
+                              MessageResolver messageResolver, LocalePreferenceService localePreferenceService) {
         this.templateService = templateService;
         this.auditRecorder = auditRecorder;
         this.messageResolver = messageResolver;
+        this.localePreferenceService = localePreferenceService;
     }
 
     @GetMapping

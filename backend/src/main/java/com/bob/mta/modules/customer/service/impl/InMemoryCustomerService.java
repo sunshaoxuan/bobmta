@@ -6,6 +6,7 @@ import com.bob.mta.common.exception.ErrorCode;
 import com.bob.mta.i18n.Localization;
 import com.bob.mta.i18n.LocalizationKeys;
 import com.bob.mta.modules.customer.domain.Customer;
+import com.bob.mta.modules.customer.persistence.CustomerMapper;
 import com.bob.mta.modules.customer.dto.CustomerDetailResponse;
 import com.bob.mta.modules.customer.dto.CustomerSummaryResponse;
 import com.bob.mta.modules.customer.service.CustomerService;
@@ -15,6 +16,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.stream.Collectors;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
@@ -22,6 +24,7 @@ import org.springframework.util.StringUtils;
  * In-memory implementation providing design-time data for API contracts.
  */
 @Service
+@ConditionalOnMissingBean(CustomerMapper.class)
 public class InMemoryCustomerService implements CustomerService {
 
     private final List<Customer> customers;

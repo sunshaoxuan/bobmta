@@ -1,9 +1,11 @@
 package com.bob.mta.modules.plan.service.impl;
 
 import com.bob.mta.modules.notification.ApiCallRequest;
+import com.bob.mta.modules.notification.ApiNotificationAdapter;
 import com.bob.mta.modules.notification.EmailMessage;
+import com.bob.mta.modules.notification.EmailNotificationAdapter;
 import com.bob.mta.modules.notification.InstantMessage;
-import com.bob.mta.modules.notification.NotificationGateway;
+import com.bob.mta.modules.notification.InstantMessageNotificationAdapter;
 import com.bob.mta.modules.notification.NotificationResult;
 
 import java.util.ArrayList;
@@ -11,7 +13,8 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-public class RecordingNotificationGateway implements NotificationGateway {
+public class RecordingNotificationGateway implements EmailNotificationAdapter,
+        InstantMessageNotificationAdapter, ApiNotificationAdapter {
 
     private final List<EmailMessage> emails = new ArrayList<>();
     private final List<InstantMessage> instantMessages = new ArrayList<>();
@@ -27,7 +30,8 @@ public class RecordingNotificationGateway implements NotificationGateway {
     private String apiError = "api.failed";
 
     @Override
-    public NotificationResult sendEmail(EmailMessage message) {
+    @Override
+    public NotificationResult send(EmailMessage message) {
         emails.add(message);
         boolean shouldFail = emailAlwaysFail || emailFailuresRemaining > 0;
         if (emailFailuresRemaining > 0) {
@@ -45,7 +49,7 @@ public class RecordingNotificationGateway implements NotificationGateway {
     }
 
     @Override
-    public NotificationResult sendInstantMessage(InstantMessage message) {
+    public NotificationResult send(InstantMessage message) {
         instantMessages.add(message);
         boolean shouldFail = imAlwaysFail || imFailuresRemaining > 0;
         if (imFailuresRemaining > 0) {
@@ -58,7 +62,7 @@ public class RecordingNotificationGateway implements NotificationGateway {
     }
 
     @Override
-    public NotificationResult invokeApiCall(ApiCallRequest request) {
+    public NotificationResult invoke(ApiCallRequest request) {
         apiCalls.add(request);
         boolean shouldFail = apiAlwaysFail || apiFailuresRemaining > 0;
         if (apiFailuresRemaining > 0) {

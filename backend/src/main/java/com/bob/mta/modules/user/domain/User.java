@@ -1,4 +1,4 @@
-package com.bob.mta.modules.user.domain;
+﻿package com.bob.mta.modules.user.domain;
 
 import java.util.Collections;
 import java.util.LinkedHashSet;
@@ -72,9 +72,20 @@ public class User {
         return activationToken;
     }
 
+    /**
+     * Returns the stored password hash. This retains compatibility with existing persistence mappers.
+     */
+    public String getPassword() {
+        return passwordHash;
+    }
+
     public void issueActivationToken(final ActivationToken token) {
         this.activationToken = Objects.requireNonNull(token, "token");
         markPendingActivation();
+    }
+
+    public void restoreActivationToken(final ActivationToken token) {
+        this.activationToken = Objects.requireNonNull(token, "token");
     }
 
     public boolean passwordMatches(final String rawPassword, final PasswordEncoder passwordEncoder) {

@@ -4,16 +4,19 @@ import com.bob.mta.common.i18n.InMemoryMultilingualTextRepository;
 import com.bob.mta.common.i18n.MultilingualText;
 import com.bob.mta.common.i18n.MultilingualTextService;
 import com.bob.mta.modules.template.domain.TemplateType;
+import com.bob.mta.modules.template.repository.InMemoryTemplateRepository;
 import org.junit.jupiter.api.Test;
 
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-class InMemoryTemplateServiceTest {
+class TemplateServiceImplTest {
 
-    private final InMemoryTemplateService service = new InMemoryTemplateService(new MultilingualTextService(new InMemoryMultilingualTextRepository()));
+    private final TemplateServiceImpl service = new TemplateServiceImpl(new InMemoryTemplateRepository(),
+            new MultilingualTextService(new InMemoryMultilingualTextRepository()));
 
     @Test
     void shouldRenderTemplate() {
@@ -26,7 +29,7 @@ class InMemoryTemplateServiceTest {
 
     @Test
     void shouldListByType() {
-        service.create(TemplateType.IM, text("IM"), text(""), text("{{message}}"), null, null, null, true, null);
+        service.create(TemplateType.IM, text("IM"), text(""), text("{{message}}"), List.of("ops"), null, null, true, null);
         assertThat(service.list(TemplateType.IM, Locale.JAPAN)).isNotEmpty();
     }
 
@@ -42,7 +45,25 @@ class InMemoryTemplateServiceTest {
         assertThat(rendered.getAttachmentContentType()).isEqualTo("application/x-rdp");
         assertThat(rendered.getMetadata().get("protocol")).isEqualTo("RDP");
         assertThat(rendered.getMetadata().get("username")).isEqualTo("svc");
-}
+    }
+
+    @Test
+    void shouldUpdateTemplateRecipientsAndDescription() {
+        var created = service.create(TemplateType.EMAIL, text("Initial"), text("Subject"),
+                text("Hello"), List.of("ops@old"), null, null, true, text("Desc"));
+
+        service.update(created.getId(), text("Updated"), text("New subject"), text("Body"),
+                List.of("ops@new"), List.of("cc@new"), "https://updated.example.com", false, text("New desc"));
+
+        var fetched = service.get(created.getId(), Locale.JAPAN);
+        assertThat(fetched.getName().getValueOrDefault("ja-JP")).isEqualTo("Updated");
+        assertThat(fetched.getSubject().getValueOrDefault("ja-JP")).isEqualTo("New subject");
+        assertThat(fetched.getTo()).containsExactly("ops@new");
+        assertThat(fetched.getCc()).containsExactly("cc@new");
+        assertThat(fetched.getEndpoint()).isEqualTo("https://updated.example.com");
+        assertThat(fetched.isEnabled()).isFalse();
+        assertThat(fetched.getDescription().getValueOrDefault("ja-JP")).isEqualTo("New desc");
+    }
 
     private MultilingualText text(String value) {
         return MultilingualText.of("ja-JP", Map.of(
