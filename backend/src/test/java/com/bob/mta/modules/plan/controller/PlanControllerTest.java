@@ -87,7 +87,7 @@ class PlanControllerTest {
         notificationGateway = new RecordingNotificationGateway();
         planService = new InMemoryPlanService(fileService, planRepository,
                 new InMemoryPlanAnalyticsRepository(planRepository), actionHistoryRepository,
-                templateService, notificationGateway, messageResolver);
+                templateService, notificationGateway, notificationGateway, notificationGateway, messageResolver);
         auditService = new InMemoryAuditService();
         AuditRecorder recorder = new AuditRecorder(auditService, new ObjectMapper());
         controller = new PlanController(planService, recorder, fileService, messageResolver);

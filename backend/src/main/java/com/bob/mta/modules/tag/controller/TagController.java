@@ -3,6 +3,7 @@ package com.bob.mta.modules.tag.controller;
 import com.bob.mta.common.api.ApiResponse;
 import com.bob.mta.common.i18n.MessageResolver;
 import com.bob.mta.modules.audit.service.AuditRecorder;
+import com.bob.mta.i18n.LocalePreferenceService;
 import com.bob.mta.modules.customer.service.CustomerService;
 import com.bob.mta.modules.plan.service.PlanService;
 import com.bob.mta.modules.tag.domain.TagAssignment;
@@ -41,14 +42,17 @@ public class TagController {
     private final PlanService planService;
     private final AuditRecorder auditRecorder;
     private final MessageResolver messageResolver;
+    private final LocalePreferenceService localePreferenceService;
 
     public TagController(TagService tagService, CustomerService customerService, PlanService planService,
-                         AuditRecorder auditRecorder, MessageResolver messageResolver) {
+                         AuditRecorder auditRecorder, MessageResolver messageResolver,
+                         LocalePreferenceService localePreferenceService) {
         this.tagService = tagService;
         this.customerService = customerService;
         this.planService = planService;
         this.auditRecorder = auditRecorder;
         this.messageResolver = messageResolver;
+        this.localePreferenceService = localePreferenceService;
     }
 
     @GetMapping

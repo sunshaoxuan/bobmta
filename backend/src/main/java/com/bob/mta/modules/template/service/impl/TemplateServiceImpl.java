@@ -10,6 +10,8 @@ import com.bob.mta.i18n.LocalizationKeys;
 import com.bob.mta.modules.template.domain.RenderedTemplate;
 import com.bob.mta.modules.template.domain.TemplateDefinition;
 import com.bob.mta.modules.template.domain.TemplateType;
+import com.bob.mta.modules.template.persistence.TemplateEntity;
+import com.bob.mta.modules.template.repository.TemplateRepository;
 import com.bob.mta.modules.template.service.TemplateService;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
@@ -22,50 +24,26 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.atomic.AtomicLong;
 
 @Service
-public class InMemoryTemplateService implements TemplateService {
+public class TemplateServiceImpl implements TemplateService {
 
-    private final AtomicLong idGenerator = new AtomicLong(500);
-    private final Map<Long, TemplateDefinition> definitions = new ConcurrentHashMap<>();
+    private final TemplateRepository repository;
     private final MultilingualTextService multilingualTextService;
+    private final Map<Long, TemplateDefinition> cache = new ConcurrentHashMap<>();
 
-    public InMemoryTemplateService(MultilingualTextService multilingualTextService) {
+    public TemplateServiceImpl(TemplateRepository repository, MultilingualTextService multilingualTextService) {
+        this.repository = repository;
         this.multilingualTextService = multilingualTextService;
-        seedDefaults();
-    }
-
-    private void seedDefaults() {
-        create(TemplateType.EMAIL,
-                seedText(LocalizationKeys.Seeds.TEMPLATE_EMAIL_NAME),
-                seedText(LocalizationKeys.Seeds.TEMPLATE_EMAIL_SUBJECT),
-                seedText(LocalizationKeys.Seeds.TEMPLATE_EMAIL_CONTENT),
-                List.of("ops@customer.com"), List.of(), null, true,
-                seedText(LocalizationKeys.Seeds.TEMPLATE_EMAIL_DESCRIPTION));
-        create(TemplateType.REMOTE,
-                seedText(LocalizationKeys.Seeds.TEMPLATE_REMOTE_NAME),
-                null,
-                seedText(LocalizationKeys.Seeds.TEMPLATE_REMOTE_CONTENT),
-                List.of(), List.of(), "rdp://{{host}}?username={{username}}", true,
-                seedText(LocalizationKeys.Seeds.TEMPLATE_REMOTE_DESCRIPTION));
-    }
-
-    private MultilingualText seedText(String code) {
-        Locale defaultLocale = Localization.getDefaultLocale();
-        Map<String, String> translations = Map.of(
-                defaultLocale.toLanguageTag(), Localization.text(defaultLocale, code),
-                Locale.CHINA.toLanguageTag(), Localization.text(Locale.CHINA, code)
-        );
-        return MultilingualText.of(defaultLocale.toLanguageTag(), translations);
     }
 
     @Override
     public List<TemplateDefinition> list(TemplateType type, Locale locale) {
         String localeTag = locale == null ? null : locale.toLanguageTag();
-        return definitions.values().stream()
-                .filter(def -> type == null || def.getType() == type)
+        return repository.findAll(type).stream()
+                .map(this::toDefinition)
                 .sorted((a, b) -> a.getName().getValueOrDefault(localeTag)
                         .compareToIgnoreCase(b.getName().getValueOrDefault(localeTag)))
                 .toList();
@@ -77,49 +55,56 @@ public class InMemoryTemplateService implements TemplateService {
     }
 
     @Override
-    public TemplateDefinition create(TemplateType type, MultilingualText name, MultilingualText subject, MultilingualText content, List<String> to,
-                                     List<String> cc, String endpoint, boolean enabled, MultilingualText description) {
-        long id = idGenerator.incrementAndGet();
-        TemplateDefinition definition = new TemplateDefinition(id, type, name, subject, content, to, cc, endpoint,
-                enabled, description, OffsetDateTime.now(), OffsetDateTime.now());
-        definitions.put(id, definition);
-        multilingualTextService.upsert(MultilingualTextScope.TEMPLATE_DEFINITION, String.valueOf(id), "name", name);
-        if (subject != null) {
-            multilingualTextService.upsert(MultilingualTextScope.TEMPLATE_DEFINITION, String.valueOf(id), "subject", subject);
-        }
-        if (content != null) {
-            multilingualTextService.upsert(MultilingualTextScope.TEMPLATE_DEFINITION, String.valueOf(id), "content", content);
-        }
-        if (description != null) {
-            multilingualTextService.upsert(MultilingualTextScope.TEMPLATE_DEFINITION, String.valueOf(id), "description", description);
-        }
-        return definition;
+    public TemplateDefinition create(TemplateType type, MultilingualText name, MultilingualText subject,
+                                     MultilingualText content, List<String> to, List<String> cc,
+                                     String endpoint, boolean enabled, MultilingualText description) {
+        OffsetDateTime now = OffsetDateTime.now();
+        TemplateEntity entity = new TemplateEntity();
+        entity.setType(type);
+        entity.setToRecipients(normalizeRecipients(to));
+        entity.setCcRecipients(normalizeRecipients(cc));
+        entity.setEndpoint(trimToNull(endpoint));
+        entity.setEnabled(enabled);
+        entity.setCreatedAt(now);
+        entity.setUpdatedAt(now);
+        TemplateEntity inserted = repository.insert(entity);
+        long id = inserted.getId();
+        storeText(id, "name", name);
+        storeText(id, "subject", subject);
+        storeText(id, "content", content);
+        storeText(id, "description", description);
+        cache.remove(id);
+        return require(id);
     }
 
     @Override
-    public TemplateDefinition update(long id, MultilingualText name, MultilingualText subject, MultilingualText content, List<String> to, List<String> cc,
-                                     String endpoint, boolean enabled, MultilingualText description) {
-        TemplateDefinition definition = require(id);
-        TemplateDefinition updated = new TemplateDefinition(id, definition.getType(), name, subject, content, to, cc,
-                endpoint, enabled, description, definition.getCreatedAt(), OffsetDateTime.now());
-        definitions.put(id, updated);
-        multilingualTextService.upsert(MultilingualTextScope.TEMPLATE_DEFINITION, String.valueOf(id), "name", name);
-        if (subject != null) {
-            multilingualTextService.upsert(MultilingualTextScope.TEMPLATE_DEFINITION, String.valueOf(id), "subject", subject);
-        }
-        if (content != null) {
-            multilingualTextService.upsert(MultilingualTextScope.TEMPLATE_DEFINITION, String.valueOf(id), "content", content);
-        }
-        if (description != null) {
-            multilingualTextService.upsert(MultilingualTextScope.TEMPLATE_DEFINITION, String.valueOf(id), "description", description);
-        }
-        return updated;
+    public TemplateDefinition update(long id, MultilingualText name, MultilingualText subject, MultilingualText content,
+                                     List<String> to, List<String> cc, String endpoint, boolean enabled,
+                                     MultilingualText description) {
+        TemplateDefinition existing = require(id);
+        TemplateEntity entity = new TemplateEntity();
+        entity.setId(id);
+        entity.setType(existing.getType());
+        entity.setToRecipients(normalizeRecipients(to));
+        entity.setCcRecipients(normalizeRecipients(cc));
+        entity.setEndpoint(trimToNull(endpoint));
+        entity.setEnabled(enabled);
+        entity.setCreatedAt(existing.getCreatedAt());
+        entity.setUpdatedAt(OffsetDateTime.now());
+        repository.update(entity);
+        storeText(id, "name", name);
+        storeText(id, "subject", subject);
+        storeText(id, "content", content);
+        storeText(id, "description", description);
+        cache.remove(id);
+        return require(id);
     }
 
     @Override
     public void delete(long id) {
         require(id);
-        definitions.remove(id);
+        repository.delete(id);
+        cache.remove(id);
     }
 
     @Override
@@ -131,26 +116,76 @@ public class InMemoryTemplateService implements TemplateService {
         }
         Map<String, String> safeContext = normalizeContext(context);
         String localeTag = locale == null ? null : locale.toLanguageTag();
-        String subject = replacePlaceholders(definition.getSubject() == null ? null : definition.getSubject().getValueOrDefault(localeTag), safeContext);
-        String content = replacePlaceholders(definition.getContent() == null ? null : definition.getContent().getValueOrDefault(localeTag), safeContext);
-        List<String> to = definition.getTo().stream().map(value -> replacePlaceholders(value, safeContext)).toList();
-        List<String> cc = definition.getCc().stream().map(value -> replacePlaceholders(value, safeContext)).toList();
+        String subject = replacePlaceholders(definition.getSubject() == null ? null
+                : definition.getSubject().getValueOrDefault(localeTag), safeContext);
+        String contentValue = replacePlaceholders(definition.getContent() == null ? null
+                : definition.getContent().getValueOrDefault(localeTag), safeContext);
+        List<String> toRecipients = definition.getTo().stream()
+                .map(value -> replacePlaceholders(value, safeContext))
+                .toList();
+        List<String> ccRecipients = definition.getCc().stream()
+                .map(value -> replacePlaceholders(value, safeContext))
+                .toList();
         String endpoint = replacePlaceholders(definition.getEndpoint(), safeContext);
 
         RemoteArtifact artifact = definition.getType() == TemplateType.REMOTE
                 ? buildRemoteArtifact(definition, endpoint, localeTag)
                 : RemoteArtifact.empty();
 
-        return new RenderedTemplate(subject, content, to, cc, endpoint,
+        return new RenderedTemplate(subject, contentValue, toRecipients, ccRecipients, endpoint,
                 artifact.fileName(), artifact.content(), artifact.contentType(), artifact.metadata());
     }
 
+    private TemplateDefinition toDefinition(TemplateEntity entity) {
+        long id = Optional.ofNullable(entity.getId()).orElseThrow(() ->
+                new IllegalStateException("Template entity missing id"));
+        return cache.computeIfAbsent(id, ignored -> {
+            MultilingualText name = loadText(id, "name")
+                    .orElseThrow(() -> new IllegalStateException("Template name missing for id=" + id));
+            MultilingualText subject = loadText(id, "subject").orElse(null);
+            MultilingualText content = loadText(id, "content").orElse(null);
+            MultilingualText description = loadText(id, "description").orElse(null);
+            List<String> toRecipients = entity.getToRecipients() == null ? List.of()
+                    : List.copyOf(entity.getToRecipients());
+            List<String> ccRecipients = entity.getCcRecipients() == null ? List.of()
+                    : List.copyOf(entity.getCcRecipients());
+            return new TemplateDefinition(id, entity.getType(), name, subject, content, toRecipients, ccRecipients,
+                    entity.getEndpoint(), entity.isEnabled(), description, entity.getCreatedAt(), entity.getUpdatedAt());
+        });
+    }
+
     private TemplateDefinition require(long id) {
-        TemplateDefinition definition = definitions.get(id);
-        if (definition == null) {
-            throw new BusinessException(ErrorCode.TEMPLATE_NOT_FOUND);
+        return repository.findById(id)
+                .map(this::toDefinition)
+                .orElseThrow(() -> new BusinessException(ErrorCode.TEMPLATE_NOT_FOUND));
+    }
+
+    private void storeText(long id, String field, MultilingualText text) {
+        if (text == null) {
+            return;
         }
-        return definition;
+        multilingualTextService.upsert(MultilingualTextScope.TEMPLATE_DEFINITION, String.valueOf(id), field, text);
+    }
+
+    private Optional<MultilingualText> loadText(long id, String field) {
+        return multilingualTextService.find(MultilingualTextScope.TEMPLATE_DEFINITION, String.valueOf(id), field);
+    }
+
+    private List<String> normalizeRecipients(List<String> recipients) {
+        if (recipients == null || recipients.isEmpty()) {
+            return List.of();
+        }
+        return recipients.stream()
+                .filter(StringUtils::hasText)
+                .map(String::trim)
+                .toList();
+    }
+
+    private String trimToNull(String value) {
+        if (!StringUtils.hasText(value)) {
+            return null;
+        }
+        return value.trim();
     }
 
     private String replacePlaceholders(String template, Map<String, String> context) {
@@ -200,7 +235,8 @@ public class InMemoryTemplateService implements TemplateService {
             }
 
             if ("rdp".equals(scheme) && host != null) {
-                String fileName = definition.getName().getValueOrDefault(localeTag).replaceAll("\\s+", "-").toLowerCase(Locale.ROOT) + ".rdp";
+                String fileName = definition.getName().getValueOrDefault(localeTag)
+                        .replaceAll("\\s+", "-").toLowerCase(Locale.ROOT) + ".rdp";
                 int port = uri.getPort() > 0 ? uri.getPort() : 3389;
                 String username = metadata.getOrDefault("username", "");
                 StringBuilder builder = new StringBuilder();
