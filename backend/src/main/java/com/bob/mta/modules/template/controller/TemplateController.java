@@ -83,7 +83,7 @@ public class TemplateController {
                 request.getCc(),
                 request.getEndpoint(),
                 request.isEnabled(),
-                request.getDescription());
+                request.getDescription() == null ? null : request.getDescription().toValue());
         auditRecorder.record("Template", String.valueOf(definition.getId()), "CREATE_TEMPLATE",
                 messageResolver.getMessage("audit.template.create"),
                 null, TemplateResponse.from(definition));
@@ -106,7 +106,7 @@ public class TemplateController {
                 request.getCc(),
                 request.getEndpoint(),
                 request.isEnabled(),
-                request.getDescription());
+                request.getDescription() == null ? null : request.getDescription().toValue());
         auditRecorder.record("Template", String.valueOf(id), "UPDATE_TEMPLATE",
                 messageResolver.getMessage("audit.template.update"),
                 TemplateResponse.from(before), TemplateResponse.from(updated));

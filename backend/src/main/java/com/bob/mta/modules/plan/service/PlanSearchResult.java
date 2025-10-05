@@ -7,8 +7,13 @@ import java.util.List;
 public record PlanSearchResult(List<Plan> plans, int totalCount) {
 
     public PlanSearchResult {
-        List<Plan> safePlans = plans == null ? List.of() : List.copyOf(plans);
-        this.plans = safePlans;
-        this.totalCount = Math.max(0, totalCount);
+        if (plans == null) {
+            plans = List.of();
+        } else {
+            plans = List.copyOf(plans);
+        }
+        if (totalCount < 0) {
+            totalCount = 0;
+        }
     }
 }

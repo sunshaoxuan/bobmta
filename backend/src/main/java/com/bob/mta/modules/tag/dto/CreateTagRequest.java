@@ -2,6 +2,7 @@ package com.bob.mta.modules.tag.dto;
 
 import com.bob.mta.common.i18n.MultilingualTextPayload;
 import com.bob.mta.modules.tag.domain.TagScope;
+import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 
 public class CreateTagRequest {

@@ -28,7 +28,10 @@ public class AuditRecorder {
         String username = authentication != null ? authentication.getName() : "system";
         String oldJson = toJson(oldData);
         String newJson = toJson(newData);
-        String requestId = MDC.getOrDefault("requestId", UUID.randomUUID().toString());
+        String requestId = MDC.get("requestId");
+        if (requestId == null) {
+            requestId = UUID.randomUUID().toString();
+        }
         AuditLog log = new AuditLog(
                 0L,
                 OffsetDateTime.now(),

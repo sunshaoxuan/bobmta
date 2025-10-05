@@ -70,7 +70,7 @@ public class PersistenceCustomerService implements CustomerService {
                 record.region(),
                 record.tags(),
                 fields,
-                record.updatedAt()
+                record.updatedAt() == null ? null : record.updatedAt().toInstant()
         );
     }
 
@@ -82,7 +82,7 @@ public class PersistenceCustomerService implements CustomerService {
                 record.groupName(),
                 record.region(),
                 record.tags(),
-                record.updatedAt()
+                record.updatedAt() == null ? null : record.updatedAt().toInstant()
         );
     }
 

@@ -78,8 +78,11 @@ public class HttpApiNotificationAdapter implements ApiNotificationAdapter {
         if (!StringUtils.hasText(method)) {
             return HttpMethod.POST;
         }
-        HttpMethod resolved = HttpMethod.resolve(method.toUpperCase(Locale.ROOT));
-        return resolved == null ? HttpMethod.POST : resolved;
+        try {
+            return HttpMethod.valueOf(method.trim().toUpperCase(Locale.ROOT));
+        } catch (IllegalArgumentException ex) {
+            return HttpMethod.POST;
+        }
     }
 
     private String truncate(String body) {
