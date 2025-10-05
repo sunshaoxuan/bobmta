@@ -125,6 +125,18 @@ class TemplateControllerTest {
                 .isEqualTo(ErrorCode.TEMPLATE_NOT_FOUND);
     }
 
+    @Test
+    void shouldRejectRenderingDisabledTemplate() {
+        CreateTemplateRequest request = buildRequest();
+        request.setEnabled(false);
+        var created = controller.create(request, "ja-JP");
+
+        assertThatThrownBy(() -> controller.render(created.getData().getId(), null, "ja-JP"))
+                .isInstanceOf(BusinessException.class)
+                .extracting(ex -> ((BusinessException) ex).getErrorCode())
+                .isEqualTo(ErrorCode.VALIDATION_ERROR);
+    }
+
     private CreateTemplateRequest buildRequest() {
         CreateTemplateRequest request = new CreateTemplateRequest();
         request.setType(TemplateType.EMAIL);

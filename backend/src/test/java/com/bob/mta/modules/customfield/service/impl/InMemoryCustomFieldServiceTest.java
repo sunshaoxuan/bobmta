@@ -43,4 +43,29 @@ class InMemoryCustomFieldServiceTest {
                 .extracting(ex -> ((BusinessException) ex).getErrorCode())
                 .isEqualTo(ErrorCode.CUSTOM_FIELD_NOT_FOUND);
     }
+
+    @Test
+    void shouldRejectDuplicateCode() {
+        service.createDefinition("env", "Environment", CustomFieldType.TEXT, false, null, null);
+
+        assertThatThrownBy(() -> service.createDefinition("env", "Environment", CustomFieldType.TEXT, false, null, null))
+                .isInstanceOf(BusinessException.class)
+                .extracting(ex -> ((BusinessException) ex).getErrorCode())
+                .isEqualTo(ErrorCode.VALIDATION_ERROR);
+    }
+
+    @Test
+    void shouldFailWhenRequiredFieldMissing() {
+        var requiredField = service.createDefinition("region", "Region", CustomFieldType.TEXT, true, null, null);
+
+        assertThatThrownBy(() -> service.updateValues("customer-42", Map.of()))
+                .isInstanceOf(BusinessException.class)
+                .extracting(ex -> ((BusinessException) ex).getErrorCode())
+                .isEqualTo(ErrorCode.CUSTOM_FIELD_VALUE_INVALID);
+
+        assertThatThrownBy(() -> service.updateValues("customer-42", Map.of(requiredField.getId(), "   ")))
+                .isInstanceOf(BusinessException.class)
+                .extracting(ex -> ((BusinessException) ex).getErrorCode())
+                .isEqualTo(ErrorCode.CUSTOM_FIELD_VALUE_INVALID);
+    }
 }
