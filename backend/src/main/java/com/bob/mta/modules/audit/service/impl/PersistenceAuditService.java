@@ -3,7 +3,7 @@ package com.bob.mta.modules.audit.service.impl;
 import com.bob.mta.common.tenant.TenantContext;
 import com.bob.mta.modules.audit.domain.AuditLog;
 import com.bob.mta.modules.audit.persistence.AuditLogEntity;
-import com.bob.mta.modules.audit.persistence.AuditLogMapper;
+import com.bob.mta.modules.audit.repository.AuditLogRepository;
 import com.bob.mta.modules.audit.service.AuditQuery;
 import com.bob.mta.modules.audit.service.AuditService;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
@@ -12,14 +12,14 @@ import org.springframework.stereotype.Service;
 import java.util.List;
 
 @Service
-@ConditionalOnBean(AuditLogMapper.class)
+@ConditionalOnBean(AuditLogRepository.class)
 public class PersistenceAuditService implements AuditService {
 
-    private final AuditLogMapper mapper;
+    private final AuditLogRepository repository;
     private final TenantContext tenantContext;
 
-    public PersistenceAuditService(AuditLogMapper mapper, TenantContext tenantContext) {
-        this.mapper = mapper;
+    public PersistenceAuditService(AuditLogRepository repository, TenantContext tenantContext) {
+        this.repository = repository;
         this.tenantContext = tenantContext;
     }
 
@@ -40,7 +40,7 @@ public class PersistenceAuditService implements AuditService {
         entity.setRequestId(log.getRequestId());
         entity.setIpAddress(log.getIpAddress());
         entity.setUserAgent(log.getUserAgent());
-        mapper.insert(entity);
+        repository.insert(entity);
         return new AuditLog(
                 entity.getId(),
                 entity.getTimestamp(),
@@ -61,7 +61,7 @@ public class PersistenceAuditService implements AuditService {
     @Override
     public List<AuditLog> query(AuditQuery query) {
         String tenantId = tenantContext.getCurrentTenantId();
-        return mapper.query(tenantId, query.getEntityType(), query.getEntityId(), query.getAction(), query.getUserId())
+        return repository.query(tenantId, query.getEntityType(), query.getEntityId(), query.getAction(), query.getUserId())
                 .stream()
                 .map(entity -> new AuditLog(
                         entity.getId(),

@@ -9,8 +9,8 @@ import com.bob.mta.modules.customfield.domain.CustomFieldDefinition;
 import com.bob.mta.modules.customfield.domain.CustomFieldType;
 import com.bob.mta.modules.customfield.domain.CustomFieldValue;
 import com.bob.mta.modules.customfield.persistence.CustomFieldDefinitionEntity;
-import com.bob.mta.modules.customfield.persistence.CustomFieldDefinitionMapper;
 import com.bob.mta.modules.customfield.persistence.CustomFieldValueEntity;
+import com.bob.mta.modules.customfield.repository.CustomFieldDefinitionRepository;
 import com.bob.mta.modules.customfield.service.CustomFieldService;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.stereotype.Service;
@@ -26,21 +26,21 @@ import java.util.Objects;
 import java.util.stream.Collectors;
 
 @Service
-@ConditionalOnBean(CustomFieldDefinitionMapper.class)
+@ConditionalOnBean(CustomFieldDefinitionRepository.class)
 @Transactional
 public class PersistenceCustomFieldService implements CustomFieldService {
 
-    private final CustomFieldDefinitionMapper mapper;
+    private final CustomFieldDefinitionRepository repository;
     private final TenantContext tenantContext;
 
-    public PersistenceCustomFieldService(CustomFieldDefinitionMapper mapper, TenantContext tenantContext) {
-        this.mapper = mapper;
+    public PersistenceCustomFieldService(CustomFieldDefinitionRepository repository, TenantContext tenantContext) {
+        this.repository = repository;
         this.tenantContext = tenantContext;
     }
 
     @Override
     public List<CustomFieldDefinition> listDefinitions() {
-        return mapper.list(tenantContext.getCurrentTenantId()).stream()
+        return repository.list(tenantContext.getCurrentTenantId()).stream()
                 .map(this::toDomain)
                 .sorted((a, b) -> a.getLabel().compareToIgnoreCase(b.getLabel()))
                 .toList();
@@ -49,7 +49,7 @@ public class PersistenceCustomFieldService implements CustomFieldService {
     @Override
     public CustomFieldDefinition getDefinition(long id) {
         String tenantId = tenantContext.getCurrentTenantId();
-        CustomFieldDefinitionEntity entity = mapper.findById(tenantId, id);
+        CustomFieldDefinitionEntity entity = repository.findById(tenantId, id);
         if (entity == null) {
             throw new BusinessException(ErrorCode.CUSTOM_FIELD_NOT_FOUND);
         }
@@ -59,7 +59,7 @@ public class PersistenceCustomFieldService implements CustomFieldService {
     @Override
     public CustomFieldDefinition createDefinition(String code, String label, CustomFieldType type, boolean required, List<String> options, String description) {
         String tenantId = tenantContext.getCurrentTenantId();
-        if (mapper.findByCode(tenantId, code) != null) {
+        if (repository.findByCode(tenantId, code) != null) {
             throw new BusinessException(ErrorCode.VALIDATION_ERROR,
                     Localization.text(LocalizationKeys.Errors.CUSTOM_FIELD_CODE_EXISTS));
         }
@@ -72,14 +72,14 @@ public class PersistenceCustomFieldService implements CustomFieldService {
         entity.setOptions(options);
         entity.setDescription(description);
         entity.setCreatedAt(OffsetDateTime.now());
-        mapper.insert(entity);
-        return toDomain(mapper.findById(tenantId, entity.getId()));
+        repository.insert(entity);
+        return toDomain(repository.findById(tenantId, entity.getId()));
     }
 
     @Override
     public CustomFieldDefinition updateDefinition(long id, String label, CustomFieldType type, boolean required, List<String> options, String description) {
         String tenantId = tenantContext.getCurrentTenantId();
-        CustomFieldDefinitionEntity existing = mapper.findById(tenantId, id);
+        CustomFieldDefinitionEntity existing = repository.findById(tenantId, id);
         if (existing == null) {
             throw new BusinessException(ErrorCode.CUSTOM_FIELD_NOT_FOUND);
         }
@@ -88,25 +88,25 @@ public class PersistenceCustomFieldService implements CustomFieldService {
         existing.setRequired(required);
         existing.setOptions(options);
         existing.setDescription(description);
-        mapper.update(existing);
-        return toDomain(mapper.findById(tenantId, id));
+        repository.update(existing);
+        return toDomain(repository.findById(tenantId, id));
     }
 
     @Override
     public void deleteDefinition(long id) {
         String tenantId = tenantContext.getCurrentTenantId();
-        CustomFieldDefinitionEntity existing = mapper.findById(tenantId, id);
+        CustomFieldDefinitionEntity existing = repository.findById(tenantId, id);
         if (existing == null) {
             throw new BusinessException(ErrorCode.CUSTOM_FIELD_NOT_FOUND);
         }
-        mapper.deleteValuesForField(tenantId, id);
-        mapper.delete(tenantId, id);
+        repository.deleteValuesForField(tenantId, id);
+        repository.delete(tenantId, id);
     }
 
     @Override
     public List<CustomFieldValue> listValues(String entityId) {
         String tenantId = tenantContext.getCurrentTenantId();
-        return mapper.listValues(tenantId, entityId).stream()
+        return repository.listValues(tenantId, entityId).stream()
                 .map(this::toValue)
                 .toList();
     }
@@ -114,9 +114,9 @@ public class PersistenceCustomFieldService implements CustomFieldService {
     @Override
     public List<CustomFieldValue> updateValues(String entityId, Map<Long, String> values) {
         String tenantId = tenantContext.getCurrentTenantId();
-        Map<Long, CustomFieldDefinitionEntity> definitions = mapper.list(tenantId).stream()
+        Map<Long, CustomFieldDefinitionEntity> definitions = repository.list(tenantId).stream()
                 .collect(Collectors.toMap(CustomFieldDefinitionEntity::getId, def -> def));
-        Map<Long, CustomFieldValueEntity> current = mapper.listValues(tenantId, entityId).stream()
+        Map<Long, CustomFieldValueEntity> current = repository.listValues(tenantId, entityId).stream()
                 .collect(Collectors.toMap(CustomFieldValueEntity::fieldId, value -> value, (a, b) -> b, HashMap::new));
         validateRequiredFields(definitions, values, current);
         List<CustomFieldValue> updated = new ArrayList<>();
@@ -130,7 +130,7 @@ public class PersistenceCustomFieldService implements CustomFieldService {
             }
             validateValue(definition, rawValue);
             CustomFieldValueEntity entity = new CustomFieldValueEntity(fieldId, tenantId, entityId, rawValue, now);
-            mapper.upsertValue(entity);
+            repository.upsertValue(entity);
             updated.add(toValue(entity));
         }
         return updated;

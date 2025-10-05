@@ -3,7 +3,7 @@ package com.bob.mta.modules.audit.service.impl;
 import com.bob.mta.modules.audit.domain.AuditLog;
 import com.bob.mta.modules.audit.service.AuditQuery;
 import com.bob.mta.modules.audit.service.AuditService;
-import com.bob.mta.modules.audit.persistence.AuditLogMapper;
+import com.bob.mta.modules.audit.repository.AuditLogRepository;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.stereotype.Service;
 
@@ -12,7 +12,7 @@ import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicLong;
 
 @Service
-@ConditionalOnMissingBean(AuditLogMapper.class)
+@ConditionalOnMissingBean(AuditLogRepository.class)
 public class InMemoryAuditService implements AuditService {
 
     private final AtomicLong idGenerator = new AtomicLong(0);
