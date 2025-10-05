@@ -4,9 +4,11 @@ import com.bob.mta.common.i18n.MessageResolver;
 import com.bob.mta.modules.file.domain.FileMetadata;
 import com.bob.mta.modules.file.service.FileService;
 import com.bob.mta.modules.notification.ApiCallRequest;
+import com.bob.mta.modules.notification.ApiNotificationAdapter;
 import com.bob.mta.modules.notification.EmailMessage;
+import com.bob.mta.modules.notification.EmailNotificationAdapter;
 import com.bob.mta.modules.notification.InstantMessage;
-import com.bob.mta.modules.notification.NotificationGateway;
+import com.bob.mta.modules.notification.InstantMessageNotificationAdapter;
 import com.bob.mta.modules.notification.NotificationResult;
 import com.bob.mta.modules.plan.domain.Plan;
 import com.bob.mta.modules.plan.domain.PlanActionHistory;
@@ -62,7 +64,9 @@ import static org.mockito.Mockito.when;
 class InMemoryPlanServiceActionTest {
 
     private TemplateService templateService;
-    private NotificationGateway notificationGateway;
+    private EmailNotificationAdapter emailNotificationAdapter;
+    private InstantMessageNotificationAdapter instantMessageNotificationAdapter;
+    private ApiNotificationAdapter apiNotificationAdapter;
     private RecordingPlanActionHistoryRepository actionHistoryRepository;
     private StubPlanAggregateRepository aggregateRepository;
     private PlanAnalyticsRepository planAnalyticsRepository;
@@ -74,7 +78,9 @@ class InMemoryPlanServiceActionTest {
     void setUp() {
         LocaleContextHolder.setLocale(Locale.US);
         templateService = mock(TemplateService.class);
-        notificationGateway = mock(NotificationGateway.class);
+        emailNotificationAdapter = mock(EmailNotificationAdapter.class);
+        instantMessageNotificationAdapter = mock(InstantMessageNotificationAdapter.class);
+        apiNotificationAdapter = mock(ApiNotificationAdapter.class);
         actionHistoryRepository = new RecordingPlanActionHistoryRepository();
         aggregateRepository = new StubPlanAggregateRepository();
         planAnalyticsRepository = new NoopPlanAnalyticsRepository();
@@ -91,7 +97,9 @@ class InMemoryPlanServiceActionTest {
                 planAnalyticsRepository,
                 actionHistoryRepository,
                 templateService,
-                notificationGateway,
+                emailNotificationAdapter,
+                instantMessageNotificationAdapter,
+                apiNotificationAdapter,
                 messageResolver
         );
     }
@@ -119,11 +127,11 @@ class InMemoryPlanServiceActionTest {
         );
         when(templateService.render(anyLong(), anyMap(), any(Locale.class))).thenReturn(template);
         NotificationResult success = NotificationResult.success("EMAIL", "email.sent", Map.of("provider", "mock"));
-        when(notificationGateway.sendEmail(any(EmailMessage.class))).thenReturn(success);
+        when(emailNotificationAdapter.send(any(EmailMessage.class))).thenReturn(success);
 
         Plan updated = planService.startNode(plan.getId(), plan.getNodes().get(0).getId(), "operator-1");
 
-        verify(notificationGateway).sendEmail(any(EmailMessage.class));
+        verify(emailNotificationAdapter).send(any(EmailMessage.class));
         assertThat(actionHistoryRepository.entries).hasSize(1);
         PlanActionHistory history = actionHistoryRepository.entries.get(0);
         assertThat(history.getStatus()).isEqualTo(PlanActionStatus.SUCCESS);
@@ -161,7 +169,7 @@ class InMemoryPlanServiceActionTest {
         );
         when(templateService.render(anyLong(), anyMap(), any(Locale.class))).thenReturn(template);
         NotificationResult success = NotificationResult.success("EMAIL", "email.sent", Map.of());
-        when(notificationGateway.sendEmail(any(EmailMessage.class))).thenReturn(success);
+        when(emailNotificationAdapter.send(any(EmailMessage.class))).thenReturn(success);
 
         planService.startNode(plan.getId(), plan.getNodes().get(0).getId(), "operator-history");
 
@@ -183,7 +191,7 @@ class InMemoryPlanServiceActionTest {
 
         Plan updated = planService.startNode(plan.getId(), plan.getNodes().get(0).getId(), "operator-2");
 
-        verify(notificationGateway, times(0)).sendEmail(any(EmailMessage.class));
+        verify(emailNotificationAdapter, times(0)).send(any(EmailMessage.class));
         assertThat(actionHistoryRepository.entries).hasSize(1);
         PlanActionHistory history = actionHistoryRepository.entries.get(0);
         assertThat(history.getStatus()).isEqualTo(PlanActionStatus.FAILED);
@@ -218,12 +226,12 @@ class InMemoryPlanServiceActionTest {
         NotificationResult failure = NotificationResult.failure("EMAIL", "email.retry", "service unavailable",
                 Map.of("provider", "mock"));
         NotificationResult success = NotificationResult.success("EMAIL", "email.sent", Map.of("provider", "mock"));
-        when(notificationGateway.sendEmail(any(EmailMessage.class))).thenReturn(failure, success);
+        when(emailNotificationAdapter.send(any(EmailMessage.class))).thenReturn(failure, success);
 
         Plan updated = planService.completeNode(plan.getId(), plan.getNodes().get(0).getId(),
                 "operator-2", "ok", null, null);
 
-        verify(notificationGateway, times(2)).sendEmail(any(EmailMessage.class));
+        verify(emailNotificationAdapter, times(2)).send(any(EmailMessage.class));
         assertThat(actionHistoryRepository.entries).hasSize(1);
         PlanActionHistory history = actionHistoryRepository.entries.get(0);
         assertThat(history.getStatus()).isEqualTo(PlanActionStatus.SUCCESS);
@@ -258,13 +266,13 @@ class InMemoryPlanServiceActionTest {
                 Map.of()
         );
         when(templateService.render(anyLong(), anyMap(), any(Locale.class))).thenReturn(template);
-        when(notificationGateway.sendInstantMessage(any(InstantMessage.class)))
+        when(instantMessageNotificationAdapter.send(any(InstantMessage.class)))
                 .thenThrow(new IllegalStateException("gateway down"));
 
         Plan updated = planService.completeNode(plan.getId(), plan.getNodes().get(0).getId(),
                 "operator-3", "ok", null, null);
 
-        verify(notificationGateway, times(3)).sendInstantMessage(any(InstantMessage.class));
+        verify(instantMessageNotificationAdapter, times(3)).send(any(InstantMessage.class));
         assertThat(actionHistoryRepository.entries).hasSize(1);
         PlanActionHistory history = actionHistoryRepository.entries.get(0);
         assertThat(history.getStatus()).isEqualTo(PlanActionStatus.FAILED);
@@ -298,12 +306,12 @@ class InMemoryPlanServiceActionTest {
         );
         when(templateService.render(anyLong(), anyMap(), any(Locale.class))).thenReturn(template);
         NotificationResult success = NotificationResult.success("IM", "im.sent", Map.of("channel", "mock"));
-        when(notificationGateway.sendInstantMessage(any(InstantMessage.class))).thenReturn(success);
+        when(instantMessageNotificationAdapter.send(any(InstantMessage.class))).thenReturn(success);
 
         Plan updated = planService.completeNode(plan.getId(), plan.getNodes().get(0).getId(),
                 "operator-4", "done", null, null);
 
-        verify(notificationGateway).sendInstantMessage(any(InstantMessage.class));
+        verify(instantMessageNotificationAdapter).send(any(InstantMessage.class));
         PlanActionHistory history = actionHistoryRepository.entries.get(0);
         assertThat(history.getStatus()).isEqualTo(PlanActionStatus.SUCCESS);
         assertThat(history.getMetadata()).containsEntry("templateId", "202");
@@ -399,12 +407,12 @@ class InMemoryPlanServiceActionTest {
         );
         when(templateService.render(anyLong(), anyMap(), any(Locale.class))).thenReturn(template);
         NotificationResult success = NotificationResult.success("API", "api.invoked", Map.of("status", "200"));
-        when(notificationGateway.invokeApiCall(any(ApiCallRequest.class))).thenReturn(success);
+        when(apiNotificationAdapter.invoke(any(ApiCallRequest.class))).thenReturn(success);
 
         Plan updated = planService.completeNode(plan.getId(), plan.getNodes().get(0).getId(),
                 "operator-7", "resolved", null, null);
 
-        verify(notificationGateway).invokeApiCall(any(ApiCallRequest.class));
+        verify(apiNotificationAdapter).invoke(any(ApiCallRequest.class));
         PlanActionHistory history = actionHistoryRepository.entries.get(0);
         assertThat(history.getStatus()).isEqualTo(PlanActionStatus.SUCCESS);
         assertThat(history.getMetadata())
@@ -443,12 +451,12 @@ class InMemoryPlanServiceActionTest {
                 Map.of("method", "post")
         );
         when(templateService.render(anyLong(), anyMap(), any(Locale.class))).thenReturn(template);
-        when(notificationGateway.invokeApiCall(any(ApiCallRequest.class)))
+        when(apiNotificationAdapter.invoke(any(ApiCallRequest.class)))
                 .thenThrow(new IllegalStateException("api gateway down"));
 
         Plan updated = planService.startNode(plan.getId(), plan.getNodes().get(0).getId(), "operator-8");
 
-        verify(notificationGateway, times(3)).invokeApiCall(any(ApiCallRequest.class));
+        verify(apiNotificationAdapter, times(3)).invoke(any(ApiCallRequest.class));
         PlanActionHistory history = actionHistoryRepository.entries.get(0);
         assertThat(history.getStatus()).isEqualTo(PlanActionStatus.FAILED);
         assertThat(history.getError()).isEqualTo("api gateway down");
@@ -483,11 +491,11 @@ class InMemoryPlanServiceActionTest {
                 Map.of()
         );
         when(templateService.render(anyLong(), anyMap(), any(Locale.class))).thenReturn(template);
-        when(notificationGateway.invokeApiCall(any(ApiCallRequest.class))).thenReturn(null);
+        when(apiNotificationAdapter.invoke(any(ApiCallRequest.class))).thenReturn(null);
 
         Plan updated = planService.startNode(plan.getId(), plan.getNodes().get(0).getId(), "operator-9");
 
-        verify(notificationGateway, times(3)).invokeApiCall(any(ApiCallRequest.class));
+        verify(apiNotificationAdapter, times(3)).invoke(any(ApiCallRequest.class));
         assertThat(actionHistoryRepository.entries).hasSize(1);
         PlanActionHistory history = actionHistoryRepository.entries.get(0);
         assertThat(history.getStatus()).isEqualTo(PlanActionStatus.FAILED);
@@ -529,7 +537,7 @@ class InMemoryPlanServiceActionTest {
         Plan updated = planService.handoverNode(plan.getId(), plan.getNodes().get(0).getId(),
                 "liam", "handover", "operator-9");
 
-        verify(notificationGateway, times(0)).invokeApiCall(any(ApiCallRequest.class));
+        verify(apiNotificationAdapter, times(0)).invoke(any(ApiCallRequest.class));
         PlanActionHistory history = actionHistoryRepository.entries.get(0);
         assertThat(history.getStatus()).isEqualTo(PlanActionStatus.FAILED);
         assertThat(history.getMessage()).isEqualTo("plan.action.apiMissingEndpoint");
@@ -631,7 +639,8 @@ class InMemoryPlanServiceActionTest {
 
         Plan updated = planService.startNode(plan.getId(), plan.getNodes().get(0).getId(), "operator-10");
 
-        verifyNoInteractions(templateService, notificationGateway);
+        verifyNoInteractions(templateService, emailNotificationAdapter,
+                instantMessageNotificationAdapter, apiNotificationAdapter);
         assertThat(actionHistoryRepository.entries).hasSize(1);
         PlanActionHistory history = actionHistoryRepository.entries.get(0);
         assertThat(history.getStatus()).isEqualTo(PlanActionStatus.SKIPPED);
@@ -717,7 +726,9 @@ class InMemoryPlanServiceActionTest {
                 capturingRepository,
                 actionHistoryRepository,
                 templateService,
-                notificationGateway,
+                emailNotificationAdapter,
+                instantMessageNotificationAdapter,
+                apiNotificationAdapter,
                 messageResolver
         );
 
