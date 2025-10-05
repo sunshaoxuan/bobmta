@@ -1,50 +1,95 @@
 package com.bob.mta.common.security;
 
+import io.jsonwebtoken.Claims;
+import io.jsonwebtoken.Jws;
+import io.jsonwebtoken.JwtException;
+import io.jsonwebtoken.Jwts;
+import io.jsonwebtoken.SignatureAlgorithm;
+import io.jsonwebtoken.security.Keys;
 import java.nio.charset.StandardCharsets;
+import java.security.Key;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
-import java.util.Base64;
+import java.util.Date;
+import java.util.List;
+import java.util.Objects;
 import java.util.Optional;
+import java.util.stream.Collectors;
 import org.springframework.stereotype.Component;
 
 /**
- * Lightweight token provider that encodes authentication context as Base64 payload.
- * This is a placeholder implementation until a full JWT library is introduced.
+ * JWT token provider backed by {@link io.jsonwebtoken.Jwts}.
  */
 @Component
 public class JwtTokenProvider {
 
-    private static final String DELIMITER = ":";
+    private static final String CLAIM_USER_ID = "uid";
+    private static final String CLAIM_ROLES = "roles";
 
     private final JwtProperties properties;
+    private final Key signingKey;
 
     public JwtTokenProvider(final JwtProperties properties) {
         this.properties = properties;
+        final String secret = Objects.requireNonNull(
+                properties.getAccessToken().getSecret(),
+                "JWT access token secret must be configured");
+        this.signingKey = Keys.hmacShaKeyFor(secret.getBytes(StandardCharsets.UTF_8));
     }
 
-    public String generateToken(final String userId, final String username, final String role) {
-        final Instant expiresAt = Instant.now().plus(properties.getAccessToken().getExpirationMinutes(), ChronoUnit.MINUTES);
-        final String raw = String.join(DELIMITER, properties.getIssuer(), userId, username, role, Long.toString(expiresAt.toEpochMilli()));
-        return Base64.getEncoder().encodeToString(raw.getBytes(StandardCharsets.UTF_8));
+    public GeneratedToken generateToken(final String userId, final String username, final List<String> roles) {
+        final Instant issuedAt = Instant.now();
+        final Instant expiresAt = issuedAt.plus(
+                properties.getAccessToken().getExpirationMinutes(), ChronoUnit.MINUTES);
+        final List<String> roleClaims = List.copyOf(roles);
+        final String token = Jwts.builder()
+                .setIssuer(properties.getIssuer())
+                .setSubject(username)
+                .setIssuedAt(Date.from(issuedAt))
+                .setExpiration(Date.from(expiresAt))
+                .claim(CLAIM_USER_ID, userId)
+                .claim(CLAIM_ROLES, roleClaims)
+                .signWith(signingKey, SignatureAlgorithm.HS256)
+                .compact();
+        return new GeneratedToken(token, expiresAt);
     }
 
     public Optional<TokenPayload> parseToken(final String token) {
         try {
-            final String decoded = new String(Base64.getDecoder().decode(token), StandardCharsets.UTF_8);
-            final String[] segments = decoded.split(DELIMITER);
-            if (segments.length != 5) {
+            final Jws<Claims> jws = Jwts.parserBuilder()
+                    .setSigningKey(signingKey)
+                    .build()
+                    .parseClaimsJws(token);
+            final Claims claims = jws.getBody();
+            final Instant expiresAt = claims.getExpiration().toInstant();
+            if (expiresAt.isBefore(Instant.now())) {
                 return Optional.empty();
             }
-            final long expiresAt = Long.parseLong(segments[4]);
-            if (Instant.ofEpochMilli(expiresAt).isBefore(Instant.now())) {
-                return Optional.empty();
-            }
-            return Optional.of(new TokenPayload(segments[0], segments[1], segments[2], segments[3]));
-        } catch (IllegalArgumentException ex) {
+            final List<String> roles = extractRoles(claims);
+            return Optional.of(new TokenPayload(
+                    claims.getIssuer(),
+                    claims.get(CLAIM_USER_ID, String.class),
+                    claims.getSubject(),
+                    roles,
+                    expiresAt));
+        } catch (JwtException | IllegalArgumentException ex) {
             return Optional.empty();
         }
     }
 
-    public record TokenPayload(String issuer, String userId, String username, String role) {
+    private List<String> extractRoles(final Claims claims) {
+        final List<?> rawRoles = claims.get(CLAIM_ROLES, List.class);
+        if (rawRoles == null) {
+            return List.of();
+        }
+        return rawRoles.stream()
+                .map(Object::toString)
+                .collect(Collectors.toUnmodifiableList());
+    }
+
+    public record TokenPayload(String issuer, String userId, String username, List<String> roles, Instant expiresAt) {
+    }
+
+    public record GeneratedToken(String token, Instant expiresAt) {
     }
 }

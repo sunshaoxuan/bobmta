@@ -1,16 +1,17 @@
 package com.bob.mta.modules.auth.service.impl;
 
-import com.bob.mta.common.security.JwtProperties;
 import com.bob.mta.common.security.JwtTokenProvider;
 import com.bob.mta.modules.auth.dto.CurrentUserResponse;
 import com.bob.mta.modules.auth.dto.LoginResponse;
 import com.bob.mta.modules.auth.service.AuthService;
 import com.bob.mta.modules.user.service.UserService;
-import com.bob.mta.modules.user.service.model.UserAuthentication;
+import com.bob.mta.modules.user.service.model.UserPrincipal;
 import com.bob.mta.modules.user.service.model.UserView;
 import java.time.Instant;
-import java.time.temporal.ChronoUnit;
 import java.util.List;
+import org.springframework.security.authentication.AuthenticationManager;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.Authentication;
 import org.springframework.stereotype.Service;
 
 /**
@@ -19,33 +20,40 @@ import org.springframework.stereotype.Service;
 @Service
 public class InMemoryAuthService implements AuthService {
 
-    private final JwtTokenProvider tokenProvider;
+    private final AuthenticationManager authenticationManager;
 
-    private final JwtProperties properties;
+    private final JwtTokenProvider tokenProvider;
 
     private final UserService userService;
 
     public InMemoryAuthService(
+            final AuthenticationManager authenticationManager,
             final JwtTokenProvider tokenProvider,
-            final JwtProperties properties,
             final UserService userService) {
+        this.authenticationManager = authenticationManager;
         this.tokenProvider = tokenProvider;
-        this.properties = properties;
         this.userService = userService;
     }
 
     @Override
     public LoginResponse login(final String username, final String password) {
-        final UserAuthentication user = userService.authenticate(username, password);
-        final Instant expiresAt = Instant.now().plus(properties.getAccessToken().getExpirationMinutes(), ChronoUnit.MINUTES);
-        final String primaryRole = user.roles().isEmpty() ? "USER" : user.roles().get(0);
-        final String token = tokenProvider.generateToken(user.id(), user.username(), primaryRole);
-        return new LoginResponse(token, expiresAt, user.displayName(), user.roles());
+        final Authentication authentication = authenticationManager.authenticate(
+                new UsernamePasswordAuthenticationToken(username, password));
+        final UserPrincipal principal = (UserPrincipal) authentication.getPrincipal();
+        final JwtTokenProvider.GeneratedToken generatedToken = tokenProvider.generateToken(
+                principal.getId(),
+                principal.getUsername(),
+                principal.getRoles());
+        return new LoginResponse(
+                generatedToken.token(),
+                generatedToken.expiresAt(),
+                principal.getDisplayName(),
+                principal.getRoles());
     }
 
     @Override
     public CurrentUserResponse currentUser(final String username) {
-        final UserView user = userService.loadUserByUsername(username);
+        final UserView user = userService.getUserByUsername(username);
         return new CurrentUserResponse(user.id(), user.username(), user.displayName(), List.copyOf(user.roles()));
     }
 }

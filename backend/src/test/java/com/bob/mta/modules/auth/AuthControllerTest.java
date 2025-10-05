@@ -6,9 +6,12 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import com.bob.mta.common.security.JwtTokenProvider;
+import com.bob.mta.modules.user.service.UserService;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.nio.charset.StandardCharsets;
+import java.time.Instant;
 import java.util.Map;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -16,6 +19,8 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
+import org.springframework.security.core.userdetails.UserDetails;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 
@@ -29,6 +34,15 @@ class AuthControllerTest {
     @Autowired
     private ObjectMapper objectMapper;
 
+    @Autowired
+    private JwtTokenProvider jwtTokenProvider;
+
+    @Autowired
+    private UserService userService;
+
+    @Autowired
+    private PasswordEncoder passwordEncoder;
+
     @Test
     @DisplayName("login endpoint returns token for valid credentials")
     void shouldLoginWithValidCredentials() throws Exception {
@@ -39,10 +53,22 @@ class AuthControllerTest {
                                 "password", "admin123"))))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(0))
-                .andExpect(jsonPath("$.data.displayName").value("Admin"))
+                .andExpect(jsonPath("$.data.displayName").value("系统管理员"))
                 .andExpect(jsonPath("$.data.token").isNotEmpty())
-                .andExpect(jsonPath("$.data.roles[0]").value("ADMIN"))
+                .andExpect(jsonPath("$.data.roles[0]").value("ROLE_ADMIN"))
                 .andExpect(jsonPath("$.data.expiresAt").isNotEmpty());
+
+        final String response = performLogin("admin", "admin123");
+        final JsonNode node = objectMapper.readTree(response).path("data");
+        final String token = node.path("token").asText();
+        final JwtTokenProvider.TokenPayload payload = jwtTokenProvider.parseToken(token).orElseThrow();
+        assertThat(payload.username()).isEqualTo("admin");
+        assertThat(payload.roles()).contains("ROLE_ADMIN");
+        assertThat(payload.expiresAt()).isAfter(Instant.now());
+
+        final UserDetails userDetails = userService.loadUserByUsername("admin");
+        assertThat(passwordEncoder.matches("admin123", userDetails.getPassword())).isTrue();
+        assertThat(userDetails.getPassword()).isNotEqualTo("admin123");
     }
 
     @Test
@@ -67,10 +93,17 @@ class AuthControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(0))
                 .andExpect(jsonPath("$.data.username").value("admin"))
-                .andExpect(jsonPath("$.data.roles[0]").value("ADMIN"));
+                .andExpect(jsonPath("$.data.roles[0]").value("ROLE_ADMIN"));
     }
 
     private String loginAndExtractToken(final String username, final String password) throws Exception {
+        final String response = performLogin(username, password);
+        final JsonNode node = objectMapper.readTree(response);
+        assertThat(node.path("data").path("token").asText()).isNotBlank();
+        return node.path("data").path("token").asText();
+    }
+
+    private String performLogin(final String username, final String password) throws Exception {
         final MvcResult result = mockMvc.perform(post("/api/v1/auth/login")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsBytes(Map.of(
@@ -78,10 +111,7 @@ class AuthControllerTest {
                                 "password", password))))
                 .andExpect(status().isOk())
                 .andReturn();
-        final String response = result.getResponse().getContentAsString(StandardCharsets.UTF_8);
-        final JsonNode node = objectMapper.readTree(response);
-        assertThat(node.path("data").path("token").asText()).isNotBlank();
-        return node.path("data").path("token").asText();
+        return result.getResponse().getContentAsString(StandardCharsets.UTF_8);
     }
 }
 

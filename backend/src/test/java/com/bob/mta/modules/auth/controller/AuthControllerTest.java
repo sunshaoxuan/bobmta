@@ -10,8 +10,12 @@ import com.bob.mta.modules.auth.service.impl.InMemoryAuthService;
 import com.bob.mta.modules.user.service.impl.InMemoryUserService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.springframework.security.core.userdetails.UserDetails;
+import java.security.Principal;
+import org.springframework.security.authentication.AuthenticationManager;
+import org.springframework.security.authentication.ProviderManager;
+import org.springframework.security.authentication.dao.DaoAuthenticationProvider;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
+import org.springframework.security.crypto.password.PasswordEncoder;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -22,11 +26,14 @@ class AuthControllerTest {
 
     @BeforeEach
     void setUp() {
-        InMemoryUserService userService = new InMemoryUserService(new BCryptPasswordEncoder());
-        JwtProperties properties = new JwtProperties();
-        properties.getAccessToken().setSecret("a-very-long-secret-key-for-tests-1234567890");
-        JwtTokenProvider provider = new JwtTokenProvider(properties);
-        authService = new InMemoryAuthService(userService, new BCryptPasswordEncoder(), provider);
+        PasswordEncoder encoder = new BCryptPasswordEncoder();
+        InMemoryUserService userService = new InMemoryUserService(encoder);
+        JwtTokenProvider provider = new JwtTokenProvider(jwtProperties());
+        DaoAuthenticationProvider authenticationProvider = new DaoAuthenticationProvider();
+        authenticationProvider.setUserDetailsService(userService);
+        authenticationProvider.setPasswordEncoder(encoder);
+        AuthenticationManager authenticationManager = new ProviderManager(authenticationProvider);
+        authService = new InMemoryAuthService(authenticationManager, provider, userService);
         controller = new AuthController(authService);
     }
 
@@ -43,8 +50,15 @@ class AuthControllerTest {
 
     @Test
     void currentUserShouldReturnDetails() {
-        UserDetails userDetails = authService.loadUserByUsername("admin");
-        ApiResponse<CurrentUserResponse> response = controller.currentUser(userDetails);
+        Principal principal = () -> "admin";
+        ApiResponse<CurrentUserResponse> response = controller.currentUser(principal);
         assertThat(response.getData().getUsername()).isEqualTo("admin");
+    }
+
+    private JwtProperties jwtProperties() {
+        JwtProperties properties = new JwtProperties();
+        properties.setIssuer("unit-test");
+        properties.getAccessToken().setSecret("test-secret-should-be-long-enough-123456789012345");
+        return properties;
     }
 }

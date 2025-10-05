@@ -5,19 +5,14 @@ import com.bob.mta.common.exception.ErrorCode;
 import com.bob.mta.modules.user.domain.ActivationToken;
 import com.bob.mta.modules.user.domain.User;
 import com.bob.mta.modules.user.domain.UserStatus;
-import com.bob.mta.i18n.Localization;
-import com.bob.mta.i18n.LocalizationKeys;
 import com.bob.mta.modules.user.service.UserService;
 import com.bob.mta.modules.user.service.command.CreateUserCommand;
 import com.bob.mta.modules.user.service.model.ActivationLink;
 import com.bob.mta.modules.user.service.model.CreateUserResult;
 import com.bob.mta.modules.user.service.model.UserAuthentication;
+import com.bob.mta.modules.user.service.model.UserPrincipal;
 import com.bob.mta.modules.user.service.model.UserView;
 import com.bob.mta.modules.user.service.query.UserQuery;
-import org.springframework.stereotype.Service;
-import org.springframework.util.CollectionUtils;
-import org.springframework.util.StringUtils;
-
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
@@ -34,6 +29,13 @@ import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
+import org.springframework.security.core.userdetails.UserDetails;
+import org.springframework.security.core.userdetails.UsernameNotFoundException;
+import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
+import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.stereotype.Service;
+import org.springframework.util.CollectionUtils;
+import org.springframework.util.StringUtils;
 
 /**
  * Simple in-memory implementation of {@link UserService} used during early development phases.
@@ -48,18 +50,32 @@ public class InMemoryUserService implements UserService {
     private final AtomicLong idSequence = new AtomicLong();
     private final Clock clock;
     private final Duration activationTtl;
+    private final PasswordEncoder passwordEncoder;
 
     public InMemoryUserService() {
-        this(Clock.systemUTC(), DEFAULT_ACTIVATION_TTL);
+        this(Clock.systemUTC(), DEFAULT_ACTIVATION_TTL, new BCryptPasswordEncoder());
+    }
+
+    public InMemoryUserService(final PasswordEncoder passwordEncoder) {
+        this(Clock.systemUTC(), DEFAULT_ACTIVATION_TTL, passwordEncoder);
     }
 
     public InMemoryUserService(final Clock clock) {
-        this(clock, DEFAULT_ACTIVATION_TTL);
+        this(clock, DEFAULT_ACTIVATION_TTL, new BCryptPasswordEncoder());
+    }
+
+    public InMemoryUserService(final Clock clock, final PasswordEncoder passwordEncoder) {
+        this(clock, DEFAULT_ACTIVATION_TTL, passwordEncoder);
     }
 
     public InMemoryUserService(final Clock clock, final Duration activationTtl) {
+        this(clock, activationTtl, new BCryptPasswordEncoder());
+    }
+
+    public InMemoryUserService(final Clock clock, final Duration activationTtl, final PasswordEncoder passwordEncoder) {
         this.clock = Objects.requireNonNull(clock, "clock");
         this.activationTtl = Objects.requireNonNull(activationTtl, "activationTtl");
+        this.passwordEncoder = Objects.requireNonNull(passwordEncoder, "passwordEncoder");
         seedDefaultUsers();
     }
 
@@ -86,7 +102,7 @@ public class InMemoryUserService implements UserService {
                 command.username(),
                 command.displayName(),
                 command.email(),
-                command.password(),
+                encodePassword(command.password()),
                 UserStatus.PENDING_ACTIVATION,
                 roles);
         final ActivationToken token = new ActivationToken(generateToken(), expiration());
@@ -156,7 +172,7 @@ public class InMemoryUserService implements UserService {
         if (user.getStatus() != UserStatus.ACTIVE) {
             throw new BusinessException(ErrorCode.USER_INACTIVE);
         }
-        if (!user.passwordMatches(password)) {
+        if (!user.passwordMatches(password, passwordEncoder)) {
             throw new BusinessException(ErrorCode.UNAUTHORIZED, "auth.invalid_credentials");
         }
         return new UserAuthentication(user.getId(), user.getUsername(), user.getDisplayName(), user.getStatus(),
@@ -164,8 +180,21 @@ public class InMemoryUserService implements UserService {
     }
 
     @Override
-    public UserView loadUserByUsername(final String username) {
+    public UserView getUserByUsername(final String username) {
         return toView(getRequiredByUsername(username));
+    }
+
+    @Override
+    public UserDetails loadUserByUsername(final String username) throws UsernameNotFoundException {
+        try {
+            final User user = getRequiredByUsername(username);
+            return UserPrincipal.from(user);
+        } catch (BusinessException ex) {
+            if (ex.getErrorCode() == ErrorCode.USER_NOT_FOUND) {
+                throw new UsernameNotFoundException("User not found: " + username, ex);
+            }
+            throw ex;
+        }
     }
 
     private void registerActiveUser(
@@ -175,7 +204,14 @@ public class InMemoryUserService implements UserService {
             final String email,
             final String password,
             final List<String> roles) {
-        final User user = new User(id, username, displayName, email, password, UserStatus.ACTIVE, normalizeRoles(roles));
+        final User user = new User(
+                id,
+                username,
+                displayName,
+                email,
+                encodePassword(password),
+                UserStatus.ACTIVE,
+                normalizeRoles(roles));
         user.clearActivation();
         save(user);
     }
@@ -252,6 +288,10 @@ public class InMemoryUserService implements UserService {
                 .map(role -> role.trim().toUpperCase(Locale.ROOT))
                 .map(role -> role.startsWith("ROLE_") ? role : "ROLE_" + role)
                 .collect(Collectors.toCollection(LinkedHashSet::new));
+    }
+
+    private String encodePassword(final String rawPassword) {
+        return passwordEncoder.encode(Objects.requireNonNull(rawPassword, "rawPassword"));
     }
 
     private String nextId() {

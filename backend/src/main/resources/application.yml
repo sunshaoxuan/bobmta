@@ -42,7 +42,7 @@ management:
 jwt:
   issuer: bob-mta
   access-token:
-    secret: change-me-please
+    secret: change-me-please-change-me-please-123456
     expiration-minutes: 120
 logging:
   level:

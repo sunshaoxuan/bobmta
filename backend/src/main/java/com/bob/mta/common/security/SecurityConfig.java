@@ -1,6 +1,6 @@
 package com.bob.mta.common.security;
 
-import com.bob.mta.modules.auth.service.AuthService;
+import com.bob.mta.modules.user.service.UserService;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.authentication.AuthenticationManager;
@@ -17,20 +17,10 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 
-import java.util.List;
-
 @Configuration
 @EnableWebSecurity
 @EnableMethodSecurity
 public class SecurityConfig {
-
-    private final JwtProperties jwtProperties;
-    private final AuthService authService;
-
-    public SecurityConfig(JwtProperties jwtProperties, AuthService authService) {
-        this.jwtProperties = jwtProperties;
-        this.authService = authService;
-    }
 
     @Bean
     public PasswordEncoder passwordEncoder() {
@@ -38,42 +28,44 @@ public class SecurityConfig {
     }
 
     @Bean
-    public JwtTokenProvider jwtTokenProvider() {
-        return new JwtTokenProvider(jwtProperties);
+    public UserDetailsService userDetailsService(final UserService userService) {
+        return userService::loadUserByUsername;
     }
 
     @Bean
-    public JwtAuthenticationFilter jwtAuthenticationFilter() {
-        return new JwtAuthenticationFilter(jwtTokenProvider());
-    }
-
-    @Bean
-    public AuthenticationManager authenticationManager(UserDetailsService userDetailsService) {
-        DaoAuthenticationProvider provider = new DaoAuthenticationProvider();
+    public AuthenticationManager authenticationManager(
+            final UserDetailsService userDetailsService,
+            final PasswordEncoder passwordEncoder) {
+        final DaoAuthenticationProvider provider = new DaoAuthenticationProvider();
         provider.setUserDetailsService(userDetailsService);
-        provider.setPasswordEncoder(passwordEncoder());
-        return new ProviderManager(List.of(provider));
+        provider.setPasswordEncoder(passwordEncoder);
+        return new ProviderManager(provider);
     }
 
     @Bean
-    public UserDetailsService userDetailsService() {
-        return authService::loadUserByUsername;
-    }
-
-    @Bean
-    public SecurityFilterChain filterChain(HttpSecurity http, RestAuthenticationEntryPoint authenticationEntryPoint,
-                                           RestAccessDeniedHandler accessDeniedHandler) throws Exception {
+    public SecurityFilterChain filterChain(
+            final HttpSecurity http,
+            final RestAuthenticationEntryPoint authenticationEntryPoint,
+            final RestAccessDeniedHandler accessDeniedHandler,
+            final JwtAuthenticationFilter authenticationFilter) throws Exception {
         http.csrf(csrf -> csrf.disable());
         http.sessionManagement(sm -> sm.sessionCreationPolicy(SessionCreationPolicy.STATELESS));
         http.authorizeHttpRequests(authz -> authz
-                .requestMatchers("/api/ping", "/api/v1/auth/login", "/api/v1/users/activation", "/api/v1/i18n/**").permitAll()
+                .requestMatchers(
+                        "/api/ping",
+                        "/api/v1/auth/login",
+                        "/api/v1/users/activation",
+                        "/api/v1/i18n/**",
+                        "/actuator/health",
+                        "/actuator/info")
+                .permitAll()
                 .anyRequest().authenticated()
         );
         http.exceptionHandling(handling -> handling
                 .authenticationEntryPoint(authenticationEntryPoint)
                 .accessDeniedHandler(accessDeniedHandler)
         );
-        http.addFilterBefore(jwtAuthenticationFilter(), UsernamePasswordAuthenticationFilter.class);
+        http.addFilterBefore(authenticationFilter, UsernamePasswordAuthenticationFilter.class);
         http.httpBasic(Customizer.withDefaults());
         return http.build();
     }

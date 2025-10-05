@@ -11,6 +11,8 @@ import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpHeaders;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.context.SecurityContextHolder;
+import java.util.stream.Collectors;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.userdetails.User;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.web.authentication.WebAuthenticationDetailsSource;
@@ -49,7 +51,9 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
     private void setAuthentication(final HttpServletRequest request, final JwtTokenProvider.TokenPayload payload) {
         final UserDetails principal = User.withUsername(payload.username())
                 .password("N/A")
-                .roles(payload.role())
+                .authorities(payload.roles().stream()
+                        .map(SimpleGrantedAuthority::new)
+                        .collect(Collectors.toUnmodifiableList()))
                 .build();
         final UsernamePasswordAuthenticationToken authentication =
                 new UsernamePasswordAuthenticationToken(principal, null, principal.getAuthorities());

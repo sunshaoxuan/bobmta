@@ -4,6 +4,7 @@ import java.util.Collections;
 import java.util.LinkedHashSet;
 import java.util.Objects;
 import java.util.Set;
+import org.springframework.security.crypto.password.PasswordEncoder;
 
 /**
  * Aggregate root modelling a platform user account.
@@ -18,7 +19,7 @@ public class User {
 
     private String email;
 
-    private String password;
+    private String passwordHash;
 
     private UserStatus status;
 
@@ -31,14 +32,14 @@ public class User {
             final String username,
             final String displayName,
             final String email,
-            final String password,
+            final String passwordHash,
             final UserStatus status,
             final Set<String> roles) {
         this.id = Objects.requireNonNull(id, "id");
         this.username = Objects.requireNonNull(username, "username");
         this.displayName = Objects.requireNonNull(displayName, "displayName");
         this.email = Objects.requireNonNull(email, "email");
-        this.password = Objects.requireNonNull(password, "password");
+        this.passwordHash = Objects.requireNonNull(passwordHash, "passwordHash");
         this.status = Objects.requireNonNull(status, "status");
         this.roles = new LinkedHashSet<>(Objects.requireNonNull(roles, "roles"));
     }
@@ -76,8 +77,16 @@ public class User {
         markPendingActivation();
     }
 
-    public boolean passwordMatches(final String rawPassword) {
-        return Objects.equals(password, rawPassword);
+    public boolean passwordMatches(final String rawPassword, final PasswordEncoder passwordEncoder) {
+        return passwordEncoder.matches(rawPassword, passwordHash);
+    }
+
+    public void writePasswordHash(final String passwordHash) {
+        this.passwordHash = Objects.requireNonNull(passwordHash, "passwordHash");
+    }
+
+    public String getPasswordHash() {
+        return passwordHash;
     }
 
     public void activate() {

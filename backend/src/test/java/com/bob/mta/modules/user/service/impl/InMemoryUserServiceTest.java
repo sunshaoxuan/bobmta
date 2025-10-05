@@ -12,22 +12,30 @@ import com.bob.mta.modules.user.service.model.CreateUserResult;
 import com.bob.mta.modules.user.service.model.UserAuthentication;
 import com.bob.mta.modules.user.service.model.UserView;
 import com.bob.mta.modules.user.service.query.UserQuery;
+import java.time.Duration;
 import java.time.Instant;
 import java.time.ZoneOffset;
 import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.springframework.security.core.userdetails.UserDetails;
+import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
+import org.springframework.security.crypto.password.PasswordEncoder;
 
 class InMemoryUserServiceTest {
+
+    private static final Duration DEFAULT_ACTIVATION_TTL = Duration.ofHours(24);
 
     private MutableClock clock;
 
     private InMemoryUserService service;
+    private PasswordEncoder passwordEncoder;
 
     @BeforeEach
     void setUp() {
         clock = new MutableClock(Instant.parse("2024-01-01T00:00:00Z"));
-        service = new InMemoryUserService(clock);
+        passwordEncoder = new BCryptPasswordEncoder();
+        service = new InMemoryUserService(clock, DEFAULT_ACTIVATION_TTL, passwordEncoder);
         service.seedDefaultUsers();
     }
 
@@ -161,6 +169,13 @@ class InMemoryUserServiceTest {
         service.activateUser(result.activation().token());
         final UserAuthentication auth = service.authenticate("inactive", "password123");
         assertThat(auth.status()).isEqualTo(UserStatus.ACTIVE);
+    }
+
+    @Test
+    void loadUserDetailsShouldExposeEncodedPassword() {
+        final UserDetails userDetails = service.loadUserByUsername("admin");
+        assertThat(passwordEncoder.matches("admin123", userDetails.getPassword())).isTrue();
+        assertThat(userDetails.getPassword()).isNotEqualTo("admin123");
     }
 
     private static final class MutableClock extends java.time.Clock {
