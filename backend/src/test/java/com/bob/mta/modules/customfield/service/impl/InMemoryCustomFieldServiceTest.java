@@ -40,6 +40,7 @@ class InMemoryCustomFieldServiceTest {
     void shouldFailWhenDefinitionMissing() {
         assertThatThrownBy(() -> service.getDefinition(9_999))
                 .isInstanceOf(BusinessException.class)
+                .hasMessage(ErrorCode.CUSTOM_FIELD_NOT_FOUND.getDefaultMessage())
                 .extracting(ex -> ((BusinessException) ex).getErrorCode())
                 .isEqualTo(ErrorCode.CUSTOM_FIELD_NOT_FOUND);
     }
