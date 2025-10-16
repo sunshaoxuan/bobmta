@@ -1,15 +1,28 @@
 package com.bob.mta.modules.customfield.controller;
 
+import com.bob.mta.support.TestDatabaseHelper;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.flywaydb.core.Flyway;
+import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.TestInstance;
+import org.junit.jupiter.api.TestInstance.Lifecycle;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
+import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.test.context.DynamicPropertyRegistry;
+import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
+import org.testcontainers.containers.PostgreSQLContainer;
+import org.testcontainers.junit.jupiter.Container;
+import org.testcontainers.junit.jupiter.Testcontainers;
 
 import java.nio.charset.StandardCharsets;
 import java.util.List;
@@ -24,13 +37,51 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 @SpringBootTest
 @AutoConfigureMockMvc
+@Testcontainers
+@TestInstance(Lifecycle.PER_CLASS)
 class CustomFieldControllerTest {
+
+    @Container
+    static final PostgreSQLContainer<?> POSTGRES = new PostgreSQLContainer<>("postgres:15-alpine")
+            .withDatabaseName("bobmta")
+            .withUsername("bobmta")
+            .withPassword("secret");
+
+    @DynamicPropertySource
+    static void datasourceProperties(DynamicPropertyRegistry registry) {
+        registry.add("spring.datasource.url", POSTGRES::getJdbcUrl);
+        registry.add("spring.datasource.username", POSTGRES::getUsername);
+        registry.add("spring.datasource.password", POSTGRES::getPassword);
+        registry.add("spring.datasource.driver-class-name", POSTGRES::getDriverClassName);
+    }
 
     @Autowired
     private MockMvc mockMvc;
 
     @Autowired
     private ObjectMapper objectMapper;
+
+    @Autowired
+    private Flyway flyway;
+
+    @Autowired
+    private JdbcTemplate jdbcTemplate;
+
+    @Autowired
+    private PasswordEncoder passwordEncoder;
+
+    @BeforeAll
+    void migrateDatabase() {
+        flyway.clean();
+        flyway.migrate();
+        TestDatabaseHelper.seedDefaultUsers(jdbcTemplate, passwordEncoder);
+    }
+
+    @BeforeEach
+    void cleanTables() {
+        jdbcTemplate.execute("TRUNCATE TABLE mt_custom_field_value, mt_custom_field_definition RESTART IDENTITY CASCADE");
+        jdbcTemplate.execute("TRUNCATE TABLE mt_audit_log RESTART IDENTITY CASCADE");
+    }
 
     @Test
     @DisplayName("custom field definitions and values are persisted with audit logs")
