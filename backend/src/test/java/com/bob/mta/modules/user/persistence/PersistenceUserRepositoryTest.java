@@ -105,4 +105,19 @@ class PersistenceUserRepositoryTest {
         List<User> activeUsers = userRepository.findAll(UserStatus.ACTIVE);
         assertThat(activeUsers).extracting(User::getUsername).contains("role-user");
     }
+
+    @Test
+    void shouldFindUsersByCaseInsensitiveIdentifiers() {
+        User user = new User("user-3", "CaseUser", "大小写用户", "case.user@example.com", "hash",
+                UserStatus.ACTIVE, new LinkedHashSet<>(List.of("ROLE_OPERATOR")));
+
+        userRepository.create(user);
+
+        assertThat(userRepository.findByUsername("caseuser"))
+                .map(User::getUsername)
+                .contains("CaseUser");
+        assertThat(userRepository.findByEmail("CASE.USER@EXAMPLE.COM"))
+                .map(User::getEmail)
+                .contains("case.user@example.com");
+    }
 }
