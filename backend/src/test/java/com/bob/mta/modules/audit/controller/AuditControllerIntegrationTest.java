@@ -1,6 +1,7 @@
-package com.bob.mta.modules.tag.controller;
+package com.bob.mta.modules.audit.controller;
 
-import com.bob.mta.common.exception.ErrorCode;
+import com.bob.mta.modules.audit.domain.AuditLog;
+import com.bob.mta.modules.audit.service.AuditService;
 import com.bob.mta.support.TestDatabaseHelper;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -26,10 +27,11 @@ import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 
 import java.nio.charset.StandardCharsets;
+import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
 import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -39,7 +41,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @AutoConfigureMockMvc
 @Testcontainers
 @TestInstance(Lifecycle.PER_CLASS)
-class TagControllerTest {
+class AuditControllerIntegrationTest {
 
     @Container
     static final PostgreSQLContainer<?> POSTGRES = new PostgreSQLContainer<>("postgres:15-alpine")
@@ -62,6 +64,9 @@ class TagControllerTest {
     private ObjectMapper objectMapper;
 
     @Autowired
+    private AuditService auditService;
+
+    @Autowired
     private Flyway flyway;
 
     @Autowired
@@ -78,76 +83,50 @@ class TagControllerTest {
     }
 
     @BeforeEach
-    void cleanTables() {
-        jdbcTemplate.execute("TRUNCATE TABLE mt_tag_assignment, mt_tag_definition RESTART IDENTITY CASCADE");
+    void cleanAuditLog() {
         jdbcTemplate.execute("TRUNCATE TABLE mt_audit_log RESTART IDENTITY CASCADE");
     }
 
     @Test
-    @DisplayName("tag lifecycle persists assignments and audit records")
-    void shouldCreateAssignAndAuditTag() throws Exception {
+    @DisplayName("audit controller returns filtered audit records")
+    void shouldFilterAuditLogs() throws Exception {
+        auditService.record(new AuditLog(0L, OffsetDateTime.now(ZoneOffset.UTC),
+                "admin", "管理员", "Tag", "55", "CREATE_TAG",
+                "Created tag", null, "{\"name\":\"优先级\"}", "req-1", "127.0.0.1", "JUnit"));
+        auditService.record(new AuditLog(0L, OffsetDateTime.now(ZoneOffset.UTC),
+                "operator", "Operator", "CustomField", "101", "UPSERT_CUSTOM_FIELD_VALUE",
+                "Updated field", null, "{\"field\":\"value\"}", "req-2", "127.0.0.1", "JUnit"));
+
         String token = authenticate();
-
-        String requestBody = objectMapper.writeValueAsString(Map.of(
-                "name", Map.of(
-                        "defaultLocale", "ja-JP",
-                        "translations", Map.of(
-                                "ja-JP", "緊急対応",
-                                "zh-CN", "紧急处理")),
-                "color", "#F5222D",
-                "icon", "AlertOutlined",
-                "scope", "CUSTOMER",
-                "applyRule", null,
-                "enabled", true));
-
-        MvcResult createResult = mockMvc.perform(post("/api/v1/tags")
-                        .header("Authorization", "Bearer " + token)
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(requestBody))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.name.translations.ja-jp").value("緊急対応"))
-                .andReturn();
-
-        JsonNode created = objectMapper.readTree(createResult.getResponse().getContentAsString(StandardCharsets.UTF_8));
-        long tagId = created.path("data").path("id").asLong();
-        assertThat(tagId).isPositive();
-
-        String assignmentBody = objectMapper.writeValueAsString(Map.of(
-                "entityType", "CUSTOMER",
-                "entityId", "101"));
-
-        mockMvc.perform(post("/api/v1/tags/" + tagId + "/assignments")
-                        .header("Authorization", "Bearer " + token)
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(assignmentBody))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.entityId").value("101"));
-
-        mockMvc.perform(get("/api/v1/tags/" + tagId + "/assignments")
-                        .header("Authorization", "Bearer " + token))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data[0].entityId").value("101"));
-
-        mockMvc.perform(delete("/api/v1/tags/" + tagId + "/assignments/CUSTOMER/101")
-                        .header("Authorization", "Bearer " + token))
-                .andExpect(status().isOk());
 
         mockMvc.perform(get("/api/v1/audit-logs")
                         .header("Authorization", "Bearer " + token)
                         .param("entityType", "Tag"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data[0].action").value("CREATE_TAG"));
+                .andExpect(jsonPath("$.data[0].action").value("CREATE_TAG"))
+                .andExpect(jsonPath("$.data.length()").value(1));
     }
 
     @Test
-    void shouldReturnTagNotFoundError() throws Exception {
+    @DisplayName("audit controller supports filtering by user and action")
+    void shouldFilterByUserAndAction() throws Exception {
+        auditService.record(new AuditLog(0L, OffsetDateTime.now(ZoneOffset.UTC),
+                "admin", "管理员", "Customer", "cust-001", "UPDATE_CUSTOMER",
+                "Updated customer", "{\"name\":\"old\"}", "{\"name\":\"new\"}", "req-10", "192.168.0.10", "JUnit"));
+        auditService.record(new AuditLog(0L, OffsetDateTime.now(ZoneOffset.UTC),
+                "operator", "操作员", "Customer", "cust-002", "UPDATE_CUSTOMER",
+                "Updated customer", null, null, "req-11", "192.168.0.11", "JUnit"));
+
         String token = authenticate();
 
-        mockMvc.perform(get("/api/v1/tags/{id}", 9_999)
-                        .header("Authorization", "Bearer " + token))
-                .andExpect(status().isNotFound())
-                .andExpect(jsonPath("$.code").value(ErrorCode.TAG_NOT_FOUND.getCode()))
-                .andExpect(jsonPath("$.message").value(ErrorCode.TAG_NOT_FOUND.getDefaultMessage()));
+        mockMvc.perform(get("/api/v1/audit-logs")
+                        .header("Authorization", "Bearer " + token)
+                        .param("entityType", "Customer")
+                        .param("action", "UPDATE_CUSTOMER")
+                        .param("userId", "admin"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.length()").value(1))
+                .andExpect(jsonPath("$.data[0].entityId").value("cust-001"));
     }
 
     private String authenticate() throws Exception {
@@ -164,3 +143,4 @@ class TagControllerTest {
         return token;
     }
 }
+
