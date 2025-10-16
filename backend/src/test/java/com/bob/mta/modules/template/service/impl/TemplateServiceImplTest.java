@@ -1,5 +1,6 @@
 package com.bob.mta.modules.template.service.impl;
 
+import com.bob.mta.common.exception.BusinessException;
 import com.bob.mta.common.i18n.MultilingualText;
 import com.bob.mta.modules.template.domain.TemplateType;
 import com.bob.mta.modules.template.repository.InMemoryTemplateRepository;
@@ -10,6 +11,7 @@ import java.util.Locale;
 import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class TemplateServiceImplTest {
 
@@ -28,6 +30,35 @@ class TemplateServiceImplTest {
     void shouldListByType() {
         service.create(TemplateType.IM, text("IM"), text(""), text("{{message}}"), List.of("ops"), null, null, true, null);
         assertThat(service.list(TemplateType.IM, Locale.JAPAN)).isNotEmpty();
+    }
+
+    @Test
+    void renderShouldFallbackToDefaultLocaleWhenTranslationMissing() {
+        var template = service.create(TemplateType.EMAIL,
+                text("en-US", Map.of("en-US", "Notice", "zh-CN", "通知")),
+                text("en-US", Map.of("en-US", "Hello {{name}}", "zh-CN", "你好 {{name}}")),
+                text("en-US", Map.of("en-US", "Content {{name}}", "zh-CN", "内容 {{name}}")),
+                List.of("{{name}}@example.com"), null, null, true, null);
+
+        var rendered = service.render(template.getId(), Map.of("name", "Bob"), Locale.FRANCE);
+
+        assertThat(rendered.getSubject()).isEqualTo("Hello Bob");
+        assertThat(rendered.getContent()).isEqualTo("Content Bob");
+        assertThat(rendered.getTo()).containsExactly("Bob@example.com");
+    }
+
+    @Test
+    void deleteShouldEvictCache() {
+        var template = service.create(TemplateType.EMAIL, text("Cache"), text("Hello"), text("Body"),
+                List.of("ops@example.com"), null, null, true, null);
+
+        // warm up the cache
+        service.get(template.getId(), Locale.JAPAN);
+
+        service.delete(template.getId());
+
+        assertThatThrownBy(() -> service.get(template.getId(), Locale.JAPAN))
+                .isInstanceOf(BusinessException.class);
     }
 
     @Test
@@ -63,9 +94,13 @@ class TemplateServiceImplTest {
     }
 
     private MultilingualText text(String value) {
-        return MultilingualText.of("ja-JP", Map.of(
+        return text("ja-JP", Map.of(
                 "ja-JP", value,
                 "zh-CN", value
         ));
+    }
+
+    private MultilingualText text(String defaultLocale, Map<String, String> translations) {
+        return MultilingualText.of(defaultLocale, translations);
     }
 }
