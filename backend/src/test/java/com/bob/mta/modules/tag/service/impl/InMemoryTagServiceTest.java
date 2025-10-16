@@ -46,6 +46,15 @@ class InMemoryTagServiceTest {
                 .isEqualTo(ErrorCode.VALIDATION_ERROR);
     }
 
+    @Test
+    void shouldFailWhenTagMissing() {
+        assertThatThrownBy(() -> tagService.getById(9_999, Locale.JAPAN))
+                .isInstanceOf(BusinessException.class)
+                .hasMessage(ErrorCode.TAG_NOT_FOUND.getDefaultMessage())
+                .extracting(ex -> ((BusinessException) ex).getErrorCode())
+                .isEqualTo(ErrorCode.TAG_NOT_FOUND);
+    }
+
     private MultilingualText text(String value) {
         return MultilingualText.of("ja-JP", Map.of(
                 "ja-JP", value,

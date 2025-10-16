@@ -121,6 +121,7 @@ class TemplateControllerTest {
     void shouldReturnTemplateNotFoundError() {
         assertThatThrownBy(() -> controller.get(9_999, "ja-JP"))
                 .isInstanceOf(BusinessException.class)
+                .hasMessage(ErrorCode.TEMPLATE_NOT_FOUND.getDefaultMessage())
                 .extracting(ex -> ((BusinessException) ex).getErrorCode())
                 .isEqualTo(ErrorCode.TEMPLATE_NOT_FOUND);
     }
