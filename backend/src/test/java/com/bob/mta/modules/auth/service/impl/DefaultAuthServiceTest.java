@@ -12,6 +12,9 @@ import com.bob.mta.modules.user.service.impl.UserServiceImpl;
 import com.bob.mta.modules.user.support.FakeUserRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.springframework.security.authentication.AuthenticationManager;
+import org.springframework.security.authentication.ProviderManager;
+import org.springframework.security.authentication.dao.DaoAuthenticationProvider;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -32,17 +35,22 @@ class DefaultAuthServiceTest {
     private PasswordEncoder passwordEncoder;
     private UserServiceImpl userService;
     private JwtTokenProvider tokenProvider;
+    private AuthenticationManager authenticationManager;
 
     @BeforeEach
     void setUp() {
         repository = new FakeUserRepository();
         passwordEncoder = new BCryptPasswordEncoder();
         userService = new UserServiceImpl(repository, passwordEncoder, ClockFixed.fixed(), Duration.ofHours(24));
+        DaoAuthenticationProvider provider = new DaoAuthenticationProvider();
+        provider.setUserDetailsService(userService);
+        provider.setPasswordEncoder(passwordEncoder);
+        authenticationManager = new ProviderManager(provider);
         seedUser("admin", "系统管理员", "admin@example.com", "admin123", List.of("ROLE_ADMIN"));
         JwtProperties properties = new JwtProperties();
         properties.getAccessToken().setSecret("a-very-long-secret-key-for-tests-1234567890");
         tokenProvider = new JwtTokenProvider(properties);
-        authService = new DefaultAuthService(tokenProvider, userService, repository);
+        authService = new DefaultAuthService(tokenProvider, userService, repository, authenticationManager);
     }
 
     @Test
@@ -71,6 +79,14 @@ class DefaultAuthServiceTest {
                 .isInstanceOf(BusinessException.class)
                 .extracting(ex -> ((BusinessException) ex).getErrorCode())
                 .isEqualTo(ErrorCode.USER_INACTIVE);
+    }
+
+    @Test
+    void loginShouldFailWithInvalidCredentials() {
+        assertThatThrownBy(() -> authService.login("admin", "wrong"))
+                .isInstanceOf(BusinessException.class)
+                .extracting(ex -> ((BusinessException) ex).getErrorCode())
+                .isEqualTo(ErrorCode.UNAUTHORIZED);
     }
 
     @Test

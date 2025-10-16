@@ -10,18 +10,14 @@ import com.bob.mta.modules.user.domain.User;
 import com.bob.mta.modules.user.domain.UserStatus;
 import com.bob.mta.modules.user.repository.UserRepository;
 import com.bob.mta.modules.user.service.UserService;
-import com.bob.mta.modules.user.service.model.UserAuthentication;
-import org.springframework.security.core.GrantedAuthority;
-import org.springframework.security.core.authority.SimpleGrantedAuthority;
-import org.springframework.security.core.userdetails.UserDetails;
-import org.springframework.security.core.userdetails.UsernameNotFoundException;
+import java.util.List;
 import org.springframework.stereotype.Service;
 
-import java.util.Collection;
-import java.util.List;
-import java.util.Locale;
 import java.util.Objects;
-import java.util.stream.Collectors;
+import org.springframework.security.authentication.AuthenticationManager;
+import org.springframework.security.authentication.BadCredentialsException;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.userdetails.UserDetails;
 
 @Service
 public class DefaultAuthService implements AuthService {
@@ -29,22 +25,35 @@ public class DefaultAuthService implements AuthService {
     private final JwtTokenProvider tokenProvider;
     private final UserService userService;
     private final UserRepository userRepository;
+    private final AuthenticationManager authenticationManager;
 
     public DefaultAuthService(JwtTokenProvider tokenProvider,
                               UserService userService,
-                              UserRepository userRepository) {
+                              UserRepository userRepository,
+                              AuthenticationManager authenticationManager) {
         this.tokenProvider = Objects.requireNonNull(tokenProvider, "tokenProvider");
         this.userService = Objects.requireNonNull(userService, "userService");
         this.userRepository = Objects.requireNonNull(userRepository, "userRepository");
+        this.authenticationManager = Objects.requireNonNull(authenticationManager, "authenticationManager");
     }
 
     @Override
     public LoginResponse login(String username, String password) {
-        UserAuthentication user = userService.authenticate(username, password);
+        Objects.requireNonNull(username, "username");
+        Objects.requireNonNull(password, "password");
+
+        User user = userRepository.findByUsername(username)
+                .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
+        if (user.getStatus() != UserStatus.ACTIVE) {
+            throw new BusinessException(ErrorCode.USER_INACTIVE);
+        }
+
+        authenticateWithManager(username, password);
+
         JwtTokenProvider.GeneratedToken generatedToken =
-                tokenProvider.generateToken(user.id(), user.username(), user.roles());
+                tokenProvider.generateToken(user.getId(), user.getUsername(), List.copyOf(user.getRoles()));
         return new LoginResponse(generatedToken.token(), generatedToken.expiresAt(),
-                user.displayName(), user.roles());
+                user.getDisplayName(), List.copyOf(user.getRoles()));
     }
 
     @Override
@@ -57,19 +66,14 @@ public class DefaultAuthService implements AuthService {
 
     @Override
     public UserDetails loadUserByUsername(String username) {
-        User user = userRepository.findByUsername(username)
-                .orElseThrow(() -> new UsernameNotFoundException(username));
-        Collection<? extends GrantedAuthority> authorities = user.getRoles().stream()
-                .map(role -> new SimpleGrantedAuthority(role.toUpperCase(Locale.ROOT)))
-                .collect(Collectors.toList());
-        boolean enabled = user.getStatus() == UserStatus.ACTIVE;
-        return org.springframework.security.core.userdetails.User.withUsername(user.getUsername())
-                .password(user.getPassword())
-                .authorities(authorities)
-                .accountExpired(false)
-                .accountLocked(false)
-                .credentialsExpired(false)
-                .disabled(!enabled)
-                .build();
+        return userService.loadUserByUsername(username);
+    }
+
+    private void authenticateWithManager(String username, String password) {
+        try {
+            authenticationManager.authenticate(UsernamePasswordAuthenticationToken.unauthenticated(username, password));
+        } catch (BadCredentialsException ex) {
+            throw new BusinessException(ErrorCode.UNAUTHORIZED, "auth.invalid_credentials", ex);
+        }
     }
 }

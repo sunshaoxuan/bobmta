@@ -13,6 +13,9 @@ import com.bob.mta.modules.user.service.impl.UserServiceImpl;
 import com.bob.mta.modules.user.support.FakeUserRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.springframework.security.authentication.AuthenticationManager;
+import org.springframework.security.authentication.ProviderManager;
+import org.springframework.security.authentication.dao.DaoAuthenticationProvider;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -33,18 +36,23 @@ class AuthControllerTest {
     private PasswordEncoder passwordEncoder;
     private JwtProperties properties;
     private JwtTokenProvider tokenProvider;
+    private AuthenticationManager authenticationManager;
 
     @BeforeEach
     void setUp() {
         repository = new FakeUserRepository();
         passwordEncoder = new BCryptPasswordEncoder();
         UserServiceImpl userService = new UserServiceImpl(repository, passwordEncoder, ClockFixed.fixed(), Duration.ofHours(24));
+        DaoAuthenticationProvider provider = new DaoAuthenticationProvider();
+        provider.setUserDetailsService(userService);
+        provider.setPasswordEncoder(passwordEncoder);
+        authenticationManager = new ProviderManager(provider);
         seedUser("admin", "系统管理员", "admin@example.com", "admin123", List.of("ROLE_ADMIN"));
         seedUser("operator", "运维专员", "operator@example.com", "operator123", List.of("ROLE_OPERATOR"));
         properties = new JwtProperties();
         properties.getAccessToken().setSecret("a-very-long-secret-key-for-tests-1234567890");
         tokenProvider = new JwtTokenProvider(properties);
-        authService = new DefaultAuthService(tokenProvider, userService, repository);
+        authService = new DefaultAuthService(tokenProvider, userService, repository, authenticationManager);
         controller = new AuthController(authService);
     }
 
